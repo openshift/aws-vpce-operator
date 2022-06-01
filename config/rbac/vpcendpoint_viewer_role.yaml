@@ -1,0 +1,20 @@
+# permissions for end users to view vpcendpoints.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vpcendpoint-viewer-role
+rules:
+- apiGroups:
+  - pso.example.com
+  resources:
+  - vpcendpoints
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - pso.example.com
+  resources:
+  - vpcendpoints/status
+  verbs:
+  - get

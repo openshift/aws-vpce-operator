@@ -1,0 +1,6 @@
+apiVersion: pso.example.com/v1alpha1
+kind: VpcEndpoint
+metadata:
+  name: vpcendpoint-sample
+spec:
+  # TODO(user): Add fields here

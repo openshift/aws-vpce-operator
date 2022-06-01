@@ -1,0 +1,45 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  creationTimestamp: null
+  name: manager-role
+rules:
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - dnses
+  verbs:
+  - get
+- apiGroups:
+  - config.openshift.io
+  resources:
+  - infrastructures
+  verbs:
+  - get
+- apiGroups:
+  - pso.example.com
+  resources:
+  - vpcendpoints
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - pso.example.com
+  resources:
+  - vpcendpoints/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - pso.example.com
+  resources:
+  - vpcendpoints/status
+  verbs:
+  - get
+  - patch
+  - update
