@@ -30,11 +30,11 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/go-logr/logr"
-	psov1alpha1 "github.com/mjlshen/pso/api/v1alpha1"
-	"github.com/mjlshen/pso/pkg/aws_client"
-	"github.com/mjlshen/pso/pkg/dnses"
-	"github.com/mjlshen/pso/pkg/infrastructures"
-	"github.com/mjlshen/pso/pkg/util"
+	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
+	"github.com/openshift/aws-vpce-operator/pkg/dnses"
+	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 const psoFinalizer = "vpcendpoint.pso.example.com/finalizer"

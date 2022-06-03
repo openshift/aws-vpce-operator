@@ -5,7 +5,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: pso
-repo: github.com/mjlshen/pso
+repo: github.com/openshift/aws-vpce-operator
 resources:
 - api:
     crdVersion: v1
@@ -14,6 +14,6 @@ resources:
   domain: example.com
   group: pso
   kind: VpcEndpoint
-  path: github.com/mjlshen/pso/api/v1alpha1
+  path: github.com/openshift/aws-vpce-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

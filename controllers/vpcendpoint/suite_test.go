@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	psov1alpha1 "github.com/mjlshen/pso/api/v1alpha1"
+	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

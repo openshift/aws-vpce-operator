@@ -22,7 +22,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/mjlshen/pso/pkg/util"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(infraName string) (*ec2.DescribeSecurityGroupsOutput, error) {

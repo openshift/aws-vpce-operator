@@ -31,9 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	psov1alpha1 "github.com/mjlshen/pso/api/v1alpha1"
-	"github.com/mjlshen/pso/controllers/vpcendpoint"
 	configv1 "github.com/openshift/api/config/v1"
+	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
 	//+kubebuilder:scaffold:imports
 )
 

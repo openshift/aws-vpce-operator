@@ -16,7 +16,7 @@ limitations under the License.
 
 package vpcendpoint
 
-import "github.com/mjlshen/pso/api/v1alpha1"
+import "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 
 // deleteAWSResources cleans up AWS resources associated with a VPC Endpoint.
 func (r *VpcEndpointReconciler) deleteAWSResources(resource *v1alpha1.VpcEndpoint) error {

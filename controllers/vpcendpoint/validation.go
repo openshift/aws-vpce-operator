@@ -22,9 +22,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	psov1alpha1 "github.com/mjlshen/pso/api/v1alpha1"
-	"github.com/mjlshen/pso/pkg/aws_client"
-	"github.com/mjlshen/pso/pkg/util"
+	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 // TagsContains returns true if the all the tags in tagsToCheck exist in tags

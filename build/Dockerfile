@@ -1,5 +1,4 @@
-# Build the manager binary
-FROM golang:1.17 as builder
+FROM quay.io/app-sre/boilerplate:image-v2.3.2 AS builder
 
 WORKDIR /workspace
 # Copy the Go Modules manifests

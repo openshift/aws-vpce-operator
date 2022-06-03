@@ -20,7 +20,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/mjlshen/pso/pkg/util"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 // DescribeSingleVPCEndpointById returns information about a VPC endpoint with a given id.
