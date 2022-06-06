@@ -18,7 +18,7 @@
     ```bash
     # Admin-level, for when you don't want to deal with a least-privilege IAM policy
     AWS_ACCOUNT_ID=
-    export $(osdctl account cli -i ${AWS_ACCOUNT_ID} -p osd-staging-2 -o env | xargs) 
+    export $(osdctl account cli -i ${AWS_ACCOUNT_ID} -p osd-staging-2 -o env | xargs)
     ```
 
     ```bash

@@ -25,5 +25,6 @@ testbin/*
 *~
 
 # Terraform
+terraform.*
 *.terraform
 *.terraform.*
