@@ -23,3 +23,7 @@ testbin/*
 *.swp
 *.swo
 *~
+
+# Terraform
+*.terraform
+*.terraform.*

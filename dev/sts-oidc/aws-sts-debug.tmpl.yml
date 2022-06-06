@@ -1,0 +1,48 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: "awscli-sts-debug"
+parameters:
+  - name: AWS_ACCOUNT_ID
+    description: "AWS Account ID where the iam-test-aws role exists in"
+objects:
+  - apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: "awscli-sts-debug"
+  - apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: "rosa-to-iam"
+      namespace: "awscli-sts-debug"
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: "awscli-sts-debug"
+      namespace: "awscli-sts-debug"
+    spec:
+      serviceAccountName: "rosa-to-iam"
+      containers:
+        - name: awscli
+          image: "amazon/aws-cli:latest"
+          command:
+            - "/bin/sh"
+            - "-c"
+            - "while true; do sleep 10; done"
+          env:
+            - name: "AWS_ROLE_ARN"
+              value: "arn:aws:iam::${AWS_ACCOUNT_ID}:role/iam-test-aws"
+            - name: "AWS_WEB_IDENTITY_TOKEN_FILE"
+              value: "/var/run/secrets/kubernetes.io/serviceaccount/token"
+          volumeMounts:
+            - mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              name: aws-iam-token
+              readOnly: true
+      volumes:
+        - name: aws-iam-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: "sts.amazonaws.com"
+                  expirationSeconds: 3600
+                  path: token
