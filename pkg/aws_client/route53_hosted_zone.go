@@ -17,6 +17,8 @@ limitations under the License.
 package aws_client
 
 import (
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
 )
@@ -25,12 +27,18 @@ func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.H
 	input := &route53.ListHostedZonesByNameInput{
 		DNSName: aws.String(domainName),
 	}
+
+	// TODO: Unlikely, but would be nice to handle pagination
 	resp, err := c.Route53Client.ListHostedZonesByName(input)
 	if err != nil {
 		return nil, err
 	}
 
-	return resp.HostedZones[0], err
+	if len(resp.HostedZones) == 0 {
+		return nil, fmt.Errorf("no hosted zone found for domain %s", domainName)
+	}
+
+	return resp.HostedZones[0], nil
 }
 
 func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListResourceRecordSetsOutput, error) {
@@ -45,4 +53,42 @@ func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListRe
 	}
 
 	return resp, err
+}
+
+// UpsertResourceRecordSet updates or creates a resource record set
+func (c *AWSClient) UpsertResourceRecordSet(rrs *route53.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
+	input := &route53.ChangeResourceRecordSetsInput{
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: []*route53.Change{
+				{
+					// Upsert behavior: If a resource record set doesn't already exist, Route 53 creates it.
+					// If a resource record set does exist, Route 53 updates it with the values in the request.
+					Action:            aws.String("UPSERT"),
+					ResourceRecordSet: rrs,
+				},
+			},
+		},
+		HostedZoneId: aws.String(hostedZoneId),
+	}
+
+	return c.Route53Client.ChangeResourceRecordSets(input)
+}
+
+// DeleteResourceRecordSet deletes a specific record from a hosted zone
+// NOTE: To delete a resource record set, you must specify all the same values that you specified when you created it.
+func (c *AWSClient) DeleteResourceRecordSet(rrs *route53.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
+	input := &route53.ChangeResourceRecordSetsInput{
+		ChangeBatch: &route53.ChangeBatch{
+			Changes: []*route53.Change{
+				{
+					Action:            aws.String("DELETE"),
+					ResourceRecordSet: rrs,
+				},
+			},
+			Comment: aws.String(fmt.Sprintf("Deleting %s", *rrs.Name)),
+		},
+		HostedZoneId: aws.String(hostedZoneId),
+	}
+
+	return c.Route53Client.ChangeResourceRecordSets(input)
 }

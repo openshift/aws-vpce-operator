@@ -56,6 +56,10 @@ type VpcEndpointSpec struct {
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
 	SecurityGroup SecurityGroup `json:"securityGroup"`
+
+	// SubdomainName is the name of the Route53 Hosted Zone CNAME rule to create in the cluster's
+	// Private Route53 Hosted Zone
+	SubdomainName string `json:"subdomainName"`
 }
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -70,6 +74,9 @@ type VpcEndpointStatus struct {
 	// The AWS ID of the managed VPC Endpoint
 	// +optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`
+
+	// Whether the Route53 CNAME record has been created
+	CNAMERecordCreated bool `json:"hostedZoneRecordCreated,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -17,6 +17,7 @@ limitations under the License.
 package aws_client
 
 import (
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -45,6 +46,10 @@ func (c *AWSClient) DescribeSingleVPCEndpointById(id string) (*ec2.DescribeVpcEn
 			}
 		}
 		return nil, err
+	}
+
+	if len(resp.VpcEndpoints) != 1 {
+		return nil, fmt.Errorf("expected 1 VPC endpoint, got %d", len(resp.VpcEndpoints))
 	}
 
 	return resp, err

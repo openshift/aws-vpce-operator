@@ -96,13 +96,21 @@ spec:
                   connect to
                 minLength: 0
                 type: string
+              subdomainName:
+                description: SubdomainName is the name of the Route53 Hosted Zone
+                  CNAME rule to create in the cluster's Private Route53 Hosted Zone
+                type: string
             required:
             - securityGroup
             - serviceName
+            - subdomainName
             type: object
           status:
             description: VpcEndpointStatus defines the observed state of VpcEndpoint
             properties:
+              hostedZoneRecordCreated:
+                description: Whether the Route53 CNAME record has been created
+                type: boolean
               securityGroupId:
                 description: The AWS ID of the managed security group
                 type: string

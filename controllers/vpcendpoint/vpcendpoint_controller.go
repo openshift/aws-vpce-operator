@@ -127,12 +127,12 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(pso, psoFinalizer) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteAWSResources(pso); err != nil {
+			if err := r.deleteAWSResources(ctx, pso); err != nil {
 				if awsErr, ok := err.(awserr.Error); ok {
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
 					if awsErr.Code() == "DependencyViolation" {
-						r.Log.V(0).Error(awsErr, "AWS Dependency violation - requeuing")
+						r.Log.V(0).Info("AWS dependency violation, requeueing", "error", awsErr.Message())
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 				}
@@ -151,17 +151,14 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	// Ensure the security group is in the right state
-	if _, err := r.validateSecurityGroup(ctx, r.AWSClient, pso); err != nil {
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
+	if err := r.validateAWSResources(ctx, pso,
+		[]ValidateAWSResourceFunc{
+			r.validateSecurityGroup,
+			r.validateVPCEndpoint,
+			r.validateR53HostedZoneRecord,
+		}); err != nil {
+		return ctrl.Result{}, err
 	}
-
-	// Ensure the VPC Endpoint is in the right state
-	if _, err := r.validateVPCEndpoint(ctx, r.AWSClient, pso); err != nil {
-		return ctrl.Result{RequeueAfter: time.Second * 5}, err
-	}
-
-	// TODO: Ensure the Route53 Hosted Zone record is in the right state
 
 	// TODO: Ensure the ExternalName service is in the right state
 
