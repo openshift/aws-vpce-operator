@@ -23,14 +23,14 @@ import (
 )
 
 const (
-	OperatorTagKey           = "kubernetes.io/private-service-operator"
+	OperatorTagKey           = "kubernetes.io/aws-vpce-operator"
 	OperatorTagValue         = "managed"
-	SecurityGroupDescription = "Managed by Private Service Operator"
+	SecurityGroupDescription = "Managed by AWS VPCE Operator"
 )
 
 func GenerateAwsTags(name, clusterTagKey string) ([]*ec2.Tag, error) {
-	if name == "" {
-		return nil, fmt.Errorf("name must be specified")
+	if name == "" || clusterTagKey == "" {
+		return nil, fmt.Errorf("name and clusterTagKey must not be empty")
 	}
 
 	return []*ec2.Tag{
@@ -83,7 +83,7 @@ func generateName(prefix string, suffix string, maxLength int) (string, error) {
 
 	// Maximum length of a name is 255 characters
 	if len(prefix) > (maxLength - len(suffix)) {
-		prefix = prefix[:(maxLength - len(suffix))]
+		prefix = prefix[:(maxLength - len(suffix) - 1)]
 	}
 
 	return fmt.Sprintf("%s-%s", prefix, suffix), nil

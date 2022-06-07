@@ -45,7 +45,7 @@ func GetAWSRegion(ctx context.Context, c client.Client) (string, error) {
 func GetInfrastructureName(ctx context.Context, c client.Client) (string, error) {
 	infrastructures := new(configv1.Infrastructure)
 
-	if err := c.Get(ctx, client.ObjectKey{Name: "cluster"}, infrastructures); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Name: defaultInfrastructuresName}, infrastructures); err != nil {
 		return "", err
 	}
 
