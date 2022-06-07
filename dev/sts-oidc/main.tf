@@ -23,9 +23,10 @@ variable "rosa_internal_id" {
 }
 
 locals {
-  oidc_provider        = "rh-oidc-staging.s3.us-east-1.amazonaws.com/${var.rosa_internal_id}"
-  namespace            = "awscli-sts-debug"
-  service_account_name = "rosa-to-iam"
+  osd_staging_2_account_id = "811685182089"
+  oidc_provider            = "rh-oidc-staging.s3.us-east-1.amazonaws.com/${var.rosa_internal_id}"
+  namespace                = "awscli-sts-debug"
+  service_account_name     = "rosa-to-iam"
 }
 
 resource "aws_iam_role" "iam_test" {
@@ -35,6 +36,16 @@ resource "aws_iam_role" "iam_test" {
 
 data "aws_iam_policy_document" "trust_policy" {
   version = "2012-10-17"
+
+  statement {
+    sid     = "LocalDev"
+    effect  = "Allow"
+    actions = ["sts:AssumeRole"]
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${local.osd_staging_2_account_id}:root"]
+    }
+  }
 
   statement {
     sid     = "OpenshiftStsOidcTrustPolicy"
@@ -82,7 +93,7 @@ data "aws_iam_policy_document" "iam_test" {
   }
 
   statement {
-    sid    = "ManageSG"
+    sid    = "ManageVPCE"
     effect = "Allow"
     actions = [
       # Extract vpc-id by searching for subnets by tag-key
@@ -99,7 +110,11 @@ data "aws_iam_policy_document" "iam_test" {
       "ec2:CreateVpcEndpoint",
       "ec2:DeleteVpcEndpoints",
       "ec2:DescribeVpcEndpoints",
-      "ec2:ModifyVpcEndpoint"
+      "ec2:ModifyVpcEndpoint",
+      # Create and manage a Route53 Record
+      "route53:ChangeResourceRecordSets",
+      "route53:ListHostedZonesByName",
+      "route53:ListResourceRecordSets"
     ]
     resources = ["*"]
   }
