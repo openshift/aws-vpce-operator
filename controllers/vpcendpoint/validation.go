@@ -113,7 +113,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	}
 
 	// Fix tags if any are missing
-	if TagsContains(sg.Tags, defaultTags) == false {
+	if !TagsContains(sg.Tags, defaultTags) {
 		r.Log.V(1).Info("Adding missing security group tags")
 		_, err := r.AWSClient.EC2Client.CreateTags(&ec2.CreateTagsInput{
 			Resources: []*string{sg.GroupId},
