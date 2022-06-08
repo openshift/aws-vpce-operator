@@ -24,7 +24,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-logr/logr"
@@ -69,7 +68,13 @@ type ClusterInfo struct {
 //+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.Log = log.FromContext(ctx)
+	reqLogger, err := defaultLogger()
+	if err != nil {
+		// Shouldn't happen, but if it does, we can't log
+		return ctrl.Result{}, err
+	}
+
+	r.Log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	if err := r.parseClusterInfo(ctx); err != nil {
 		return ctrl.Result{}, err
