@@ -18,6 +18,7 @@ package dnses
 
 import (
 	"context"
+
 	configv1 "github.com/openshift/api/config/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
