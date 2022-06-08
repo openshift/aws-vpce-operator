@@ -9,7 +9,7 @@
 1. Applying manifests to the running ROSA cluster
 
     ```bash
-    make
+    ./boilerplate/_lib/container-make generate
     make install
     ```
 

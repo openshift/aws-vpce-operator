@@ -78,19 +78,19 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	// If there's no security group returned by ID, look for one by tag
 	if resp == nil || len(resp.SecurityGroups) == 0 {
 		r.Log.V(1).Info("Searching for security group by tags")
-		resp, err = r.AWSClient.FilterSecurityGroupByDefaultTags(r.InfraName)
+		resp, err = r.AWSClient.FilterSecurityGroupByDefaultTags(r.ClusterInfo.InfraName)
 		if err != nil {
 			return err
 		}
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-			sgName, err := util.GenerateSecurityGroupName(r.InfraName, resource.Name)
+			sgName, err := util.GenerateSecurityGroupName(r.ClusterInfo.InfraName, resource.Name)
 			if err != nil {
 				return err
 			}
 
-			createResp, err := r.AWSClient.CreateSecurityGroup(sgName, r.VpcId, r.ClusterTag)
+			createResp, err := r.AWSClient.CreateSecurityGroup(sgName, r.ClusterInfo.VpcId, r.ClusterInfo.ClusterTag)
 			if err != nil {
 				return err
 			}
@@ -108,8 +108,8 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	sg := resp.SecurityGroups[0]
 
 	defaultTags := map[string]string{
-		r.ClusterTag:        "",
-		util.OperatorTagKey: util.OperatorTagValue,
+		r.ClusterInfo.ClusterTag: "",
+		util.OperatorTagKey:      util.OperatorTagValue,
 	}
 
 	// Fix tags if any are missing
@@ -119,7 +119,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 			Resources: []*string{sg.GroupId},
 			Tags: []*ec2.Tag{
 				{
-					Key:   aws.String(r.ClusterTag),
+					Key:   aws.String(r.ClusterInfo.ClusterTag),
 					Value: aws.String(""),
 				},
 				{
@@ -147,7 +147,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	sourceSgResp, err := r.AWSClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.InfraName)
+	sourceSgResp, err := r.AWSClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.ClusterInfo.InfraName)
 	if err != nil {
 		return err
 	}
@@ -236,7 +236,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				ResourceType: aws.String("security-group-rule"),
 				Tags: []*ec2.Tag{
 					{
-						Key:   aws.String(r.ClusterTag),
+						Key:   aws.String(r.ClusterInfo.ClusterTag),
 						Value: aws.String(""),
 					},
 					{
@@ -256,7 +256,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				ResourceType: aws.String("security-group-rule"),
 				Tags: []*ec2.Tag{
 					{
-						Key:   aws.String(r.ClusterTag),
+						Key:   aws.String(r.ClusterInfo.ClusterTag),
 						Value: aws.String(""),
 					},
 					{
@@ -295,18 +295,18 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	// If there's no VPC Endpoint returned by ID, look for one by tag
 	if resp == nil || len(resp.VpcEndpoints) == 0 {
 		r.Log.V(1).Info("Searching for VPC Endpoint by tags")
-		resp, err = r.AWSClient.FilterVPCEndpointByDefaultTags(r.ClusterTag)
+		resp, err = r.AWSClient.FilterVPCEndpointByDefaultTags(r.ClusterInfo.ClusterTag)
 		if err != nil {
 			return err
 		}
 
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
-			vpceName, err := util.GenerateVPCEndpointName(r.InfraName, resource.Name)
+			vpceName, err := util.GenerateVPCEndpointName(r.ClusterInfo.InfraName, resource.Name)
 			if err != nil {
 				return err
 			}
-			creationResp, err := r.AWSClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.VpcId, resource.Spec.ServiceName, r.ClusterTag)
+			creationResp, err := r.AWSClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.ClusterInfo.VpcId, resource.Spec.ServiceName, r.ClusterInfo.ClusterTag)
 			if err != nil {
 				return fmt.Errorf("failed to create vpc endpoint: %v", err)
 			}
@@ -347,7 +347,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return fmt.Errorf("vpc endpoint in a bad state: %s", *vpce.State)
 	}
 
-	subnetsResp, err := r.AWSClient.DescribePrivateSubnets(r.ClusterTag)
+	subnetsResp, err := r.AWSClient.DescribePrivateSubnets(r.ClusterInfo.ClusterTag)
 	if err != nil {
 		return err
 	}
@@ -422,8 +422,8 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return fmt.Errorf("resource must be specified")
 	}
 
-	r.Log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.DomainName)
-	hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.DomainName)
+	r.Log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.ClusterInfo.DomainName)
+	hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.ClusterInfo.DomainName)
 	if err != nil {
 		return err
 	}
