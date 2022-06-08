@@ -26,15 +26,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/go-logr/logr"
 	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
-	"github.com/openshift/aws-vpce-operator/pkg/dnses"
-	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
-	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 const psoFinalizer = "vpcendpoint.pso.example.com/finalizer"
@@ -47,11 +42,24 @@ type VpcEndpointReconciler struct {
 	Scheme    *runtime.Scheme
 	AWSClient *aws_client.AWSClient
 
-	DomainName string
-	Region     string
-	InfraName  string
+	ClusterInfo *ClusterInfo
+}
+
+// ClusterInfo contains naming and AWS information unique to the cluster
+type ClusterInfo struct {
+	// ClusterTag is the tag that uniquely identifies AWS resources for this cluster
+	// e.g. "k8s.io/cluster/${infraName}"
 	ClusterTag string
-	VpcId      string
+	// DomainName is the domain name for the cluster's private hosted zone
+	// e.g. "${clusterName}.abcd.s1.devshift.org"
+	DomainName string
+	// InfraName is the name shown in the cluster's infrastructures CR
+	// e.g. "${clusterName}-abcd"
+	InfraName string
+	// Region is the AWS region for the cluster
+	Region string
+	// VpcId is the AWS VPC ID the cluster resides in
+	VpcId string
 }
 
 //+kubebuilder:rbac:groups=pso.example.com,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -63,48 +71,9 @@ type VpcEndpointReconciler struct {
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.Log = log.FromContext(ctx)
 
-	region, err := infrastructures.GetAWSRegion(ctx, r.Client)
-	if err != nil {
+	if err := r.parseClusterInfo(ctx); err != nil {
 		return ctrl.Result{}, err
 	}
-	r.Region = region
-	r.Log.V(1).Info("Parsed region from infrastructure", "region", region)
-
-	sess, err := session.NewSession(&aws.Config{
-		Region: &region,
-	})
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.AWSClient = aws_client.New(sess)
-
-	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.InfraName = infraName
-	r.Log.V(1).Info("Found infrastructure name:", "name", infraName)
-
-	clusterTag, err := util.GetClusterTagKey(infraName)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.ClusterTag = clusterTag
-	r.Log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
-
-	vpcId, err := r.AWSClient.GetVPCId(clusterTag)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.VpcId = vpcId
-	r.Log.V(1).Info("Found vpc id:", "vpcId", vpcId)
-
-	domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-	r.DomainName = domainName
-	r.Log.V(1).Info("Found domain name:", "domainName", domainName)
 
 	pso := new(psov1alpha1.VpcEndpoint)
 	if err := r.Get(ctx, req.NamespacedName, pso); err != nil {

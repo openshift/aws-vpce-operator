@@ -32,7 +32,7 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 			return err
 		}
 
-		hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.DomainName)
+		hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.ClusterInfo.DomainName)
 		if err != nil {
 			return err
 		}
