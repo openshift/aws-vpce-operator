@@ -19,16 +19,37 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+const controllerName = "vpcendpoint"
+
+// defaultLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
+func defaultLogger() (logr.Logger, error) {
+	config := zap.NewProductionConfig()
+	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+
+	zapBase, err := config.Build()
+	if err != nil {
+		return logr.Logger{}, err
+	}
+
+	logger := zapr.NewLogger(zapBase)
+	return logger.WithName(controllerName), nil
+}
 
 // parseClusterInfo fills in the ClusterInfo struct values inside the VpcEndpointReconciler
 func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context) error {
