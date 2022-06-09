@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *mockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
+func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
 	if len(input.GroupIds) > 0 {
 		securityGroups := make([]*ec2.SecurityGroup, len(input.GroupIds))
 		for i, groupId := range input.GroupIds {
@@ -59,7 +59,7 @@ func (m *mockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInpu
 	return &ec2.DescribeSecurityGroupsOutput{}, nil
 }
 
-func (m *mockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
+func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
 	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
 	for i, permission := range input.IpPermissions {
 		rules[i] = &ec2.SecurityGroupRule{
@@ -74,7 +74,7 @@ func (m *mockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGr
 	}, nil
 }
 
-func (m *mockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGroupEgressInput) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
+func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGroupEgressInput) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
 	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
 	for i, permission := range input.IpPermissions {
 		rules[i] = &ec2.SecurityGroupRule{
@@ -89,20 +89,20 @@ func (m *mockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGro
 	}, nil
 }
 
-func (m *mockedEC2) CreateSecurityGroup(input *ec2.CreateSecurityGroupInput) (*ec2.CreateSecurityGroupOutput, error) {
+func (m *MockedEC2) CreateSecurityGroup(input *ec2.CreateSecurityGroupInput) (*ec2.CreateSecurityGroupOutput, error) {
 	if len(input.TagSpecifications) > 0 {
 		return &ec2.CreateSecurityGroupOutput{
-			GroupId: aws.String(mockSecurityGroupId),
+			GroupId: aws.String(MockSecurityGroupId),
 			Tags:    input.TagSpecifications[0].Tags,
 		}, nil
 	}
 
 	return &ec2.CreateSecurityGroupOutput{
-		GroupId: aws.String(mockSecurityGroupId),
+		GroupId: aws.String(MockSecurityGroupId),
 	}, nil
 }
 
-func (m *mockedEC2) DeleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
+func (m *MockedEC2) DeleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
 	return &ec2.DeleteSecurityGroupOutput{}, nil
 }
 
@@ -112,13 +112,13 @@ func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			tagKey:    mockClusterTag,
+			tagKey:    MockClusterTag,
 			expectErr: false,
 		},
 	}
 
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
 	for _, test := range tests {
@@ -137,13 +137,13 @@ func TestAWSClient_FilterSecurityGroupByDefaultTags(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			tagKey:    mockClusterTag,
+			tagKey:    MockClusterTag,
 			expectErr: false,
 		},
 	}
 
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
 	for _, test := range tests {
@@ -162,13 +162,13 @@ func TestAWSClient_FilterSecurityGroupById(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			groupId:   mockSecurityGroupId,
+			groupId:   MockSecurityGroupId,
 			expectErr: false,
 		},
 	}
 
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
 	for _, test := range tests {
@@ -191,7 +191,7 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 	}{
 		{
 			ingress: &ec2.AuthorizeSecurityGroupIngressInput{
-				GroupId: aws.String(mockSecurityGroupId),
+				GroupId: aws.String(MockSecurityGroupId),
 				IpPermissions: []*ec2.IpPermission{
 					{
 						FromPort:   aws.Int64(80),
@@ -201,7 +201,7 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 				},
 			},
 			egress: &ec2.AuthorizeSecurityGroupEgressInput{
-				GroupId: aws.String(mockSecurityGroupId),
+				GroupId: aws.String(MockSecurityGroupId),
 				IpPermissions: []*ec2.IpPermission{
 					{
 						FromPort:   aws.Int64(80),
@@ -216,7 +216,7 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 	}
 
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
 	for _, test := range tests {
@@ -232,10 +232,10 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 
 func TestAWSClient_CreateDeleteSecurityGroup(t *testing.T) {
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
-	resp, err := client.CreateSecurityGroup("name", mockVpcId, mockClusterTag)
+	resp, err := client.CreateSecurityGroup("name", MockVpcId, MockClusterTag)
 	assert.NoError(t, err)
 
 	_, err = client.DeleteSecurityGroup(*resp.GroupId)

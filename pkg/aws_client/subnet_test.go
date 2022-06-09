@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *mockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
 	tagKeys := map[string]bool{}
 	for _, filter := range input.Filters {
 		for _, tagKey := range filter.Values {
@@ -60,16 +60,16 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 		expectErr         bool
 	}{
 		{
-			clusterTag:        mockClusterTag,
-			expectedPrivateId: mockPrivateSubnetId,
-			expectedPublicId:  mockPublicSubnetId,
-			expectedVpcId:     mockVpcId,
+			clusterTag:        MockClusterTag,
+			expectedPrivateId: MockPrivateSubnetId,
+			expectedPublicId:  MockPublicSubnetId,
+			expectedVpcId:     MockVpcId,
 			expectErr:         false,
 		},
 	}
 
 	client := &AWSClient{
-		EC2Client: newMockedEC2(),
+		EC2Client: newMockedEC2WithSubnets(),
 	}
 
 	for _, test := range tests {

@@ -24,26 +24,26 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *mockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
+func (m *MockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
 	return &route53.ListHostedZonesByNameOutput{
 		DNSName:      input.DNSName,
-		HostedZoneId: aws.String(mockHostedZoneId),
+		HostedZoneId: aws.String(MockHostedZoneId),
 		HostedZones: []*route53.HostedZone{
 			{
-				Id:   aws.String(mockHostedZoneId),
+				Id:   aws.String(MockHostedZoneId),
 				Name: input.DNSName,
 			},
 		},
 	}, nil
 }
 
-func (m *mockedRoute53) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
+func (m *MockedRoute53) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
 	return &route53.ListResourceRecordSetsOutput{
 		ResourceRecordSets: []*route53.ResourceRecordSet{mockResourceRecordSet},
 	}, nil
 }
 
-func (m *mockedRoute53) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+func (m *MockedRoute53) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
 	return &route53.ChangeResourceRecordSetsOutput{}, nil
 }
 
@@ -53,13 +53,13 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 		expectErr  bool
 	}{
 		{
-			domainName: mockDomainName,
+			domainName: MockDomainName,
 			expectErr:  false,
 		},
 	}
 
 	client := &AWSClient{
-		Route53Client: &mockedRoute53{},
+		Route53Client: &MockedRoute53{},
 	}
 
 	for _, test := range tests {
@@ -74,21 +74,21 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 
 func TestAWSClient_ListResourceRecordSets(t *testing.T) {
 	client := &AWSClient{
-		Route53Client: &mockedRoute53{},
+		Route53Client: &MockedRoute53{},
 	}
 
-	_, err := client.ListResourceRecordSets(mockHostedZoneId)
+	_, err := client.ListResourceRecordSets(MockHostedZoneId)
 	assert.NoError(t, err)
 }
 
 func TestAWSClient_UpsertDeleteResourceRecordSet(t *testing.T) {
 	client := &AWSClient{
-		Route53Client: &mockedRoute53{},
+		Route53Client: &MockedRoute53{},
 	}
 
-	_, err := client.UpsertResourceRecordSet(mockResourceRecordSet, mockHostedZoneId)
+	_, err := client.UpsertResourceRecordSet(mockResourceRecordSet, MockHostedZoneId)
 	assert.NoError(t, err)
 
-	_, err = client.DeleteResourceRecordSet(mockResourceRecordSet, mockHostedZoneId)
+	_, err = client.DeleteResourceRecordSet(mockResourceRecordSet, MockHostedZoneId)
 	assert.NoError(t, err)
 }

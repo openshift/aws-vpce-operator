@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *mockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
+func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
 	if len(input.VpcEndpointIds) > 0 {
 		return &ec2.DescribeVpcEndpointsOutput{
@@ -59,43 +59,43 @@ func (m *mockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (
 	return &ec2.DescribeVpcEndpointsOutput{}, nil
 }
 
-func (m *mockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.CreateVpcEndpointOutput, error) {
+func (m *MockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.CreateVpcEndpointOutput, error) {
 	return &ec2.CreateVpcEndpointOutput{
 		VpcEndpoint: &ec2.VpcEndpoint{
-			VpcEndpointId: aws.String(mockVpcEndpointId),
+			VpcEndpointId: aws.String(MockVpcEndpointId),
 		},
 	}, nil
 }
 
-func (m *mockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2.DeleteVpcEndpointsOutput, error) {
+func (m *MockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2.DeleteVpcEndpointsOutput, error) {
 	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
 func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
-	resp, err := client.DescribeSingleVPCEndpointById(mockVpcEndpointId)
+	resp, err := client.DescribeSingleVPCEndpointById(MockVpcEndpointId)
 	assert.NoError(t, err)
-	assert.Equal(t, mockVpcEndpointId, *resp.VpcEndpoints[0].VpcEndpointId)
+	assert.Equal(t, MockVpcEndpointId, *resp.VpcEndpoints[0].VpcEndpointId)
 }
 
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
-	_, err := client.FilterVPCEndpointByDefaultTags(mockClusterTag)
+	_, err := client.FilterVPCEndpointByDefaultTags(MockClusterTag)
 	assert.NoError(t, err)
 }
 
 func TestCreateDeleteVPCEndpoint(t *testing.T) {
 	client := &AWSClient{
-		EC2Client: &mockedEC2{},
+		EC2Client: &MockedEC2{},
 	}
 
-	resp, err := client.CreateDefaultInterfaceVPCEndpoint("name", mockVpcId, mockVpcEndpointServiceName, mockClusterTag)
+	resp, err := client.CreateDefaultInterfaceVPCEndpoint("name", MockVpcId, MockVpcEndpointServiceName, MockClusterTag)
 	assert.NoError(t, err)
 
 	_, err = client.DeleteVPCEndpoint(*resp.VpcEndpoint.VpcEndpointId)

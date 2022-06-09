@@ -26,11 +26,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
-type Mock struct {
+type MockKubeClient struct {
 	Client client.Client
 }
 
-func NewMock(t *testing.T, objs ...client.Object) *Mock {
+func NewMock(t *testing.T, objs ...client.Object) *MockKubeClient {
 	s := runtime.NewScheme()
 	if err := configv1.Install(s); err != nil {
 		t.Fatal(err)
@@ -40,7 +40,7 @@ func NewMock(t *testing.T, objs ...client.Object) *Mock {
 		t.Fatal(err)
 	}
 
-	return &Mock{
+	return &MockKubeClient{
 		Client: fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build(),
 	}
 }

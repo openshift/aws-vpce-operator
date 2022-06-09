@@ -25,23 +25,33 @@ import (
 )
 
 const (
-	mockClusterTag             = "kubernetes.io/cluster/mock-12345"
-	mockDomainName             = "mock-domain.com"
-	mockHostedZoneId           = "R53HZ12345"
-	mockPublicSubnetId         = "subnet-pub12345"
-	mockPrivateSubnetId        = "subnet-priv12345"
-	mockSecurityGroupId        = "sg-12345"
-	mockVpcId                  = "vpc-12345"
-	mockVpcEndpointId          = "vpce-12345"
-	mockVpcEndpointDnsName     = "vpce-12345.amazonaws.com"
-	mockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
+	MockClusterTag             = "kubernetes.io/cluster/mock-12345"
+	MockDomainName             = "mock-domain.com"
+	MockHostedZoneId           = "R53HZ12345"
+	MockPublicSubnetId         = "subnet-pub12345"
+	MockPrivateSubnetId        = "subnet-priv12345"
+	MockSecurityGroupId        = "sg-12345"
+	MockVpcId                  = "vpc-12345"
+	MockVpcEndpointId          = "vpce-12345"
+	MockVpcEndpointDnsName     = "vpce-12345.amazonaws.com"
+	MockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
 )
+
+type MockedEC2 struct {
+	ec2iface.EC2API
+
+	Subnets []*ec2.Subnet
+}
+
+type MockedRoute53 struct {
+	route53iface.Route53API
+}
 
 var mockResourceRecordSet = &route53.ResourceRecordSet{
 	Name: aws.String("mock"),
 	ResourceRecords: []*route53.ResourceRecord{
 		{
-			Value: aws.String(mockVpcEndpointDnsName),
+			Value: aws.String(MockVpcEndpointDnsName),
 		},
 	},
 	TTL:  aws.Int64(300),
@@ -50,47 +60,37 @@ var mockResourceRecordSet = &route53.ResourceRecordSet{
 
 var mockSubnets = []*ec2.Subnet{
 	{
-		SubnetId: aws.String(mockPrivateSubnetId),
+		SubnetId: aws.String(MockPrivateSubnetId),
 		Tags: []*ec2.Tag{
 			{
 				Key:   aws.String(privateSubnetTagKey),
 				Value: nil,
 			},
 			{
-				Key:   aws.String(mockClusterTag),
+				Key:   aws.String(MockClusterTag),
 				Value: aws.String("shared"),
 			},
 		},
-		VpcId: aws.String(mockVpcId),
+		VpcId: aws.String(MockVpcId),
 	},
 	{
-		SubnetId: aws.String(mockPublicSubnetId),
+		SubnetId: aws.String(MockPublicSubnetId),
 		Tags: []*ec2.Tag{
 			{
 				Key:   aws.String(publicSubnetTagKey),
 				Value: nil,
 			},
 			{
-				Key:   aws.String(mockClusterTag),
+				Key:   aws.String(MockClusterTag),
 				Value: aws.String("shared"),
 			},
 		},
-		VpcId: aws.String(mockVpcId),
+		VpcId: aws.String(MockVpcId),
 	},
 }
 
-type mockedEC2 struct {
-	ec2iface.EC2API
-
-	Subnets []*ec2.Subnet
-}
-
-type mockedRoute53 struct {
-	route53iface.Route53API
-}
-
-func newMockedEC2() *mockedEC2 {
-	return &mockedEC2{
+func newMockedEC2WithSubnets() *MockedEC2 {
+	return &MockedEC2{
 		Subnets: mockSubnets,
 	}
 }
