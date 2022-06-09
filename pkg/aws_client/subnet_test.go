@@ -20,24 +20,10 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/stretchr/testify/assert"
 )
 
-type mockedDescribeSubnets struct {
-	ec2iface.EC2API
-
-	Subnets []*ec2.Subnet
-	Resp    ec2.DescribeSubnetsOutput
-}
-
-func newMockedDescribeSubnets() *mockedDescribeSubnets {
-	return &mockedDescribeSubnets{
-		Subnets: mockSubnets,
-	}
-}
-
-func (m *mockedDescribeSubnets) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+func (m *mockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
 	tagKeys := map[string]bool{}
 	for _, filter := range input.Filters {
 		for _, tagKey := range filter.Values {
@@ -83,7 +69,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 	}
 
 	client := &AWSClient{
-		EC2Client: newMockedDescribeSubnets(),
+		EC2Client: newMockedEC2(),
 	}
 
 	for _, test := range tests {
