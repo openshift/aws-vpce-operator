@@ -19,13 +19,16 @@ package aws_client
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 )
 
 const (
-	mockClusterTag      = "kubernetes.io/cluster/mock-12345"
-	mockPublicSubnetId  = "subnet-pub12345"
-	mockPrivateSubnetId = "subnet-priv12345"
-	mockVpcId           = "vpc-12345"
+	mockClusterTag             = "kubernetes.io/cluster/mock-12345"
+	mockPublicSubnetId         = "subnet-pub12345"
+	mockPrivateSubnetId        = "subnet-priv12345"
+	mockVpcId                  = "vpc-12345"
+	mockVpcEndpointId          = "vpce-12345"
+	mockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
 )
 
 var mockSubnets = []*ec2.Subnet{
@@ -57,4 +60,16 @@ var mockSubnets = []*ec2.Subnet{
 		},
 		VpcId: aws.String(mockVpcId),
 	},
+}
+
+type mockedEC2 struct {
+	ec2iface.EC2API
+
+	Subnets []*ec2.Subnet
+}
+
+func newMockedEC2() *mockedEC2 {
+	return &mockedEC2{
+		Subnets: mockSubnets,
+	}
 }
