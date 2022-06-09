@@ -20,17 +20,33 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 )
 
 const (
 	mockClusterTag             = "kubernetes.io/cluster/mock-12345"
+	mockDomainName             = "mock-domain.com"
+	mockHostedZoneId           = "R53HZ12345"
 	mockPublicSubnetId         = "subnet-pub12345"
 	mockPrivateSubnetId        = "subnet-priv12345"
 	mockSecurityGroupId        = "sg-12345"
 	mockVpcId                  = "vpc-12345"
 	mockVpcEndpointId          = "vpce-12345"
+	mockVpcEndpointDnsName     = "vpce-12345.amazonaws.com"
 	mockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
 )
+
+var mockResourceRecordSet = &route53.ResourceRecordSet{
+	Name: aws.String("mock"),
+	ResourceRecords: []*route53.ResourceRecord{
+		{
+			Value: aws.String(mockVpcEndpointDnsName),
+		},
+	},
+	TTL:  aws.Int64(300),
+	Type: aws.String("CNAME"),
+}
 
 var mockSubnets = []*ec2.Subnet{
 	{
@@ -67,6 +83,10 @@ type mockedEC2 struct {
 	ec2iface.EC2API
 
 	Subnets []*ec2.Subnet
+}
+
+type mockedRoute53 struct {
+	route53iface.Route53API
 }
 
 func newMockedEC2() *mockedEC2 {
