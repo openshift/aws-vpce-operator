@@ -26,6 +26,7 @@ const (
 	mockClusterTag             = "kubernetes.io/cluster/mock-12345"
 	mockPublicSubnetId         = "subnet-pub12345"
 	mockPrivateSubnetId        = "subnet-priv12345"
+	mockSecurityGroupId        = "sg-12345"
 	mockVpcId                  = "vpc-12345"
 	mockVpcEndpointId          = "vpce-12345"
 	mockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
