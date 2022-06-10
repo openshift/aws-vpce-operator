@@ -25,6 +25,8 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
+// FilterClusterNodeSecurityGroupsByDefaultTags describes the security groups attached to the cluster nodes
+// by filtering by the clusterTag and expected Name tags
 func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(infraName string) (*ec2.DescribeSecurityGroupsOutput, error) {
 	clusterTag, err := util.GetClusterTagKey(infraName)
 	if err != nil {
@@ -48,7 +50,10 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(infraName strin
 	})
 }
 
+// FilterSecurityGroupByDefaultTags describes the security group attached to the VPC Endpoint this operator manages
+// by filtering by the clusterTag and operator tag
 func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName string) (*ec2.DescribeSecurityGroupsOutput, error) {
+	// TODO: What if a cluster has multiple VPC Endpoints?
 	clusterTag, err := util.GetClusterTagKey(infraName)
 	if err != nil {
 		return nil, err
@@ -68,6 +73,7 @@ func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName string) (*ec2.Des
 	})
 }
 
+// FilterSecurityGroupById describes a specific security group by ID
 func (c *AWSClient) FilterSecurityGroupById(groupId string) (*ec2.DescribeSecurityGroupsOutput, error) {
 	if groupId == "" {
 		// Otherwise, AWS will return all security groups (interpreting, no specified filter)
@@ -93,6 +99,7 @@ func (c *AWSClient) FilterSecurityGroupById(groupId string) (*ec2.DescribeSecuri
 	return resp, err
 }
 
+// CreateSecurityGroup creates a security group with the specified name and cluster tag key in a specified VPC
 func (c *AWSClient) CreateSecurityGroup(name, vpcId, tagKey string) (*ec2.CreateSecurityGroupOutput, error) {
 	tags, err := util.GenerateAwsTags(name, tagKey)
 	if err != nil {
@@ -135,6 +142,7 @@ func (c *AWSClient) AuthorizeSecurityGroupRules(ingress *ec2.AuthorizeSecurityGr
 	return rules, nil
 }
 
+// DeleteSecurityGroup deletes a security group with the specified ID
 func (c *AWSClient) DeleteSecurityGroup(groupId string) (*ec2.DeleteSecurityGroupOutput, error) {
 	input := &ec2.DeleteSecurityGroupInput{
 		GroupId: aws.String(groupId),

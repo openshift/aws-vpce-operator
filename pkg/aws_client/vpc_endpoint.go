@@ -101,6 +101,7 @@ func (c *AWSClient) CreateDefaultInterfaceVPCEndpoint(name, vpcId, serviceName, 
 	return c.EC2Client.CreateVpcEndpoint(input)
 }
 
+// DeleteVPCEndpoint deletes a VPC endpoint with the given id.
 func (c *AWSClient) DeleteVPCEndpoint(id string) (*ec2.DeleteVpcEndpointsOutput, error) {
 	input := &ec2.DeleteVpcEndpointsInput{
 		VpcEndpointIds: []*string{

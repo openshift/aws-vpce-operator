@@ -23,6 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53"
 )
 
+// GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone
 func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.HostedZone, error) {
 	input := &route53.ListHostedZonesByNameInput{
 		DNSName: aws.String(domainName),
@@ -41,6 +42,7 @@ func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.H
 	return resp.HostedZones[0], nil
 }
 
+// ListResourceRecordSets returns a list of records for a given hosted zone ID
 func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListResourceRecordSetsOutput, error) {
 	input := &route53.ListResourceRecordSetsInput{
 		HostedZoneId: aws.String(hostedZoneId),
