@@ -19,37 +19,8 @@ package aws_client
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/stretchr/testify/assert"
 )
-
-func (m *mockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
-	tagKeys := map[string]bool{}
-	for _, filter := range input.Filters {
-		for _, tagKey := range filter.Values {
-			tagKeys[*tagKey] = true
-		}
-	}
-
-	for _, subnet := range m.Subnets {
-		foundTags := 0
-		for tagKey := range tagKeys {
-			for _, tag := range subnet.Tags {
-				if *tag.Key == tagKey {
-					foundTags++
-					break
-				}
-			}
-			if foundTags == len(tagKeys) {
-				return &ec2.DescribeSubnetsOutput{
-					Subnets: []*ec2.Subnet{subnet},
-				}, nil
-			}
-		}
-	}
-
-	return &ec2.DescribeSubnetsOutput{}, nil
-}
 
 func TestAWSClient_DescribeSubnets(t *testing.T) {
 	tests := []struct {
@@ -60,16 +31,16 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 		expectErr         bool
 	}{
 		{
-			clusterTag:        mockClusterTag,
-			expectedPrivateId: mockPrivateSubnetId,
-			expectedPublicId:  mockPublicSubnetId,
-			expectedVpcId:     mockVpcId,
+			clusterTag:        MockClusterTag,
+			expectedPrivateId: MockPrivateSubnetId,
+			expectedPublicId:  MockPublicSubnetId,
+			expectedVpcId:     MockVpcId,
 			expectErr:         false,
 		},
 	}
 
 	client := &AWSClient{
-		EC2Client: newMockedEC2(),
+		EC2Client: NewMockedEC2WithSubnets(),
 	}
 
 	for _, test := range tests {

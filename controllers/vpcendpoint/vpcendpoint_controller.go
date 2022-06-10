@@ -76,7 +76,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	r.Log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
-	if err := r.parseClusterInfo(ctx); err != nil {
+	if err := r.parseClusterInfo(ctx, true); err != nil {
 		return ctrl.Result{}, err
 	}
 

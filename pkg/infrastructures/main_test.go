@@ -71,7 +71,7 @@ func TestGetInfrastructureName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mock := testutil.NewMock(t, test.infra)
+		mock := testutil.NewTestMock(t, test.infra)
 		actual, err := GetInfrastructureName(context.TODO(), mock.Client)
 		if test.expectErr {
 			assert.NotNil(t, err)
@@ -121,7 +121,7 @@ func TestGetAWSRegion(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mock := testutil.NewMock(t, test.infra)
+		mock := testutil.NewTestMock(t, test.infra)
 		actual, err := GetAWSRegion(context.TODO(), mock.Client)
 		if test.expectErr {
 			assert.NotNil(t, err)

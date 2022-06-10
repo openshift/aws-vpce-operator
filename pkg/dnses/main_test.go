@@ -60,7 +60,7 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mock := testutil.NewMock(t, test.dns)
+		mock := testutil.NewTestMock(t, test.dns)
 		actual, err := GetPrivateHostedZoneDomainName(context.TODO(), mock.Client)
 		if test.expectErr {
 			assert.NotNil(t, err)

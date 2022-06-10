@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/aws/aws-sdk-go v1.44.27
-	github.com/go-logr/logr v1.2.0
+	github.com/go-logr/logr v1.2.3
 	github.com/go-logr/zapr v1.2.0
 	github.com/openshift/api v0.0.0-20220119132100-58db72a40994
 	github.com/stretchr/testify v1.7.0
