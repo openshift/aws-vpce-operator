@@ -52,7 +52,9 @@ func defaultLogger() (logr.Logger, error) {
 }
 
 // parseClusterInfo fills in the ClusterInfo struct values inside the VpcEndpointReconciler
-func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context) error {
+// and gets a new AWS session if refreshAWSSession is true.
+// Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
+func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWSSession bool) error {
 	r.ClusterInfo = new(ClusterInfo)
 
 	region, err := infrastructures.GetAWSRegion(ctx, r.Client)
@@ -62,13 +64,15 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context) error {
 	r.ClusterInfo.Region = region
 	r.Log.V(1).Info("Parsed region from infrastructure", "region", region)
 
-	sess, err := session.NewSession(&aws.Config{
-		Region: &region,
-	})
-	if err != nil {
-		return err
+	if refreshAWSSession {
+		sess, err := session.NewSession(&aws.Config{
+			Region: &region,
+		})
+		if err != nil {
+			return err
+		}
+		r.AWSClient = aws_client.New(sess)
 	}
-	r.AWSClient = aws_client.New(sess)
 
 	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
 	if err != nil {
@@ -84,7 +88,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context) error {
 	r.ClusterInfo.ClusterTag = clusterTag
 	r.Log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
 
-	vpcId, err := r.AWSClient.GetVPCId(clusterTag)
+	vpcId, err := r.AWSClient.GetVPCId(r.ClusterInfo.ClusterTag)
 	if err != nil {
 		return err
 	}
