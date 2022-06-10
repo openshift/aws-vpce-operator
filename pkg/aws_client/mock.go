@@ -22,18 +22,16 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 )
 
 const (
 	MockClusterTag             = "kubernetes.io/cluster/mock-12345"
-	MockDomainName             = "mock-domain.com"
 	MockHostedZoneId           = "R53HZ12345"
 	MockPublicSubnetId         = "subnet-pub12345"
 	MockPrivateSubnetId        = "subnet-priv12345"
 	MockSecurityGroupId        = "sg-12345"
 	MockVpcId                  = "vpc-12345"
-	MockVpcEndpointId          = "vpce-12345"
-	MockVpcEndpointDnsName     = "vpce-12345.amazonaws.com"
 	MockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
 )
 
@@ -51,7 +49,7 @@ var mockResourceRecordSet = &route53.ResourceRecordSet{
 	Name: aws.String("mock"),
 	ResourceRecords: []*route53.ResourceRecord{
 		{
-			Value: aws.String(MockVpcEndpointDnsName),
+			Value: aws.String(testutil.MockVpcEndpointDnsName),
 		},
 	},
 	TTL:  aws.Int64(300),
@@ -89,8 +87,83 @@ var mockSubnets = []*ec2.Subnet{
 	},
 }
 
-func newMockedEC2WithSubnets() *MockedEC2 {
+func NewMockedEC2WithSubnets() *MockedEC2 {
 	return &MockedEC2{
 		Subnets: mockSubnets,
 	}
+}
+
+func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+	tagKeys := map[string]bool{}
+	for _, filter := range input.Filters {
+		for _, tagKey := range filter.Values {
+			tagKeys[*tagKey] = true
+		}
+	}
+
+	for _, subnet := range m.Subnets {
+		foundTags := 0
+		for tagKey := range tagKeys {
+			for _, tag := range subnet.Tags {
+				if *tag.Key == tagKey {
+					foundTags++
+					continue
+				}
+			}
+			if foundTags == len(tagKeys) {
+				return &ec2.DescribeSubnetsOutput{
+					Subnets: []*ec2.Subnet{subnet},
+				}, nil
+			}
+		}
+	}
+
+	return &ec2.DescribeSubnetsOutput{}, nil
+}
+
+func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
+	// Mock a VPC Endpoint if an ID is supplied
+	if len(input.VpcEndpointIds) > 0 {
+		return &ec2.DescribeVpcEndpointsOutput{
+			VpcEndpoints: []*ec2.VpcEndpoint{
+				{
+					VpcEndpointId: input.VpcEndpointIds[0],
+					DnsEntries: []*ec2.DnsEntry{
+						{
+							DnsName: aws.String(testutil.MockVpcEndpointDnsName),
+						},
+					},
+					State: aws.String("available"),
+				},
+			},
+		}, nil
+	}
+
+	// Mock a VPC Endpoint with a specified tag-key
+	if len(input.Filters) > 0 {
+		for _, filter := range input.Filters {
+			if *filter.Name == "tag-key" {
+				return &ec2.DescribeVpcEndpointsOutput{
+					VpcEndpoints: []*ec2.VpcEndpoint{
+						{
+							DnsEntries: []*ec2.DnsEntry{
+								{
+									DnsName: aws.String(testutil.MockVpcEndpointDnsName),
+								},
+							},
+							State: aws.String("available"),
+							Tags: []*ec2.Tag{
+								{
+									Key:   filter.Values[0],
+									Value: nil,
+								},
+							},
+						},
+					},
+				}, nil
+			}
+		}
+	}
+
+	return &ec2.DescribeVpcEndpointsOutput{}, nil
 }

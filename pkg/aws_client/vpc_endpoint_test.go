@@ -17,6 +17,7 @@ limitations under the License.
 package aws_client
 
 import (
+	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,45 +25,10 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
-	// Mock a VPC Endpoint if an ID is supplied
-	if len(input.VpcEndpointIds) > 0 {
-		return &ec2.DescribeVpcEndpointsOutput{
-			VpcEndpoints: []*ec2.VpcEndpoint{
-				{
-					VpcEndpointId: input.VpcEndpointIds[0],
-				},
-			},
-		}, nil
-	}
-
-	// Mock a VPC Endpoint with a specified tag-key
-	if len(input.Filters) > 0 {
-		for _, filter := range input.Filters {
-			if *filter.Name == "tag-key" {
-				return &ec2.DescribeVpcEndpointsOutput{
-					VpcEndpoints: []*ec2.VpcEndpoint{
-						{
-							Tags: []*ec2.Tag{
-								{
-									Key:   filter.Values[0],
-									Value: nil,
-								},
-							},
-						},
-					},
-				}, nil
-			}
-		}
-	}
-
-	return &ec2.DescribeVpcEndpointsOutput{}, nil
-}
-
 func (m *MockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.CreateVpcEndpointOutput, error) {
 	return &ec2.CreateVpcEndpointOutput{
 		VpcEndpoint: &ec2.VpcEndpoint{
-			VpcEndpointId: aws.String(MockVpcEndpointId),
+			VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
 		},
 	}, nil
 }
@@ -76,9 +42,9 @@ func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 		EC2Client: &MockedEC2{},
 	}
 
-	resp, err := client.DescribeSingleVPCEndpointById(MockVpcEndpointId)
+	resp, err := client.DescribeSingleVPCEndpointById(testutil.MockVpcEndpointId)
 	assert.NoError(t, err)
-	assert.Equal(t, MockVpcEndpointId, *resp.VpcEndpoints[0].VpcEndpointId)
+	assert.Equal(t, testutil.MockVpcEndpointId, *resp.VpcEndpoints[0].VpcEndpointId)
 }
 
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {

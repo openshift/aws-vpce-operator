@@ -21,6 +21,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -53,7 +54,7 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 		expectErr  bool
 	}{
 		{
-			domainName: MockDomainName,
+			domainName: testutil.MockDomainName,
 			expectErr:  false,
 		},
 	}

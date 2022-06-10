@@ -17,30 +17,80 @@ limitations under the License.
 package testutil
 
 import (
-	"testing"
-
 	configv1 "github.com/openshift/api/config/v1"
 	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"testing"
+)
+
+const (
+	MockAWSRegion          = "us-gov-west-1"
+	MockDomainName         = "mock-domain.com"
+	MockInfrastructureName = "mock-12345"
+	MockVpcEndpointId      = "vpce-12345"
+	MockVpcEndpointDnsName = "vpce-12345.amazonaws.com"
 )
 
 type MockKubeClient struct {
 	Client client.Client
 }
 
-func NewMock(t *testing.T, objs ...client.Object) *MockKubeClient {
+var mockDnses = &configv1.DNS{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "cluster",
+	},
+	Spec: configv1.DNSSpec{
+		BaseDomain: MockDomainName,
+	},
+}
+
+var mockInfrastructure = &configv1.Infrastructure{
+	ObjectMeta: metav1.ObjectMeta{
+		Name: "cluster",
+	},
+	Spec: configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type: "AWS",
+		},
+	},
+	Status: configv1.InfrastructureStatus{
+		InfrastructureName: MockInfrastructureName,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type: "AWS",
+			AWS: &configv1.AWSPlatformStatus{
+				Region: MockAWSRegion,
+			},
+		},
+	},
+}
+
+func NewDefaultMock() (*MockKubeClient, error) {
+	return NewMock(mockDnses, mockInfrastructure)
+}
+
+func NewTestMock(t *testing.T, objs ...client.Object) *MockKubeClient {
+	mock, err := NewMock(objs...)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return mock
+}
+
+func NewMock(obs ...client.Object) (*MockKubeClient, error) {
 	s := runtime.NewScheme()
 	if err := configv1.Install(s); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	if err := psov1alpha1.AddToScheme(s); err != nil {
-		t.Fatal(err)
+		return nil, err
 	}
 
 	return &MockKubeClient{
-		Client: fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build(),
-	}
+		Client: fake.NewClientBuilder().WithScheme(s).WithObjects(obs...).Build(),
+	}, nil
 }
