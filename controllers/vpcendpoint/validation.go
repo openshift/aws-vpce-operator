@@ -19,11 +19,12 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/service/route53"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
@@ -45,11 +46,11 @@ func TagsContains(tags []*ec2.Tag, tagsToCheck map[string]string) bool {
 	return true
 }
 
-type ValidateAWSResourceFunc func(ctx context.Context, resource *psov1alpha1.VpcEndpoint) error
+type ValidateAWSResourceFunc func(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error
 
 func (r *VpcEndpointReconciler) validateAWSResources(
 	ctx context.Context,
-	resource *psov1alpha1.VpcEndpoint,
+	resource *avov1alpha1.VpcEndpoint,
 	validationFuncs []ValidateAWSResourceFunc) error {
 	for _, validationFunc := range validationFuncs {
 		if err := validationFunc(ctx, resource); err != nil {
@@ -63,7 +64,7 @@ func (r *VpcEndpointReconciler) validateAWSResources(
 // validateSecurityGroup checks a security group against what's expected, returning an error if there are differences.
 // Security groups can't be updated-in-place, so a new one will need to be created before deleting this existing one.
 // TODO: Split out a ReconcileSecurityGroupRule function?
-func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resource *psov1alpha1.VpcEndpoint) error {
+func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if resource == nil {
 		// Should never happen
 		return fmt.Errorf("resource must be specified")
@@ -278,7 +279,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 
 // validateVPCEndpoint checks a VPC endpoint with what's expected and reconciles their state
 // returning an error if it cannot do so.
-func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resource *psov1alpha1.VpcEndpoint) error {
+func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if resource == nil {
 		// Should never happen
 		return fmt.Errorf("resource must be specified")
@@ -416,7 +417,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 }
 
 // validateR53HostedZoneRecord ensures a DNS record exists for the given VPC Endpoint
-func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context, resource *psov1alpha1.VpcEndpoint) error {
+func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if resource == nil {
 		// Should never happen
 		return fmt.Errorf("resource must be specified")

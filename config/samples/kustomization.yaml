@@ -1,4 +1,4 @@
 ## Append samples you want in your CSV to this file as resources ##
 resources:
-- pso_v1alpha1_vpcendpoint.yaml
+- avo_v1alpha1_vpcendpoint.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

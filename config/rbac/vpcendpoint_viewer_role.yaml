@@ -5,7 +5,7 @@ metadata:
   name: vpcendpoint-viewer-role
 rules:
 - apiGroups:
-  - pso.example.com
+  - avo.openshift.io
   resources:
   - vpcendpoints
   verbs:
@@ -13,7 +13,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - pso.example.com
+  - avo.openshift.io
   resources:
   - vpcendpoints/status
   verbs:

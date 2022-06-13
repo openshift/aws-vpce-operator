@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	configv1 "github.com/openshift/api/config/v1"
-	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
 	//+kubebuilder:scaffold:imports
 )
@@ -48,7 +48,7 @@ func init() {
 	// Add config.openshift.io/v1 for the infrastructures CR
 	utilruntime.Must(configv1.Install(scheme))
 
-	utilruntime.Must(psov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(avov1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
