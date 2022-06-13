@@ -4,15 +4,15 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: pso
+projectName: avo
 repo: github.com/openshift/aws-vpce-operator
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: example.com
-  group: pso
+  domain: openshift.io
+  group: avo
   kind: VpcEndpoint
   path: github.com/openshift/aws-vpce-operator/api/v1alpha1
   version: v1alpha1

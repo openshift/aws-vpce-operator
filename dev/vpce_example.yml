@@ -3,7 +3,7 @@ kind: Namespace
 metadata:
   name: demo
 ---
-apiVersion: pso.example.com/v1alpha1
+apiVersion: avo.openshift.io/v1alpha1
 kind: VpcEndpoint
 metadata:
   name: demo

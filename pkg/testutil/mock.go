@@ -17,13 +17,14 @@ limitations under the License.
 package testutil
 
 import (
+	"testing"
+
 	configv1 "github.com/openshift/api/config/v1"
-	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"testing"
 )
 
 const (
@@ -86,7 +87,7 @@ func NewMock(obs ...client.Object) (*MockKubeClient, error) {
 		return nil, err
 	}
 
-	if err := psov1alpha1.AddToScheme(s); err != nil {
+	if err := avov1alpha1.AddToScheme(s); err != nil {
 		return nil, err
 	}
 

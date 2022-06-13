@@ -5,9 +5,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.8.0
   creationTimestamp: null
-  name: vpcendpoints.pso.example.com
+  name: vpcendpoints.avo.openshift.io
 spec:
-  group: pso.example.com
+  group: avo.openshift.io
   names:
     kind: VpcEndpoint
     listKind: VpcEndpointList

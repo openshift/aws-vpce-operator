@@ -27,11 +27,11 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-logr/logr"
-	psov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 )
 
-const psoFinalizer = "vpcendpoint.pso.example.com/finalizer"
+const avoFinalizer = "vpcendpoint.avo.openshift.io/finalizer"
 
 // VpcEndpointReconciler reconciles a VpcEndpoint object
 type VpcEndpointReconciler struct {
@@ -61,9 +61,9 @@ type ClusterInfo struct {
 	VpcId string
 }
 
-//+kubebuilder:rbac:groups=pso.example.com,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=pso.example.com,resources=vpcendpoints/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=pso.example.com,resources=vpcendpoints/finalizers,verbs=update
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints/finalizers,verbs=update
 //+kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get
 //+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get
 
@@ -80,28 +80,28 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	pso := new(psov1alpha1.VpcEndpoint)
-	if err := r.Get(ctx, req.NamespacedName, pso); err != nil {
+	avo := new(avov1alpha1.VpcEndpoint)
+	if err := r.Get(ctx, req.NamespacedName, avo); err != nil {
 		// Ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification).
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if pso.ObjectMeta.DeletionTimestamp.IsZero() {
+	if avo.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// registering our finalizer.
-		if !controllerutil.ContainsFinalizer(pso, psoFinalizer) {
-			controllerutil.AddFinalizer(pso, psoFinalizer)
-			if err := r.Update(ctx, pso); err != nil {
+		if !controllerutil.ContainsFinalizer(avo, avoFinalizer) {
+			controllerutil.AddFinalizer(avo, avoFinalizer)
+			if err := r.Update(ctx, avo); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(pso, psoFinalizer) {
+		if controllerutil.ContainsFinalizer(avo, avoFinalizer) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteAWSResources(ctx, pso); err != nil {
+			if err := r.deleteAWSResources(ctx, avo); err != nil {
 				if awsErr, ok := err.(awserr.Error); ok {
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
@@ -115,8 +115,8 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(pso, psoFinalizer)
-			if err := r.Update(ctx, pso); err != nil {
+			controllerutil.RemoveFinalizer(avo, avoFinalizer)
+			if err := r.Update(ctx, avo); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -125,7 +125,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.validateAWSResources(ctx, pso,
+	if err := r.validateAWSResources(ctx, avo,
 		[]ValidateAWSResourceFunc{
 			r.validateSecurityGroup,
 			r.validateVPCEndpoint,
@@ -143,6 +143,6 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&psov1alpha1.VpcEndpoint{}).
+		For(&avov1alpha1.VpcEndpoint{}).
 		Complete(r)
 }

@@ -5,7 +5,7 @@ metadata:
   name: vpcendpoint-editor-role
 rules:
 - apiGroups:
-  - pso.example.com
+  - avo.openshift.io
   resources:
   - vpcendpoints
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - pso.example.com
+  - avo.openshift.io
   resources:
   - vpcendpoints/status
   verbs:
