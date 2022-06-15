@@ -33,6 +33,8 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const controllerName = "vpcendpoint"
@@ -127,4 +129,22 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 	return &route53.ResourceRecord{
 		Value: vpceResp.VpcEndpoints[0].DnsEntries[0].DnsName,
 	}, nil
+}
+
+func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, resource *v1alpha1.VpcEndpoint) error {
+	if resource.Status.ExternalServiceNameStatus == "" {
+		r.Log.V(1).Info("ExternalName service is missing, creating a new one.")
+		r.Client.Create(ctx, &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      resource.Spec.SubdomainName,
+				Namespace: resource.Namespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:         corev1.ServiceTypeExternalName,
+				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, r.ClusterInfo.DomainName),
+			},
+		})
+		return fmt.Errorf("failed to create externalName service")
+	}
+	return nil
 }

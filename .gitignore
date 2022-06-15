@@ -22,6 +22,7 @@ testbin/*
 .docker
 .venv
 .idea
+.vscode
 *.swp
 *.swo
 *~

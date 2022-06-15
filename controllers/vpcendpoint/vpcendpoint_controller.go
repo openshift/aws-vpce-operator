@@ -135,6 +135,9 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// TODO: Ensure the ExternalName service is in the right state
+	if err := r.ensureExternalNameService(ctx, avo); err != nil {
+		return ctrl.Result{}, err
+	}
 
 	// Check again in 30 sec
 	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
