@@ -70,35 +70,35 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return fmt.Errorf("resource must be specified")
 	}
 
-	r.Log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
-	resp, err := r.AWSClient.FilterSecurityGroupById(resource.Status.SecurityGroupId)
+	r.log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
+	resp, err := r.awsClient.FilterSecurityGroupById(resource.Status.SecurityGroupId)
 	if err != nil {
 		return err
 	}
 
 	// If there's no security group returned by ID, look for one by tag
 	if resp == nil || len(resp.SecurityGroups) == 0 {
-		r.Log.V(1).Info("Searching for security group by tags")
-		resp, err = r.AWSClient.FilterSecurityGroupByDefaultTags(r.ClusterInfo.InfraName)
+		r.log.V(1).Info("Searching for security group by tags")
+		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName)
 		if err != nil {
 			return err
 		}
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-			sgName, err := util.GenerateSecurityGroupName(r.ClusterInfo.InfraName, resource.Name)
+			sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
 			if err != nil {
 				return err
 			}
 
-			createResp, err := r.AWSClient.CreateSecurityGroup(sgName, r.ClusterInfo.VpcId, r.ClusterInfo.ClusterTag)
+			createResp, err := r.awsClient.CreateSecurityGroup(sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
 			if err != nil {
 				return err
 			}
 
 			resource.Status.SecurityGroupId = *createResp.GroupId
 			if err := r.Status().Update(ctx, resource); err != nil {
-				r.Log.V(0).Error(err, "Failed to update Security Group status")
+				r.log.V(0).Error(err, "Failed to update Security Group status")
 				return err
 			}
 
@@ -109,18 +109,18 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	sg := resp.SecurityGroups[0]
 
 	defaultTags := map[string]string{
-		r.ClusterInfo.ClusterTag: "",
+		r.clusterInfo.clusterTag: "",
 		util.OperatorTagKey:      util.OperatorTagValue,
 	}
 
 	// Fix tags if any are missing
 	if !TagsContains(sg.Tags, defaultTags) {
-		r.Log.V(1).Info("Adding missing security group tags")
-		_, err := r.AWSClient.EC2Client.CreateTags(&ec2.CreateTagsInput{
+		r.log.V(1).Info("Adding missing security group tags")
+		_, err := r.awsClient.EC2Client.CreateTags(&ec2.CreateTagsInput{
 			Resources: []*string{sg.GroupId},
 			Tags: []*ec2.Tag{
 				{
-					Key:   aws.String(r.ClusterInfo.ClusterTag),
+					Key:   aws.String(r.clusterInfo.clusterTag),
 					Value: aws.String(""),
 				},
 				{
@@ -136,7 +136,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	}
 
 	// TODO: Break out DescribeSecurityGroupRules into a separate function
-	rulesResp, err := r.AWSClient.EC2Client.DescribeSecurityGroupRules(&ec2.DescribeSecurityGroupRulesInput{
+	rulesResp, err := r.awsClient.EC2Client.DescribeSecurityGroupRules(&ec2.DescribeSecurityGroupRulesInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("group-id"),
@@ -148,7 +148,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	sourceSgResp, err := r.AWSClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.ClusterInfo.InfraName)
+	sourceSgResp, err := r.awsClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.clusterInfo.infraName)
 	if err != nil {
 		return err
 	}
@@ -223,10 +223,10 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	}
 
 	if len(ingressRules) > 0 {
-		r.Log.V(1).Info("Need to create ingress rules", "ingressRules", ingressRules)
+		r.log.V(1).Info("Need to create ingress rules", "ingressRules", ingressRules)
 	}
 	if len(egressRules) > 0 {
-		r.Log.V(1).Info("Need to create egress rules", "egressRules", egressRules)
+		r.log.V(1).Info("Need to create egress rules", "egressRules", egressRules)
 	}
 
 	ingressInput := &ec2.AuthorizeSecurityGroupIngressInput{
@@ -237,7 +237,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				ResourceType: aws.String("security-group-rule"),
 				Tags: []*ec2.Tag{
 					{
-						Key:   aws.String(r.ClusterInfo.ClusterTag),
+						Key:   aws.String(r.clusterInfo.clusterTag),
 						Value: aws.String(""),
 					},
 					{
@@ -257,7 +257,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				ResourceType: aws.String("security-group-rule"),
 				Tags: []*ec2.Tag{
 					{
-						Key:   aws.String(r.ClusterInfo.ClusterTag),
+						Key:   aws.String(r.clusterInfo.clusterTag),
 						Value: aws.String(""),
 					},
 					{
@@ -270,7 +270,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	}
 
 	// Not idempotent
-	if _, err := r.AWSClient.AuthorizeSecurityGroupRules(ingressInput, egressInput); err != nil {
+	if _, err := r.awsClient.AuthorizeSecurityGroupRules(ingressInput, egressInput); err != nil {
 		return err
 	}
 
@@ -287,33 +287,33 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	var vpce *ec2.VpcEndpoint
 
-	r.Log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
-	resp, err := r.AWSClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
+	r.log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
+	resp, err := r.awsClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
 	if err != nil {
 		return err
 	}
 
 	// If there's no VPC Endpoint returned by ID, look for one by tag
 	if resp == nil || len(resp.VpcEndpoints) == 0 {
-		r.Log.V(1).Info("Searching for VPC Endpoint by tags")
-		resp, err = r.AWSClient.FilterVPCEndpointByDefaultTags(r.ClusterInfo.ClusterTag)
+		r.log.V(1).Info("Searching for VPC Endpoint by tags")
+		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag)
 		if err != nil {
 			return err
 		}
 
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
-			vpceName, err := util.GenerateVPCEndpointName(r.ClusterInfo.InfraName, resource.Name)
+			vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
 			if err != nil {
 				return err
 			}
-			creationResp, err := r.AWSClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.ClusterInfo.VpcId, resource.Spec.ServiceName, r.ClusterInfo.ClusterTag)
+			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
 				return fmt.Errorf("failed to create vpc endpoint: %v", err)
 			}
 
 			vpce = creationResp.VpcEndpoint
-			r.Log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
+			r.log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
 		} else {
 			vpce = resp.VpcEndpoints[0]
 		}
@@ -325,30 +325,30 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	resource.Status.Status = *vpce.State
 
 	if err := r.Status().Update(ctx, resource); err != nil {
-		r.Log.V(0).Error(err, "Failed to update VPC Endpoint status")
+		r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
 		return err
 	}
 
 	switch *vpce.State {
 	case "pendingAcceptance":
-		r.Log.V(0).Info("VPC Endpoint is not available yet", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint is not available yet", "status", *vpce.State)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted
 		return nil
 	case "deleting", "pending":
-		r.Log.V(0).Info("VPC Endpoint is transitioning state", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", *vpce.State)
 		// Nothing we can do at the moment, the VPC Endpoint needs to finish moving into a stable state
 		return nil
 	case "available":
-		r.Log.V(1).Info("VPC Endpoint available", "status", *vpce.State)
+		r.log.V(1).Info("VPC Endpoint available", "status", *vpce.State)
 	case "failed", "rejected", "deleted":
 		// No other known states, but just in case catch with a default
 		fallthrough
 	default:
-		r.Log.V(0).Info("VPC Endpoint in a bad state", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint in a bad state", "status", *vpce.State)
 		return fmt.Errorf("vpc endpoint in a bad state: %s", *vpce.State)
 	}
 
-	subnetsResp, err := r.AWSClient.DescribePrivateSubnets(r.ClusterInfo.ClusterTag)
+	subnetsResp, err := r.awsClient.DescribePrivateSubnets(r.clusterInfo.clusterTag)
 	if err != nil {
 		return err
 	}
@@ -364,8 +364,8 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	// Removing subnets first before adding to avoid
 	// DuplicateSubnetsInSameZone: Found another VPC endpoint subnet in the availability zone of <existing subnet>
 	if len(subnetsToRemove) > 0 {
-		r.Log.V(1).Info("Removing subnet(s) from VPC Endpoint", "subnetsToRemove", subnetsToRemove)
-		if _, err := r.AWSClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		r.log.V(1).Info("Removing subnet(s) from VPC Endpoint", "subnetsToRemove", subnetsToRemove)
+		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			RemoveSubnetIds: subnetsToRemove,
 			VpcEndpointId:   vpce.VpcEndpointId,
 		}); err != nil {
@@ -374,8 +374,8 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	if len(subnetsToAdd) > 0 {
-		r.Log.V(1).Info("Adding subnet(s) to VPC Endpoint", "subnetsToAdd", subnetsToAdd)
-		if _, err := r.AWSClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		r.log.V(1).Info("Adding subnet(s) to VPC Endpoint", "subnetsToAdd", subnetsToAdd)
+		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			AddSubnetIds:  subnetsToAdd,
 			VpcEndpointId: vpce.VpcEndpointId,
 		}); err != nil {
@@ -394,8 +394,8 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	)
 
 	if len(sgToAdd) > 0 {
-		r.Log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
-		if _, err := r.AWSClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		r.log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
+		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			AddSecurityGroupIds: sgToAdd,
 			VpcEndpointId:       vpce.VpcEndpointId,
 		}); err != nil {
@@ -404,8 +404,8 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	if len(sgToRemove) > 0 {
-		r.Log.V(1).Info("Removing security group(s) from VPC Endpoint", "sgToRemove", sgToRemove)
-		if _, err := r.AWSClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		r.log.V(1).Info("Removing security group(s) from VPC Endpoint", "sgToRemove", sgToRemove)
+		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			RemoveSecurityGroupIds: sgToRemove,
 			VpcEndpointId:          vpce.VpcEndpointId,
 		}); err != nil {
@@ -423,8 +423,8 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return fmt.Errorf("resource must be specified")
 	}
 
-	r.Log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.ClusterInfo.DomainName)
-	hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.ClusterInfo.DomainName)
+	r.log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.clusterInfo.domainName)
+	hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(r.clusterInfo.domainName)
 	if err != nil {
 		return err
 	}
@@ -441,14 +441,14 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		Type:            aws.String("CNAME"),
 	}
 
-	if _, err := r.AWSClient.UpsertResourceRecordSet(input, *hostedZone.Id); err != nil {
+	if _, err := r.awsClient.UpsertResourceRecordSet(input, *hostedZone.Id); err != nil {
 		return err
 	}
-	r.Log.V(1).Info("Route53 Hosted Zone Record exists", "domainName", fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name))
+	r.log.V(1).Info("Route53 Hosted Zone Record exists", "domainName", fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name))
 
 	resource.Status.CNAMERecordCreated = true
 	if err := r.Status().Update(ctx, resource); err != nil {
-		r.Log.V(0).Error(err, "Failed to update VPC Endpoint status")
+		r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
 		return err
 	}
 

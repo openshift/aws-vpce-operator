@@ -35,8 +35,6 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const controllerName = "vpcendpoint"
-
 // defaultLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
 func defaultLogger() (logr.Logger, error) {
 	config := zap.NewProductionConfig()
@@ -51,18 +49,18 @@ func defaultLogger() (logr.Logger, error) {
 	return logger.WithName(controllerName), nil
 }
 
-// parseClusterInfo fills in the ClusterInfo struct values inside the VpcEndpointReconciler
+// parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
 // and gets a new AWS session if refreshAWSSession is true.
 // Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
 func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWSSession bool) error {
-	r.ClusterInfo = new(ClusterInfo)
+	r.clusterInfo = new(clusterInfo)
 
 	region, err := infrastructures.GetAWSRegion(ctx, r.Client)
 	if err != nil {
 		return err
 	}
-	r.ClusterInfo.Region = region
-	r.Log.V(1).Info("Parsed region from infrastructure", "region", region)
+	r.clusterInfo.region = region
+	r.log.V(1).Info("Parsed region from infrastructure", "region", region)
 
 	if refreshAWSSession {
 		sess, err := session.NewSession(&aws.Config{
@@ -71,36 +69,36 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWS
 		if err != nil {
 			return err
 		}
-		r.AWSClient = aws_client.New(sess)
+		r.awsClient = aws_client.New(sess)
 	}
 
 	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
 	if err != nil {
 		return err
 	}
-	r.ClusterInfo.InfraName = infraName
-	r.Log.V(1).Info("Found infrastructure name:", "name", infraName)
+	r.clusterInfo.infraName = infraName
+	r.log.V(1).Info("Found infrastructure name:", "name", infraName)
 
 	clusterTag, err := util.GetClusterTagKey(infraName)
 	if err != nil {
 		return err
 	}
-	r.ClusterInfo.ClusterTag = clusterTag
-	r.Log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
+	r.clusterInfo.clusterTag = clusterTag
+	r.log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
 
-	vpcId, err := r.AWSClient.GetVPCId(r.ClusterInfo.ClusterTag)
+	vpcId, err := r.awsClient.GetVPCId(r.clusterInfo.clusterTag)
 	if err != nil {
 		return err
 	}
-	r.ClusterInfo.VpcId = vpcId
-	r.Log.V(1).Info("Found vpc id:", "vpcId", vpcId)
+	r.clusterInfo.vpcId = vpcId
+	r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
 
 	domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
 	if err != nil {
 		return err
 	}
-	r.ClusterInfo.DomainName = domainName
-	r.Log.V(1).Info("Found domain name:", "domainName", domainName)
+	r.clusterInfo.domainName = domainName
+	r.log.V(1).Info("Found domain name:", "domainName", domainName)
 
 	return nil
 }
@@ -110,7 +108,7 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 		return nil, fmt.Errorf("VPCEndpointID status is missing")
 	}
 
-	vpceResp, err := r.AWSClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
+	vpceResp, err := r.awsClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
 	if err != nil {
 		return nil, err
 	}
