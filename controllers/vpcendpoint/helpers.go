@@ -141,7 +141,7 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 			},
 			Spec: corev1.ServiceSpec{
 				Type:         corev1.ServiceTypeExternalName,
-				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, r.ClusterInfo.DomainName),
+				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.ServiceName, r.ClusterInfo.DomainName),
 			},
 		})
 		return fmt.Errorf("failed to create externalName service")
