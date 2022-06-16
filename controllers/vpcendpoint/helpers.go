@@ -134,7 +134,7 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, resource *v1alpha1.VpcEndpoint) error {
 	if resource.Status.ExternalServiceNameStatus == "" {
 		r.Log.V(1).Info("ExternalName service is missing, creating a new one.")
-		r.Client.Create(ctx, &corev1.Service{
+		err := r.Client.Create(ctx, &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      resource.Spec.SubdomainName,
 				Namespace: resource.Namespace,
@@ -144,7 +144,10 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.ServiceName, r.ClusterInfo.DomainName),
 			},
 		})
-		return fmt.Errorf("failed to create externalName service")
+		if err != nil {
+			return fmt.Errorf("failed to create externalName service: %w", err)
+		}
+		resource.Status.ExternalServiceNameStatus = "Created"
 	}
 	return nil
 }
