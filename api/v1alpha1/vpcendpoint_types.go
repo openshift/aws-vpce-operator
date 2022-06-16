@@ -17,7 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -63,7 +63,7 @@ type VpcEndpointSpec struct {
 	SubdomainName string `json:"subdomainName"`
 
 	// ExternalServiceName is the name of the Kubernetes Service supporting the VPC Endpoint Service
-	ExternalNameService v1.Service `json:"externalNameService,omitempty"`
+	ExternalNameService ExternalNameService `json:"externalNameService,omitempty"`
 }
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -83,7 +83,17 @@ type VpcEndpointStatus struct {
 	CNAMERecordCreated bool `json:"hostedZoneRecordCreated,omitempty"`
 
 	// ExternalServiceNameStatus is the status of the ExternalName service
-	ExternalServiceNameStatus metav1.ConditionStatus `json:"externalNameServiceStatus,omitempty"`
+	ExternalServiceNameStatus metav1.Status `json:"externalNameServiceStatus,omitempty"`
+}
+
+type ExternalNameService struct {
+	metav1.ObjectMeta `json:"metadata,omitempty"`
+
+	// type is the type of the Kubernetes Service supporting the VPC Endpoint Service
+	ServiceType corev1.ServiceType `json:"type"`
+
+	// ExternalName is the DNS record of the Kubernetes Service supporting the VPC Endpoint Service
+	ExternalName string `json:"externalName"`
 }
 
 //+kubebuilder:object:root=true
