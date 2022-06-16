@@ -32,7 +32,7 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 			return err
 		}
 
-		hostedZone, err := r.AWSClient.GetDefaultPrivateHostedZoneId(r.ClusterInfo.DomainName)
+		hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(r.clusterInfo.domainName)
 		if err != nil {
 			return err
 		}
@@ -44,28 +44,28 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 			Type:            aws.String("CNAME"),
 		}
 
-		r.Log.V(0).Info("Deleting Route53 Hosted Zone Record")
-		if _, err := r.AWSClient.DeleteResourceRecordSet(input, *hostedZone.Id); err != nil {
+		r.log.V(0).Info("Deleting Route53 Hosted Zone Record")
+		if _, err := r.awsClient.DeleteResourceRecordSet(input, *hostedZone.Id); err != nil {
 			return err
 		}
 
 		resource.Status.CNAMERecordCreated = false
 		if err := r.Status().Update(ctx, resource); err != nil {
-			r.Log.V(0).Error(err, "Failed to update VPC Endpoint status")
+			r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
 			return err
 		}
 	}
 
 	if resource.Status.VPCEndpointId != "" {
-		r.Log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
-		if _, err := r.AWSClient.DeleteVPCEndpoint(resource.Status.VPCEndpointId); err != nil {
+		r.log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
+		if _, err := r.awsClient.DeleteVPCEndpoint(resource.Status.VPCEndpointId); err != nil {
 			return err
 		}
 	}
 
 	if resource.Status.SecurityGroupId != "" {
-		r.Log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
-		if _, err := r.AWSClient.DeleteSecurityGroup(resource.Status.SecurityGroupId); err != nil {
+		r.log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
+		if _, err := r.awsClient.DeleteSecurityGroup(resource.Status.SecurityGroupId); err != nil {
 			return err
 		}
 	}

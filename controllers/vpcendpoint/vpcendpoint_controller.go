@@ -31,34 +31,31 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 )
 
-const avoFinalizer = "vpcendpoint.avo.openshift.io/finalizer"
-
 // VpcEndpointReconciler reconciles a VpcEndpoint object
 type VpcEndpointReconciler struct {
 	client.Client
+	Scheme *runtime.Scheme
 
-	Log       logr.Logger
-	Scheme    *runtime.Scheme
-	AWSClient *aws_client.AWSClient
-
-	ClusterInfo *ClusterInfo
+	log         logr.Logger
+	awsClient   *aws_client.AWSClient
+	clusterInfo *clusterInfo
 }
 
-// ClusterInfo contains naming and AWS information unique to the cluster
-type ClusterInfo struct {
-	// ClusterTag is the tag that uniquely identifies AWS resources for this cluster
+// clusterInfo contains naming and AWS information unique to the cluster
+type clusterInfo struct {
+	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
 	// e.g. "k8s.io/cluster/${infraName}"
-	ClusterTag string
-	// DomainName is the domain name for the cluster's private hosted zone
+	clusterTag string
+	// domainName is the domain name for the cluster's private hosted zone
 	// e.g. "${clusterName}.abcd.s1.devshift.org"
-	DomainName string
-	// InfraName is the name shown in the cluster's infrastructures CR
+	domainName string
+	// infraName is the name shown in the cluster's infrastructures CR
 	// e.g. "${clusterName}-abcd"
-	InfraName string
-	// Region is the AWS region for the cluster
-	Region string
-	// VpcId is the AWS VPC ID the cluster resides in
-	VpcId string
+	infraName string
+	// region is the AWS region for the cluster
+	region string
+	// vpcId is the AWS VPC ID the cluster resides in
+	vpcId string
 }
 
 //+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
@@ -74,7 +71,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	r.Log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	if err := r.parseClusterInfo(ctx, true); err != nil {
 		return ctrl.Result{}, err
@@ -106,7 +103,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
 					if awsErr.Code() == "DependencyViolation" {
-						r.Log.V(0).Info("AWS dependency violation, requeueing", "error", awsErr.Message())
+						r.log.V(0).Info("AWS dependency violation, requeueing", "error", awsErr.Message())
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 				}
