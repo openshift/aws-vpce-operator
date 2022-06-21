@@ -19,6 +19,7 @@ package vpcendpoint
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/go-logr/logr/testr"
 	"github.com/openshift/aws-vpce-operator/api/v1alpha1"
@@ -26,6 +27,26 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestDefaultAVORateLimiter(t *testing.T) {
+	limiter := defaultAVORateLimiter()
+
+	if expected, actual := 1*time.Second, limiter.When("test"); expected != actual {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+	if expected, actual := 2*time.Second, limiter.When("test"); expected != actual {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+	if expected, actual := 4*time.Second, limiter.When("test"); expected != actual {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+	if expected, actual := 8*time.Second, limiter.When("test"); expected != actual {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+	if expected, actual := 4, limiter.NumRequeues("test"); expected != actual {
+		t.Errorf("expected %v, got %v", expected, actual)
+	}
+}
 
 func TestParseClusterInfo(t *testing.T) {
 	mock, err := testutil.NewDefaultMock()

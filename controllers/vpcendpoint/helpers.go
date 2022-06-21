@@ -33,10 +33,12 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/time/rate"
+	"k8s.io/client-go/util/workqueue"
 )
 
-// defaultLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
-func defaultLogger() (logr.Logger, error) {
+// defaultAVOLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
+func defaultAVOLogger() (logr.Logger, error) {
 	config := zap.NewProductionConfig()
 	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
 
@@ -47,6 +49,18 @@ func defaultLogger() (logr.Logger, error) {
 
 	logger := zapr.NewLogger(zapBase)
 	return logger.WithName(controllerName), nil
+}
+
+// defaultAVORateLimiter returns a rate limiter that reconciles more slowly than the default.
+// The default is 5ms --> 1000s, but resources are created much more slowly in AWS than in
+// Kubernetes, so this helps avoid AWS rate limits.
+// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
+func defaultAVORateLimiter() workqueue.RateLimiter {
+	return workqueue.NewMaxOfRateLimiter(
+		workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 5000*time.Second),
+		// 10 qps, 100 bucket size, only for overall retry limiting (not per item)
+		&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(10, 100)},
+	)
 }
 
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler

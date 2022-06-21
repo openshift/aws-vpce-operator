@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -65,7 +66,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := defaultLogger()
+	reqLogger, err := defaultAVOLogger()
 	if err != nil {
 		// Shouldn't happen, but if it does, we can't log
 		return ctrl.Result{}, err
@@ -141,5 +142,8 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avov1alpha1.VpcEndpoint{}).
+		WithOptions(controller.Options{
+			RateLimiter: defaultAVORateLimiter(),
+		}).
 		Complete(r)
 }
