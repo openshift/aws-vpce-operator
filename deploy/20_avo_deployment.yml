@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-vpce-operator
+  namespace: openshift-aws-vpce-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: aws-vpce-operator
+  template:
+    metadata:
+      labels:
+        name: aws-vpce-operator
+    spec:
+      serviceAccountName: aws-vpce-operator
+      tolerations:
+        - operator: Exists
+          key: node-role.kubernetes.io/infra
+          effect: NoSchedule
+      containers:
+        - name: aws-vpce-operator
+          image: # TODO: Fill me out
+          command:
+            - aws-vpce-operator
+          env:
+            - name: "AWS_ROLE_ARN"
+              valueFrom:
+                secretKeyRef:
+                  name: aws-avo-creds
+                  key: role_arn
+                  optional: false
+            - name: "AWS_WEB_IDENTITY_TOKEN_FILE"
+              value: "/var/run/secrets/openshift/serviceaccount/token"
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: "200m"
+            limits:
+              memory: "1G"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: openshift-sa-token
+              mountPath: "/var/run/secrets/openshift/serviceaccount"
+              readOnly: true
+      volumes:
+        - name: openshift-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  audience: openshift
+        - name: avo-aws-creds
+          secret:
+            secretName: avo-aws-creds
+            optional: false
