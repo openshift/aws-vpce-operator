@@ -134,8 +134,8 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 		r.log.V(1).Info("ExternalName service is missing, creating a new one.")
 		err := r.Client.Create(ctx, &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      resource.Spec.ExternalNameService.ObjectMeta.Name,
-				Namespace: resource.Spec.ExternalNameService.ObjectMeta.Namespace,
+				Name:      resource.Spec.ExternalNameService.Name,
+				Namespace: resource.Spec.ExternalNameService.Namespace,
 			},
 			Spec: corev1.ServiceSpec{
 				Type:         corev1.ServiceTypeExternalName,
