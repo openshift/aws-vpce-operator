@@ -147,7 +147,7 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 			return fmt.Errorf("failed to create externalName service: %w", err)
 		}
 		resource.Status.ExternalServiceNameStatus.Status = metav1.StatusSuccess
-		r.log.V(1).Info("externalName service created:", "name", resource.Spec.ExternalNameService.ObjectMeta.Name)
+		r.log.V(1).Info("externalName service created:", "name", resource.Spec.ExternalNameService.Name)
 	}
 	return nil
 }

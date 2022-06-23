@@ -87,7 +87,11 @@ type VpcEndpointStatus struct {
 }
 
 type ExternalNameService struct {
-	metav1.ObjectMeta `json:"metadata,omitempty"`
+	//Name  is the name of the externalName service
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the externalName service
+	Namespace string `json:"namespace"`
 
 	// type is the type of the Kubernetes Service supporting the VPC Endpoint Service
 	ServiceType corev1.ServiceType `json:"type"`
