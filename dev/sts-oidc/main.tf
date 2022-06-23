@@ -65,7 +65,7 @@ data "aws_iam_policy_document" "trust_policy" {
     condition {
       test     = "StringEquals"
       variable = "${local.oidc_provider}:aud"
-      values   = ["sts.amazonaws.com"]
+      values   = ["openshift"]
     }
   }
 }

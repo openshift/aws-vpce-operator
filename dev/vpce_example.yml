@@ -1,13 +1,13 @@
 apiVersion: v1
 kind: Namespace
 metadata:
-  name: demo
+  name: openshift-aws-vpce-operator
 ---
 apiVersion: avo.openshift.io/v1alpha1
 kind: VpcEndpoint
 metadata:
   name: demo
-  namespace: demo
+  namespace: openshift-aws-vpce-operator
 spec:
   subdomainName: "splunk"
   serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-00935f365dbc6ad80"
