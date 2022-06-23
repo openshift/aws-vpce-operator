@@ -50,7 +50,6 @@ spec:
                       the VPC Endpoint Service
                     type: string
                 required:
-                - externalName
                 - type
                 type: object
               securityGroup:

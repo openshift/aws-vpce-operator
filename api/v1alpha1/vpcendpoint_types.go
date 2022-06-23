@@ -93,7 +93,7 @@ type ExternalNameService struct {
 	ServiceType corev1.ServiceType `json:"type"`
 
 	// ExternalName is the DNS record of the Kubernetes Service supporting the VPC Endpoint Service
-	ExternalName string `json:"externalName"`
+	ExternalName string `json:"externalName,omitempty"`
 }
 
 //+kubebuilder:object:root=true
