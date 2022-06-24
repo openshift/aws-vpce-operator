@@ -33,10 +33,10 @@ This is more for exploration/demo purposes on how the STS/OIDC flow between ROSA
     terraform apply -var aws_account_id="${AWS_ACCOUNT_ID}" -var rosa_internal_id="${ROSA_INTERNAL_ID}"
     ```
 
-4. Ensure the current Kubernetes context is set to your STS ROSA cluster and then apply the manifests:
+4. Ensure the current Kubernetes context is set to your STS ROSA cluster and fill in the AWS_ACCOUNT_ID:
 
     ```bash
-    oc process -f aws-sts-debug.tmpl.yml AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID}" | oc create -f -
+    oc apply -f aws-sts-debug.yml
     ```
 
 5. ???
