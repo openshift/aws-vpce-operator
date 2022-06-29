@@ -1,0 +1,46 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  name: aws-vpce-operator-0.0.1
+  namespace: placeholder
+  annotations:
+    categories: A list of comma separated categories that your operator falls under.
+    certified: "false"
+    description: Operator to manage VPC Endpoints for OpenShift Dedicated Clusters.
+    containerImage: quay.io/app-sre/aws-vpce-operator:latest
+    createdAt: "2020-11-03T10:41:36Z"
+    support: Red Hat SRE
+spec:
+  displayName: aws-vpce-operator
+  description: Operator to Manage VPC Endpoints
+  keywords:
+  - kubernetes
+  - ingress
+  - openshift
+  - multi-cluster
+  - cluster
+  version: 0.0.1
+  provider:
+    name: Red Hat, Inc
+  maturity: alpha
+  installModes:
+  - type: OwnNamespace
+    supported: true
+  - type: SingleNamespace
+    supported: true
+  - type: MultiNamespace
+    supported: false
+  - type: AllNamespaces
+    supported: false
+  install:
+    strategy: deployment
+    spec:
+      clusterPermissions:
+      - serviceAccountName: aws-vpce-operator
+        # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+      deployments:
+      - name: aws-vpce-operator
+        # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+  customresourcedefinitions:
+    owned:
+    # CRD's will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
