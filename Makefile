@@ -1,5 +1,10 @@
 FIPS_ENABLED=true
 
+# TODO: Remove below DEPLOYED_HASH once a production CSV bundle is pushed.
+#       This is chicken and egg problem with onboarding a new operator.
+DEPLOYED_HASH := 70ed7725f82e6e4a3a0986a128b814cd76debfbf
+export DEPLOYED_HASH
+
 include boilerplate/generated-includes.mk
 
 SHELL := /usr/bin/env bash
