@@ -59,9 +59,7 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 		},
 	}
 
-	client := &AWSClient{
-		Route53Client: &MockedRoute53{},
-	}
+	client := NewMockedAwsClient()
 
 	for _, test := range tests {
 		_, err := client.GetDefaultPrivateHostedZoneId(test.domainName)
@@ -74,18 +72,14 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 }
 
 func TestAWSClient_ListResourceRecordSets(t *testing.T) {
-	client := &AWSClient{
-		Route53Client: &MockedRoute53{},
-	}
+	client := NewMockedAwsClient()
 
 	_, err := client.ListResourceRecordSets(MockHostedZoneId)
 	assert.NoError(t, err)
 }
 
 func TestAWSClient_UpsertDeleteResourceRecordSet(t *testing.T) {
-	client := &AWSClient{
-		Route53Client: &MockedRoute53{},
-	}
+	client := NewMockedAwsClient()
 
 	_, err := client.UpsertResourceRecordSet(mockResourceRecordSet, MockHostedZoneId)
 	assert.NoError(t, err)

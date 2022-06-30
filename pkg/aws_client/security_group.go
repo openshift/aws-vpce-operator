@@ -33,7 +33,7 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(infraName strin
 		return nil, err
 	}
 
-	return c.EC2Client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+	return c.ec2Client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("tag-key"),
@@ -59,7 +59,7 @@ func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName string) (*ec2.Des
 		return nil, err
 	}
 
-	return c.EC2Client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
+	return c.ec2Client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("tag-key"),
@@ -85,7 +85,7 @@ func (c *AWSClient) FilterSecurityGroupById(groupId string) (*ec2.DescribeSecuri
 			aws.String(groupId),
 		},
 	}
-	resp, err := c.EC2Client.DescribeSecurityGroups(input)
+	resp, err := c.ec2Client.DescribeSecurityGroups(input)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			// Don't return an error if the security group with the specified ID doesn't exist
@@ -117,29 +117,7 @@ func (c *AWSClient) CreateSecurityGroup(name, vpcId, tagKey string) (*ec2.Create
 		},
 		VpcId: &vpcId,
 	}
-	return c.EC2Client.CreateSecurityGroup(input)
-}
-
-func (c *AWSClient) AuthorizeSecurityGroupRules(ingress *ec2.AuthorizeSecurityGroupIngressInput, egress *ec2.AuthorizeSecurityGroupEgressInput) ([]*ec2.SecurityGroupRule, error) {
-	var rules []*ec2.SecurityGroupRule
-
-	if len(ingress.IpPermissions) > 0 {
-		ingressResp, err := c.EC2Client.AuthorizeSecurityGroupIngress(ingress)
-		if err != nil {
-			return nil, err
-		}
-		rules = append(rules, ingressResp.SecurityGroupRules...)
-	}
-
-	if len(egress.IpPermissions) > 0 {
-		egressResp, err := c.EC2Client.AuthorizeSecurityGroupEgress(egress)
-		if err != nil {
-			return nil, err
-		}
-		rules = append(rules, egressResp.SecurityGroupRules...)
-	}
-
-	return rules, nil
+	return c.ec2Client.CreateSecurityGroup(input)
 }
 
 // DeleteSecurityGroup deletes a security group with the specified ID
@@ -147,5 +125,5 @@ func (c *AWSClient) DeleteSecurityGroup(groupId string) (*ec2.DeleteSecurityGrou
 	input := &ec2.DeleteSecurityGroupInput{
 		GroupId: aws.String(groupId),
 	}
-	return c.EC2Client.DeleteSecurityGroup(input)
+	return c.ec2Client.DeleteSecurityGroup(input)
 }

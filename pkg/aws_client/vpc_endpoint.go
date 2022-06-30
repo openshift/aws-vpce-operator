@@ -37,7 +37,7 @@ func (c *AWSClient) DescribeSingleVPCEndpointById(id string) (*ec2.DescribeVpcEn
 		},
 	}
 
-	resp, err := c.EC2Client.DescribeVpcEndpoints(input)
+	resp, err := c.ec2Client.DescribeVpcEndpoints(input)
 	if err != nil {
 		if awsErr, ok := err.(awserr.Error); ok {
 			// Don't return an error if the VPC endpoint with the specified ID doesn't exist
@@ -61,7 +61,7 @@ func (c *AWSClient) FilterVPCEndpointByDefaultTags(clusterTag string) (*ec2.Desc
 		return &ec2.DescribeVpcEndpointsOutput{}, nil
 	}
 
-	return c.EC2Client.DescribeVpcEndpoints(&ec2.DescribeVpcEndpointsInput{
+	return c.ec2Client.DescribeVpcEndpoints(&ec2.DescribeVpcEndpointsInput{
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("tag-key"),
@@ -98,7 +98,7 @@ func (c *AWSClient) CreateDefaultInterfaceVPCEndpoint(name, vpcId, serviceName, 
 		},
 	}
 
-	return c.EC2Client.CreateVpcEndpoint(input)
+	return c.ec2Client.CreateVpcEndpoint(input)
 }
 
 // DeleteVPCEndpoint deletes a VPC endpoint with the given id.
@@ -109,5 +109,10 @@ func (c *AWSClient) DeleteVPCEndpoint(id string) (*ec2.DeleteVpcEndpointsOutput,
 		},
 	}
 
-	return c.EC2Client.DeleteVpcEndpoints(input)
+	return c.ec2Client.DeleteVpcEndpoints(input)
+}
+
+// ModifyVpcEndpoint modifies a VPC endpoint
+func (c *AWSClient) ModifyVpcEndpoint(input *ec2.ModifyVpcEndpointInput) (*ec2.ModifyVpcEndpointOutput, error) {
+	return c.ec2Client.ModifyVpcEndpoint(input)
 }

@@ -83,7 +83,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWS
 		if err != nil {
 			return err
 		}
-		r.awsClient = aws_client.New(sess)
+		r.awsClient = aws_client.NewAwsClient(sess)
 	}
 
 	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)

@@ -25,13 +25,20 @@ import (
 )
 
 type AWSClient struct {
-	EC2Client     ec2iface.EC2API
-	Route53Client route53iface.Route53API
+	ec2Client     ec2iface.EC2API
+	route53Client route53iface.Route53API
 }
 
-func New(sess *session.Session) *AWSClient {
-	client := new(AWSClient)
-	client.EC2Client = ec2.New(sess)
-	client.Route53Client = route53.New(sess)
-	return client
+// NewAwsClient returns an AWSClient with the provided session
+func NewAwsClient(sess *session.Session) *AWSClient {
+	return NewAwsClientWithServiceClients(ec2.New(sess), route53.New(sess))
+}
+
+// NewAwsClientWithServiceClients returns an AWSClient with the provided EC2 and Route53 clients.
+// Typically, not used directly except for building a mock for testing.
+func NewAwsClientWithServiceClients(ec2 ec2iface.EC2API, r53 route53iface.Route53API) *AWSClient {
+	return &AWSClient{
+		ec2Client:     ec2,
+		route53Client: r53,
+	}
 }

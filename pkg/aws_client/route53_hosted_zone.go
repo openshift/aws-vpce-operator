@@ -30,7 +30,7 @@ func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.H
 	}
 
 	// TODO: Unlikely, but would be nice to handle pagination
-	resp, err := c.Route53Client.ListHostedZonesByName(input)
+	resp, err := c.route53Client.ListHostedZonesByName(input)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +49,7 @@ func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListRe
 	}
 
 	// TODO: Handle pagination
-	resp, err := c.Route53Client.ListResourceRecordSets(input)
+	resp, err := c.route53Client.ListResourceRecordSets(input)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func (c *AWSClient) UpsertResourceRecordSet(rrs *route53.ResourceRecordSet, host
 		HostedZoneId: aws.String(hostedZoneId),
 	}
 
-	return c.Route53Client.ChangeResourceRecordSets(input)
+	return c.route53Client.ChangeResourceRecordSets(input)
 }
 
 // DeleteResourceRecordSet deletes a specific record from a hosted zone
@@ -92,5 +92,5 @@ func (c *AWSClient) DeleteResourceRecordSet(rrs *route53.ResourceRecordSet, host
 		HostedZoneId: aws.String(hostedZoneId),
 	}
 
-	return c.Route53Client.ChangeResourceRecordSets(input)
+	return c.route53Client.ChangeResourceRecordSets(input)
 }

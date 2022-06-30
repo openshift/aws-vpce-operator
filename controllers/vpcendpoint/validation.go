@@ -161,7 +161,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	// Fix tags if any are missing
 	if !TagsContains(sg.Tags, defaultTags) {
 		r.log.V(1).Info("Adding missing security group tags")
-		_, err := r.awsClient.EC2Client.CreateTags(&ec2.CreateTagsInput{
+		_, err := r.awsClient.CreateTags(&ec2.CreateTagsInput{
 			Resources: []*string{sg.GroupId},
 			Tags: []*ec2.Tag{
 				{
@@ -180,15 +180,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		}
 	}
 
-	// TODO: Break out DescribeSecurityGroupRules into a separate function
-	rulesResp, err := r.awsClient.EC2Client.DescribeSecurityGroupRules(&ec2.DescribeSecurityGroupRulesInput{
-		Filters: []*ec2.Filter{
-			{
-				Name:   aws.String("group-id"),
-				Values: []*string{sg.GroupId},
-			},
-		},
-	})
+	rulesResp, err := r.awsClient.DescribeSecurityGroupRules(*sg.GroupId)
 	if err != nil {
 		return err
 	}
@@ -410,7 +402,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	// DuplicateSubnetsInSameZone: Found another VPC endpoint subnet in the availability zone of <existing subnet>
 	if len(subnetsToRemove) > 0 {
 		r.log.V(1).Info("Removing subnet(s) from VPC Endpoint", "subnetsToRemove", subnetsToRemove)
-		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			RemoveSubnetIds: subnetsToRemove,
 			VpcEndpointId:   vpce.VpcEndpointId,
 		}); err != nil {
@@ -420,7 +412,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	if len(subnetsToAdd) > 0 {
 		r.log.V(1).Info("Adding subnet(s) to VPC Endpoint", "subnetsToAdd", subnetsToAdd)
-		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			AddSubnetIds:  subnetsToAdd,
 			VpcEndpointId: vpce.VpcEndpointId,
 		}); err != nil {
@@ -440,7 +432,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	if len(sgToAdd) > 0 {
 		r.log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
-		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			AddSecurityGroupIds: sgToAdd,
 			VpcEndpointId:       vpce.VpcEndpointId,
 		}); err != nil {
@@ -450,7 +442,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	if len(sgToRemove) > 0 {
 		r.log.V(1).Info("Removing security group(s) from VPC Endpoint", "sgToRemove", sgToRemove)
-		if _, err := r.awsClient.EC2Client.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
 			RemoveSecurityGroupIds: sgToRemove,
 			VpcEndpointId:          vpce.VpcEndpointId,
 		}); err != nil {
