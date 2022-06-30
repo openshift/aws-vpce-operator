@@ -1,35 +1,35 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: "aws-vpce-operator"
+  name: aws-vpce-operator
 rules:
   - apiGroups:
-    - "config.openshift.io"
+    - config.openshift.io
     resources:
-      - "infrastructures"
-      - "dnses"
+    - infrastructures
+    - dnses
     verbs:
-      - "get"
-      - "list"
-      - "watch"
+    - get
+    - list
+    - watch
   - apiGroups:
-      - "avo.openshift.io"
+    - avo.openshift.io
     resources:
-      - "vpcendpoints"
+    - vpcendpoints
     verbs:
-      - "get"
-      - "list"
-      - "watch"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: "aws-vpce-operator"
-subjects:
-  - kind: ServiceAccount
-    name: "aws-vpce-operator"
-    namespace: "openshift-aws-vpce-operator"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: "aws-vpce-operator"
+    - get
+    - list
+    - watch
+  - apiGroups:
+    - ""
+    resources:
+    - services
+    - services/finalizers
+    verbs:
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
