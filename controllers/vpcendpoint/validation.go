@@ -55,7 +55,7 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 		Name:      resource.Spec.ExternalNameService.Name,
 	}
 
-	err := client.IgnoreNotFound(r.Client.Get(ctx, externalNameSvcSpec, &corev1.Service{}))
+	err := r.Client.Get(ctx, externalNameSvcSpec, &corev1.Service{})
 	if err != nil {
 		r.log.V(0).Info("unable to locate externalName service")
 		resource.Status.ExternalServiceNameStatus.Status = string("")
@@ -68,7 +68,6 @@ func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, r
 	}
 	if resource.Status.ExternalServiceNameStatus.Status != string(metav1.StatusSuccess) {
 		r.log.V(0).Info("ExternalName service is missing, creating a new one.")
-
 		err = r.Client.Create(ctx, &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      resource.Spec.ExternalNameService.Name,
