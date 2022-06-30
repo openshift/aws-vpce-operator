@@ -23,6 +23,7 @@ testbin/*
 .venv
 .idea
 *.swp
+.vscode
 *.swo
 *~
 

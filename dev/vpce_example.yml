@@ -10,9 +10,12 @@ metadata:
   namespace: openshift-aws-vpce-operator
 spec:
   subdomainName: "splunk"
-  serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-00935f365dbc6ad80"
+  serviceName: "com.amazonaws.vpce.us-east-1.vpce-svc-00000000000000000"
   securityGroup:
     ingressRules:
       - fromPort: 9997
         toPort: 9997
         protocol: tcp
+  externalNameService:
+    name: examplesvcname
+    namespace: demo
