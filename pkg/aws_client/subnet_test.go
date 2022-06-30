@@ -39,9 +39,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 		},
 	}
 
-	client := &AWSClient{
-		EC2Client: NewMockedEC2WithSubnets(),
-	}
+	client := NewMockedAwsClientWithSubnets()
 
 	for _, test := range tests {
 		actualPrivate, err := client.DescribePrivateSubnets(test.clusterTag)

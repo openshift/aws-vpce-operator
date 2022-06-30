@@ -93,6 +93,14 @@ func NewMockedEC2WithSubnets() *MockedEC2 {
 	}
 }
 
+func NewMockedAwsClient() *AWSClient {
+	return NewAwsClientWithServiceClients(&MockedEC2{}, &MockedRoute53{})
+}
+
+func NewMockedAwsClientWithSubnets() *AWSClient {
+	return NewAwsClientWithServiceClients(NewMockedEC2WithSubnets(), &MockedRoute53{})
+}
+
 func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
 	tagKeys := map[string]bool{}
 	for _, filter := range input.Filters {

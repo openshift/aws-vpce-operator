@@ -34,13 +34,17 @@ func (m *MockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.C
 }
 
 func (m *MockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2.DeleteVpcEndpointsOutput, error) {
+	// TODO: This is a no-op
 	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
+func (m *MockedEC2) ModifyVpcEndpoint(input *ec2.ModifyVpcEndpointInput) (*ec2.ModifyVpcEndpointOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.ModifyVpcEndpointOutput{}, nil
+}
+
 func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
-	client := &AWSClient{
-		EC2Client: &MockedEC2{},
-	}
+	client := NewMockedAwsClient()
 
 	resp, err := client.DescribeSingleVPCEndpointById(testutil.MockVpcEndpointId)
 	assert.NoError(t, err)
@@ -48,22 +52,41 @@ func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 }
 
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
-	client := &AWSClient{
-		EC2Client: &MockedEC2{},
-	}
+	client := NewMockedAwsClient()
 
 	_, err := client.FilterVPCEndpointByDefaultTags(MockClusterTag)
 	assert.NoError(t, err)
 }
 
 func TestCreateDeleteVPCEndpoint(t *testing.T) {
-	client := &AWSClient{
-		EC2Client: &MockedEC2{},
-	}
+	client := NewMockedAwsClient()
 
 	resp, err := client.CreateDefaultInterfaceVPCEndpoint("name", MockVpcId, MockVpcEndpointServiceName, MockClusterTag)
 	assert.NoError(t, err)
 
 	_, err = client.DeleteVPCEndpoint(*resp.VpcEndpoint.VpcEndpointId)
 	assert.NoError(t, err)
+}
+
+func TestAWSClient_ModifyVPCEndpoint(t *testing.T) {
+	tests := []struct {
+		input     *ec2.ModifyVpcEndpointInput
+		expectErr bool
+	}{
+		{
+			input:     &ec2.ModifyVpcEndpointInput{},
+			expectErr: false,
+		},
+	}
+
+	client := NewMockedAwsClient()
+
+	for _, test := range tests {
+		_, err := client.ModifyVpcEndpoint(test.input)
+		if test.expectErr {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+		}
+	}
 }

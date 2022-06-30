@@ -55,12 +55,10 @@ func TestParseClusterInfo(t *testing.T) {
 	}
 
 	r := &VpcEndpointReconciler{
-		Client: mock.Client,
-		log:    testr.New(t),
-		Scheme: mock.Client.Scheme(),
-		awsClient: &aws_client.AWSClient{
-			EC2Client: aws_client.NewMockedEC2WithSubnets(),
-		},
+		Client:      mock.Client,
+		log:         testr.New(t),
+		Scheme:      mock.Client.Scheme(),
+		awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
 		clusterInfo: nil,
 	}
 
@@ -93,13 +91,10 @@ func TestDefaultResourceRecord(t *testing.T) {
 	}
 
 	r := &VpcEndpointReconciler{
-		Client: mock.Client,
-		log:    testr.New(t),
-		Scheme: mock.Client.Scheme(),
-		awsClient: &aws_client.AWSClient{
-			EC2Client:     aws_client.NewMockedEC2WithSubnets(),
-			Route53Client: aws_client.MockedRoute53{},
-		},
+		Client:      mock.Client,
+		log:         testr.New(t),
+		Scheme:      mock.Client.Scheme(),
+		awsClient:   aws_client.NewAwsClientWithServiceClients(aws_client.NewMockedEC2WithSubnets(), aws_client.MockedRoute53{}),
 		clusterInfo: nil,
 	}
 

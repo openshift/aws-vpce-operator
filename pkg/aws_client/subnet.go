@@ -79,5 +79,5 @@ func (c *AWSClient) DescribeSubnetsByTagKey(tagKey ...string) (*ec2.DescribeSubn
 		Filters: filters,
 	}
 
-	return c.EC2Client.DescribeSubnets(input)
+	return c.ec2Client.DescribeSubnets(input)
 }
