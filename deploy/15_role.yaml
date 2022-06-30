@@ -5,39 +5,25 @@ metadata:
   namespace: openshift-aws-vpce-operator
 rules:
   - apiGroups:
-      - "avo.openshift.io"
+    - avo.openshift.io
     resources:
-      - "vpcendpoints"
+    - vpcendpoints
     verbs:
-      - "create"
-      - "delete"
-      - "update"
-      - "patch"
+    - create
+    - delete
+    - update
+    - patch
   - apiGroups:
-      - "avo.openshift.io"
+    - avo.openshift.io
     resources:
-      - "vpcendpoints/status"
+    - vpcendpoints/status
     verbs:
-      - "get"
-      - "update"
-      - "patch"
+    - get
+    - update
+    - patch
   - apiGroups:
-      - "avo.openshift.io"
+    - avo.openshift.io
     resources:
-      - "vpcendpoints/finalizers"
+    - vpcendpoints/finalizers
     verbs:
-      - "update"
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: aws-vpce-operator
-  namespace: openshift-aws-vpce-operator
-subjects:
-  - kind: ServiceAccount
-    name: aws-vpce-operator
-    namespace: openshift-aws-vpce-operator
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: aws-vpce-operator
+    - update
