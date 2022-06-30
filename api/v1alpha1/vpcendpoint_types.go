@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -60,6 +61,9 @@ type VpcEndpointSpec struct {
 	// SubdomainName is the name of the Route53 Hosted Zone CNAME rule to create in the cluster's
 	// Private Route53 Hosted Zone
 	SubdomainName string `json:"subdomainName"`
+
+	// ExternalNameService is the name of the Kubernetes Service supporting the VPC Endpoint Service
+	ExternalNameService ExternalNameServiceSpec `json:"externalNameService,omitempty"`
 }
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -77,6 +81,23 @@ type VpcEndpointStatus struct {
 
 	// Whether the Route53 CNAME record has been created
 	CNAMERecordCreated bool `json:"hostedZoneRecordCreated,omitempty"`
+
+	// ExternalServiceNameStatus is the status of the ExternalName service
+	ExternalServiceNameStatus metav1.Status `json:"externalNameServiceStatus,omitempty"`
+}
+
+type ExternalNameServiceSpec struct {
+	//Name  is the name of the externalName service
+	Name string `json:"name"`
+
+	// Namespace is the namespace of the externalName service
+	Namespace string `json:"namespace"`
+
+	// type is the type of the Kubernetes Service supporting the VPC Endpoint Service
+	ServiceType corev1.ServiceType `json:"type"`
+
+	// ExternalName is the DNS record of the Kubernetes Service supporting the VPC Endpoint Service
+	ExternalName string `json:"externalName,omitempty"`
 }
 
 //+kubebuilder:object:root=true

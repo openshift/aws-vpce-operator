@@ -34,7 +34,10 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // defaultAVOLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
@@ -139,4 +142,51 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 	return &route53.ResourceRecord{
 		Value: vpceResp.VpcEndpoints[0].DnsEntries[0].DnsName,
 	}, nil
+}
+
+func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, resource *v1alpha1.VpcEndpoint) error {
+	externalNameSvcSpec := client.ObjectKey{
+		Namespace: resource.Spec.ExternalNameService.Namespace,
+		Name:      resource.Spec.ExternalNameService.Name,
+	}
+
+	err := r.Client.Get(ctx, externalNameSvcSpec, &corev1.Service{})
+	if err != nil {
+		r.log.V(0).Info("unable to locate externalName service")
+		err = client.IgnoreNotFound(err)
+		if err != nil {
+			r.log.V(0).Info("client unable to process error")
+		}
+		resource.Status.ExternalServiceNameStatus.Status = string("")
+	} else {
+		resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
+	}
+	err = r.Status().Update(ctx, resource)
+	if err != nil {
+		r.log.V(0).Info("unable to update status")
+	}
+	if resource.Status.ExternalServiceNameStatus.Status != string(metav1.StatusSuccess) {
+		r.log.V(0).Info("ExternalName service is missing, creating a new one.")
+
+		err = r.Client.Create(ctx, &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      resource.Spec.ExternalNameService.Name,
+				Namespace: resource.Spec.ExternalNameService.Namespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:         "ExternalName",
+				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.ServiceName, r.clusterInfo.domainName),
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create externalName service: %w", err)
+		}
+	}
+	resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
+	err = r.Status().Update(ctx, resource)
+	if err != nil {
+		r.log.V(0).Info("unable to update status")
+	}
+	r.log.V(0).Info("externalName service created:", "name", resource.Spec.ExternalNameService.Name)
+	return nil
 }
