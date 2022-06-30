@@ -39,24 +39,15 @@ spec:
                 description: ExternalNameService is the name of the Kubernetes Service
                   supporting the VPC Endpoint Service
                 properties:
-                  externalName:
-                    description: ExternalName is the DNS record of the Kubernetes
-                      Service supporting the VPC Endpoint Service
-                    type: string
                   name:
                     description: Name  is the name of the externalName service
                     type: string
                   namespace:
                     description: Namespace is the namespace of the externalName service
                     type: string
-                  type:
-                    description: type is the type of the Kubernetes Service supporting
-                      the VPC Endpoint Service
-                    type: string
                 required:
                 - name
                 - namespace
-                - type
                 type: object
               securityGroup:
                 description: SecurityGroup contains the configuration of the security

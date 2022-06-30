@@ -26,6 +26,9 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // TagsContains returns true if the all the tags in tagsToCheck exist in tags
@@ -44,6 +47,49 @@ func TagsContains(tags []*ec2.Tag, tagsToCheck map[string]string) bool {
 	}
 
 	return true
+}
+
+func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	externalNameSvcSpec := client.ObjectKey{
+		Namespace: resource.Spec.ExternalNameService.Namespace,
+		Name:      resource.Spec.ExternalNameService.Name,
+	}
+
+	err := client.IgnoreNotFound(r.Client.Get(ctx, externalNameSvcSpec, &corev1.Service{}))
+	if err != nil {
+		r.log.V(0).Info("unable to locate externalName service")
+		resource.Status.ExternalServiceNameStatus.Status = string("")
+	} else {
+		resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
+	}
+	err = r.Status().Update(ctx, resource)
+	if err != nil {
+		return fmt.Errorf("unable to update status: %w", err)
+	}
+	if resource.Status.ExternalServiceNameStatus.Status != string(metav1.StatusSuccess) {
+		r.log.V(0).Info("ExternalName service is missing, creating a new one.")
+
+		err = r.Client.Create(ctx, &corev1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      resource.Spec.ExternalNameService.Name,
+				Namespace: resource.Spec.ExternalNameService.Namespace,
+			},
+			Spec: corev1.ServiceSpec{
+				Type:         "ExternalName",
+				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.ServiceName, r.clusterInfo.domainName),
+			},
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create externalName service: %w", err)
+		}
+	}
+	resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
+	err = r.Status().Update(ctx, resource)
+	if err != nil {
+		return fmt.Errorf("unable to update status: %w", err)
+	}
+	r.log.V(1).Info("externalName service created:", "name", resource.Spec.ExternalNameService.Name)
+	return nil
 }
 
 type ValidateAWSResourceFunc func(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error

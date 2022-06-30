@@ -19,4 +19,3 @@ spec:
   externalNameService:
     name: examplesvcname
     namespace: demo
-    type: externalName

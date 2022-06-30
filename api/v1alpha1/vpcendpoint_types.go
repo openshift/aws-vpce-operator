@@ -17,7 +17,6 @@ limitations under the License.
 package v1alpha1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -92,12 +91,6 @@ type ExternalNameServiceSpec struct {
 
 	// Namespace is the namespace of the externalName service
 	Namespace string `json:"namespace"`
-
-	// type is the type of the Kubernetes Service supporting the VPC Endpoint Service
-	ServiceType corev1.ServiceType `json:"type"`
-
-	// ExternalName is the DNS record of the Kubernetes Service supporting the VPC Endpoint Service
-	ExternalName string `json:"externalName,omitempty"`
 }
 
 //+kubebuilder:object:root=true
