@@ -29,7 +29,7 @@ spec:
                 secretKeyRef:
                   name: aws-avo-creds
                   key: role_arn
-                  optional: false
+                  optional: true
             - name: "AWS_WEB_IDENTITY_TOKEN_FILE"
               value: "/var/run/secrets/openshift/serviceaccount/token"
           imagePullPolicy: Always
@@ -64,4 +64,4 @@ spec:
         - name: avo-aws-creds
           secret:
             secretName: avo-aws-creds
-            optional: false
+            optional: true
