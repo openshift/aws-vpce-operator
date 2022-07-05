@@ -49,7 +49,7 @@ type SecurityGroup struct {
 
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
-	//+kubebuilder:validation:MinLength=0
+	// +kubebuilder:validation:MinLength=0
 
 	// ServiceName is the name of the VPC Endpoint Service to connect to
 	ServiceName string `json:"serviceName"`
@@ -93,8 +93,11 @@ type ExternalNameServiceSpec struct {
 	Namespace string `json:"namespace"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="ID",type=string,JSONPath=`.status.vpcEndpointId`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // VpcEndpoint is the Schema for the vpcendpoints API
 type VpcEndpoint struct {
