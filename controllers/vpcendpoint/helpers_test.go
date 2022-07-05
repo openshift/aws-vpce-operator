@@ -26,6 +26,9 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestDefaultAVORateLimiter(t *testing.T) {
@@ -104,6 +107,98 @@ func TestDefaultResourceRecord(t *testing.T) {
 			assert.Error(t, err)
 		} else {
 			assert.NoError(t, err)
+		}
+	}
+}
+
+func TestServiceForVpce(t *testing.T) {
+	var (
+		trueBool = true
+	)
+	tests := []struct {
+		resource   *v1alpha1.VpcEndpoint
+		domainName string
+		expected   *corev1.Service
+		expectErr  bool
+	}{
+		{
+			resource: &v1alpha1.VpcEndpoint{
+				Spec: v1alpha1.VpcEndpointSpec{
+					SubdomainName: "demo",
+					ExternalNameService: v1alpha1.ExternalNameServiceSpec{
+						Name:      "demo",
+						Namespace: "demo-ns",
+					},
+				},
+			},
+			domainName: "my.cluster.com",
+			expected: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo",
+					Namespace: "demo-ns",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "avo.openshift.io/v1alpha1",
+							Kind:               "VpcEndpoint",
+							Controller:         &trueBool,
+							BlockOwnerDeletion: &trueBool,
+						},
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type:         corev1.ServiceTypeExternalName,
+					ExternalName: "demo.my.cluster.com",
+				},
+			},
+			expectErr: false,
+		},
+		{
+			resource: &v1alpha1.VpcEndpoint{
+				Spec: v1alpha1.VpcEndpointSpec{
+					ExternalNameService: v1alpha1.ExternalNameServiceSpec{
+						Name:      "demo",
+						Namespace: "demo-ns",
+					},
+				},
+			},
+			domainName: "my.cluster.com",
+			expectErr:  true,
+		},
+		{
+			resource: &v1alpha1.VpcEndpoint{
+				Spec: v1alpha1.VpcEndpointSpec{
+					SubdomainName: "demo",
+					ExternalNameService: v1alpha1.ExternalNameServiceSpec{
+						Name:      "demo",
+						Namespace: "demo-ns",
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	mock, err := testutil.NewDefaultMock()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		r := &VpcEndpointReconciler{
+			Client: mock.Client,
+			log:    testr.New(t),
+			Scheme: mock.Client.Scheme(),
+			clusterInfo: &clusterInfo{
+				domainName: test.domainName,
+			},
+		}
+
+		actual, err := r.expectedServiceForVpce(test.resource)
+		if test.expectErr {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, actual)
 		}
 	}
 }

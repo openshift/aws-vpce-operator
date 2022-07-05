@@ -19,16 +19,16 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
-
-	"github.com/aws/aws-sdk-go/service/route53"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
-	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
+
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	client "sigs.k8s.io/controller-runtime/pkg/client"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 // TagsContains returns true if the all the tags in tagsToCheck exist in tags
@@ -49,45 +49,54 @@ func TagsContains(tags []*ec2.Tag, tagsToCheck map[string]string) bool {
 	return true
 }
 
-func (r *VpcEndpointReconciler) ensureExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
-	externalNameSvcSpec := client.ObjectKey{
-		Namespace: resource.Spec.ExternalNameService.Namespace,
-		Name:      resource.Spec.ExternalNameService.Name,
+// validateExternalNameService checks if the expected ExternalName service exists, creating or updating it as needed
+func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	found := &corev1.Service{}
+	expected, err := r.expectedServiceForVpce(resource)
+	if err != nil {
+		return err
 	}
 
-	err := r.Client.Get(ctx, externalNameSvcSpec, &corev1.Service{})
-	if err != nil {
-		r.log.V(0).Info("unable to locate externalName service")
-		resource.Status.ExternalServiceNameStatus.Status = string("")
-	} else {
-		resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
-	}
-	err = r.Status().Update(ctx, resource)
-	if err != nil {
-		return fmt.Errorf("unable to update status: %w", err)
-	}
-	if resource.Status.ExternalServiceNameStatus.Status != string(metav1.StatusSuccess) {
-		r.log.V(0).Info("ExternalName service is missing, creating a new one.")
-		err = r.Client.Create(ctx, &corev1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      resource.Spec.ExternalNameService.Name,
-				Namespace: resource.Spec.ExternalNameService.Namespace,
-			},
-			Spec: corev1.ServiceSpec{
-				Type:         "ExternalName",
-				ExternalName: fmt.Sprintf("%s.%s", resource.Spec.ServiceName, r.clusterInfo.domainName),
-			},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create externalName service: %w", err)
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      resource.Spec.ExternalNameService.Name,
+		Namespace: resource.Spec.ExternalNameService.Namespace,
+	}, found); err != nil {
+		if kerr.IsNotFound(err) {
+			// Create the ExternalName service since it's missing
+			r.log.V(0).Info("Creating ExternalName service", "service", expected)
+			if err := r.Create(ctx, expected); err != nil {
+				r.log.V(0).Error(err, "failed to create ExternalName service")
+				return err
+			}
+			// Requeue, but no error
+			return fmt.Errorf("requeue to validate service")
+		} else {
+			resource.Status.ExternalServiceNameStatus.Status = metav1.StatusFailure
+			if err := r.Status().Update(ctx, resource); err != nil {
+				return fmt.Errorf("unable to update status: %w", err)
+			}
+			return err
 		}
 	}
-	resource.Status.ExternalServiceNameStatus.Status = string(metav1.StatusSuccess)
-	err = r.Status().Update(ctx, resource)
-	if err != nil {
+
+	// The only mutable field we care about is .spec.ExternalName, fix it if it got messed up
+	if found.Spec.ExternalName != expected.Spec.ExternalName {
+		found.Spec.ExternalName = expected.Spec.ExternalName
+		r.log.V(0).Info("Updating ExternalName service", "service", found)
+		if err := r.Update(ctx, found); err != nil {
+			resource.Status.ExternalServiceNameStatus.Status = metav1.StatusFailure
+			if err := r.Status().Update(ctx, resource); err != nil {
+				return fmt.Errorf("unable to update status: %w", err)
+			}
+			return err
+		}
+	}
+
+	resource.Status.ExternalServiceNameStatus.Status = metav1.StatusSuccess
+	if err := r.Status().Update(ctx, resource); err != nil {
 		return fmt.Errorf("unable to update status: %w", err)
 	}
-	r.log.V(1).Info("externalName service created:", "name", resource.Spec.ExternalNameService.Name)
+
 	return nil
 }
 
@@ -195,7 +204,6 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		sourceSgIds[i] = sourceSgResp.SecurityGroups[i].GroupId
 	}
 
-	// TODO: Break out AuthorizeSecurityGroupIngress and AuthorizeSecurityGroupEgress into a function
 	// Ensure ingress/egress rules
 	var (
 		ingressRules []*ec2.IpPermission
@@ -397,7 +405,6 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
 
-	// TODO: ModifyVPCEndpoint should be made into a function
 	// Removing subnets first before adding to avoid
 	// DuplicateSubnetsInSameZone: Found another VPC endpoint subnet in the availability zone of <existing subnet>
 	if len(subnetsToRemove) > 0 {

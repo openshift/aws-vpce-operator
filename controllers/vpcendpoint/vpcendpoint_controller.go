@@ -62,8 +62,8 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints/finalizers,verbs=update
-//+kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get
-//+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get
+//+kubebuilder:rbac:groups=config.openshift.io,resources=infrastructures,verbs=get,list
+//+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get,list
 //+kubebuilder:rbac:groups=v1,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=v1,resources=services/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
@@ -136,7 +136,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// Ensure the ExternalName service is in the right state
-	if err := r.ensureExternalNameService(ctx, avo); err != nil {
+	if err := r.validateExternalNameService(ctx, avo); err != nil {
 		return ctrl.Result{}, err
 	}
 
