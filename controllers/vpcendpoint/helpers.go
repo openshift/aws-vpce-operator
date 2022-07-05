@@ -34,7 +34,11 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/util/workqueue"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // defaultAVOLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
@@ -139,4 +143,32 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 	return &route53.ResourceRecord{
 		Value: vpceResp.VpcEndpoints[0].DnsEntries[0].DnsName,
 	}, nil
+}
+
+// expectedServiceForVpce generates the expected ExternalName service for a VpcEndpoint CustomResource
+func (r *VpcEndpointReconciler) expectedServiceForVpce(resource *v1alpha1.VpcEndpoint) (*corev1.Service, error) {
+	if resource.Spec.SubdomainName == "" {
+		return nil, fmt.Errorf("subdomainName is a required field")
+	}
+
+	if r.clusterInfo.domainName == "" {
+		return nil, fmt.Errorf("empty domainName")
+	}
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resource.Spec.ExternalNameService.Name,
+			Namespace: resource.Spec.ExternalNameService.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:         corev1.ServiceTypeExternalName,
+			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, r.clusterInfo.domainName),
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(resource, svc, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return svc, nil
 }
