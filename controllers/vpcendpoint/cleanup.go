@@ -93,3 +93,12 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 
 	return nil
 }
+
+// cleanupMetrics deletes metrics associated with a specific custom resource in a best-effort manner
+func (r *VpcEndpointReconciler) cleanupMetrics(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	// DeleteLabelValues returns true if the metric is deleted, false otherwise, currently we don't really care
+	// either way, so just always return nil
+	vpcePendingAcceptance.DeleteLabelValues(resource.Name, resource.Namespace)
+
+	return nil
+}
