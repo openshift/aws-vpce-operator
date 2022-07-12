@@ -65,11 +65,15 @@ type VpcEndpointSpec struct {
 	ExternalNameService ExternalNameServiceSpec `json:"externalNameService,omitempty"`
 }
 
+const (
+	AWSVpcEndpointCondition      = "AWSVpcEndpointReady"
+	AWSSecurityGroupCondition    = "AWSSecurityGroupReady"
+	AWSRoute53RecordCondition    = "AWSRoute53RecordReady"
+	ExternalNameServiceCondition = "ExternalNameServiceReady"
+)
+
 // VpcEndpointStatus defines the observed state of VpcEndpoint
 type VpcEndpointStatus struct {
-	// Status of the VPC Endpoint
-	Status string `json:"status,omitempty"`
-
 	// The AWS ID of the managed security group
 	// +optional
 	SecurityGroupId string `json:"securityGroupId,omitempty"`
@@ -78,15 +82,13 @@ type VpcEndpointStatus struct {
 	// +optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`
 
-	// Whether the Route53 CNAME record has been created
-	CNAMERecordCreated bool `json:"hostedZoneRecordCreated,omitempty"`
-
-	// ExternalServiceNameStatus is the status of the ExternalName service
-	ExternalServiceNameStatus metav1.Status `json:"externalNameServiceStatus,omitempty"`
+	// The status conditions of the AWS and K8s resources managed by this controller
+	// +optional
+	Conditions []metav1.Condition `json:"conditions"`
 }
 
 type ExternalNameServiceSpec struct {
-	//Name  is the name of the externalName service
+	// Name is the name of the externalName service
 	Name string `json:"name"`
 
 	// Namespace is the namespace of the externalName service

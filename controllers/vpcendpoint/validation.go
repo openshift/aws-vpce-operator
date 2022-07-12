@@ -27,6 +27,7 @@ import (
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
@@ -68,13 +69,23 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 				r.log.V(0).Error(err, "failed to create ExternalName service")
 				return err
 			}
+
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:   avov1alpha1.ExternalNameServiceCondition,
+				Status: metav1.ConditionTrue,
+				Reason: "Created",
+			})
+
 			// Requeue, but no error
 			return fmt.Errorf("requeue to validate service")
 		} else {
-			resource.Status.ExternalServiceNameStatus.Status = metav1.StatusFailure
-			if err := r.Status().Update(ctx, resource); err != nil {
-				return fmt.Errorf("unable to update status: %w", err)
-			}
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha1.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+
 			return err
 		}
 	}
@@ -84,17 +95,21 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 		found.Spec.ExternalName = expected.Spec.ExternalName
 		r.log.V(0).Info("Updating ExternalName service", "service", found)
 		if err := r.Update(ctx, found); err != nil {
-			resource.Status.ExternalServiceNameStatus.Status = metav1.StatusFailure
-			if err := r.Status().Update(ctx, resource); err != nil {
-				return fmt.Errorf("unable to update status: %w", err)
-			}
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha1.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+
 			return err
 		}
-	}
 
-	resource.Status.ExternalServiceNameStatus.Status = metav1.StatusSuccess
-	if err := r.Status().Update(ctx, resource); err != nil {
-		return fmt.Errorf("unable to update status: %w", err)
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha1.ExternalNameServiceCondition,
+			Status: metav1.ConditionTrue,
+			Reason: "Reconciled",
+		})
 	}
 
 	return nil
@@ -108,6 +123,16 @@ func (r *VpcEndpointReconciler) validateAWSResources(
 	validationFuncs []ValidateAWSResourceFunc) error {
 	for _, validationFunc := range validationFuncs {
 		if err := validationFunc(ctx, resource); err != nil {
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+
+			return err
+		}
+
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
 			return err
 		}
 	}
@@ -151,11 +176,12 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 			}
 
 			resource.Status.SecurityGroupId = *createResp.GroupId
-			if err := r.Status().Update(ctx, resource); err != nil {
-				r.log.V(0).Error(err, "Failed to update Security Group status")
-				return err
-			}
-
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha1.AWSSecurityGroupCondition,
+				Status:  metav1.ConditionUnknown,
+				Reason:  "FirstReconcile",
+				Message: "first reconcile",
+			})
 			return fmt.Errorf("created security group, configuring in next reconcile loop")
 		}
 	}
@@ -319,6 +345,13 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
+	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+		Type:    avov1alpha1.AWSSecurityGroupCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Validated",
+		Message: "Validated",
+	})
+
 	return nil
 }
 
@@ -328,6 +361,16 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	if resource == nil {
 		// Should never happen
 		return fmt.Errorf("resource must be specified")
+	}
+
+	// If there's no previously written condition, add one to mark that the controller has attempted to reconcile it
+	if prevCondition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha1.AWSVpcEndpointCondition); prevCondition == nil {
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:    avov1alpha1.AWSVpcEndpointCondition,
+			Status:  metav1.ConditionUnknown,
+			Reason:  "FirstReconcile",
+			Message: "first reconcile",
+		})
 	}
 
 	var vpce *ec2.VpcEndpoint
@@ -367,29 +410,42 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
-	resource.Status.Status = *vpce.State
-
-	if err := r.Status().Update(ctx, resource); err != nil {
-		r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
-		return err
-	}
 
 	switch *vpce.State {
 	case "pendingAcceptance":
-		r.log.V(0).Info("VPC Endpoint is not available yet", "status", *vpce.State)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted
+		r.log.V(0).Info("Waiting for VPC Endpoint connection acceptance", "status", *vpce.State)
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha1.AWSVpcEndpointCondition,
+			Status: metav1.ConditionFalse,
+			Reason: *vpce.State,
+		})
+
 		return nil
 	case "deleting", "pending":
-		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", *vpce.State)
 		// Nothing we can do at the moment, the VPC Endpoint needs to finish moving into a stable state
+		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", *vpce.State)
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha1.AWSVpcEndpointCondition,
+			Status: metav1.ConditionFalse,
+			Reason: *vpce.State,
+		})
+
 		return nil
 	case "available":
-		r.log.V(1).Info("VPC Endpoint available", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint ready", "status", *vpce.State)
 	case "failed", "rejected", "deleted":
 		// No other known states, but just in case catch with a default
 		fallthrough
 	default:
+		// TODO: If rejected, we may want an option to recreate the VPC Endpoint and try again
 		r.log.V(0).Info("VPC Endpoint in a bad state", "status", *vpce.State)
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha1.AWSVpcEndpointCondition,
+			Status: metav1.ConditionFalse,
+			Reason: *vpce.State,
+		})
+
 		return fmt.Errorf("vpc endpoint in a bad state: %s", *vpce.State)
 	}
 
@@ -457,6 +513,12 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		}
 	}
 
+	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+		Type:   avov1alpha1.AWSVpcEndpointCondition,
+		Status: metav1.ConditionTrue,
+		Reason: *vpce.State,
+	})
+
 	return nil
 }
 
@@ -490,11 +552,12 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	}
 	r.log.V(1).Info("Route53 Hosted Zone Record exists", "domainName", fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name))
 
-	resource.Status.CNAMERecordCreated = true
-	if err := r.Status().Update(ctx, resource); err != nil {
-		r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
-		return err
-	}
+	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+		Type:    avov1alpha1.AWSRoute53RecordCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Created",
+		Message: fmt.Sprintf("Created: %s.%s", resource.Spec.SubdomainName, *hostedZone.Name),
+	})
 
 	return nil
 }

@@ -21,12 +21,15 @@ import (
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/openshift/aws-vpce-operator/api/v1alpha1"
+
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // deleteAWSResources cleans up AWS resources associated with a VPC Endpoint.
-func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource *v1alpha1.VpcEndpoint) error {
-	if resource.Status.CNAMERecordCreated {
+func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha1.AWSRoute53RecordCondition) {
 		resourceRecord, err := r.defaultResourceRecord(resource)
 		if err != nil {
 			return err
@@ -49,9 +52,15 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 			return err
 		}
 
-		resource.Status.CNAMERecordCreated = false
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:    avov1alpha1.AWSRoute53RecordCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  "Deleted",
+			Message: "Deleted Route53 Hosted Zone Record",
+		})
+
 		if err := r.Status().Update(ctx, resource); err != nil {
-			r.log.V(0).Error(err, "Failed to update VPC Endpoint status")
+			r.log.V(0).Error(err, "failed to update status")
 			return err
 		}
 	}
@@ -61,11 +70,23 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 		if _, err := r.awsClient.DeleteVPCEndpoint(resource.Status.VPCEndpointId); err != nil {
 			return err
 		}
+
+		resource.Status.VPCEndpointId = ""
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
 	}
 
 	if resource.Status.SecurityGroupId != "" {
 		r.log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
 		if _, err := r.awsClient.DeleteSecurityGroup(resource.Status.SecurityGroupId); err != nil {
+			return err
+		}
+
+		resource.Status.SecurityGroupId = ""
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
 			return err
 		}
 	}
