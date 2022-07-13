@@ -131,6 +131,11 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 		return nil, err
 	}
 
+	// VPCEndpoint doesn't exist anymore for some reason
+	if vpceResp == nil || len(vpceResp.VpcEndpoints) == 0 {
+		return nil, nil
+	}
+
 	// DNSEntries won't be populated until the state is available
 	if *vpceResp.VpcEndpoints[0].State != "available" {
 		return nil, fmt.Errorf("VPCEndpoint is not in the available state")
