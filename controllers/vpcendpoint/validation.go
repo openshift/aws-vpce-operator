@@ -410,6 +410,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
+	resource.Status.Status = *vpce.State
 
 	switch *vpce.State {
 	case "pendingAcceptance":
