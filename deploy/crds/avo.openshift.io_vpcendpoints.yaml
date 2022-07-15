@@ -205,6 +205,9 @@ spec:
               securityGroupId:
                 description: The AWS ID of the managed security group
                 type: string
+              status:
+                description: Status of the VPC Endpoint
+                type: string
               vpcEndpointId:
                 description: The AWS ID of the managed VPC Endpoint
                 type: string

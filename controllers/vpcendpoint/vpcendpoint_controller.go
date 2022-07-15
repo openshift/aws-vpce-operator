@@ -115,6 +115,12 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 				return ctrl.Result{}, err
 			}
 
+			// Cleanup the metric
+			if err := r.cleanupMetrics(ctx, avo); err != nil {
+				// Shouldn't happen
+				return ctrl.Result{}, err
+			}
+
 			// remove our finalizer from the list and update it.
 			controllerutil.RemoveFinalizer(avo, avoFinalizer)
 			if err := r.Update(ctx, avo); err != nil {

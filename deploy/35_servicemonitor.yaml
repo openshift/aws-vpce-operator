@@ -1,0 +1,17 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    name: aws-vpce-operator
+  name: aws-vpce-operator-metrics
+  namespace: openshift-aws-vpce-operator
+spec:
+  endpoints:
+    - port: http-metrics
+  namespaceSelector:
+    any: false
+    matchNames:
+      - openshift-aws-vpce-operator
+  selector:
+    matchLabels:
+      name: aws-vpce-operator

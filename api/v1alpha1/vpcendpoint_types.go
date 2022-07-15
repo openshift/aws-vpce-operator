@@ -74,6 +74,9 @@ const (
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
 type VpcEndpointStatus struct {
+	// Status of the VPC Endpoint
+	Status string `json:"status,omitempty"`
+
 	// The AWS ID of the managed security group
 	// +optional
 	SecurityGroupId string `json:"securityGroupId,omitempty"`
