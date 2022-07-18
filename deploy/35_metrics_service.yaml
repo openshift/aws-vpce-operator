@@ -1,6 +1,8 @@
 apiVersion: v1
 kind: Service
 metadata:
+  labels:
+    name: aws-vpce-operator
   name: aws-vpce-operator-metrics
   namespace: openshift-aws-vpce-operator
 spec:
