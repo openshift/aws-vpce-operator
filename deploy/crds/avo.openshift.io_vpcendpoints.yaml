@@ -12,8 +12,10 @@ spec:
     kind: VpcEndpoint
     listKind: VpcEndpointList
     plural: vpcendpoints
+    shortNames:
+    - vpce
     singular: vpcendpoint
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.status
