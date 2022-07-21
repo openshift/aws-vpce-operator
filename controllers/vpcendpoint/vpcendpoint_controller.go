@@ -75,7 +75,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	r.log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.log = reqLogger.WithValues("Request.Name", req.Name)
 
 	if err := r.parseClusterInfo(ctx, true); err != nil {
 		return ctrl.Result{}, err
@@ -112,12 +112,6 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 					}
 				}
 				// Catch other errors and retry
-				return ctrl.Result{}, err
-			}
-
-			// Cleanup the metric
-			if err := r.cleanupMetrics(ctx, avo); err != nil {
-				// Shouldn't happen
 				return ctrl.Result{}, err
 			}
 

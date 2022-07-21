@@ -66,11 +66,16 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 	}
 
 	if resource.Status.VPCEndpointId != "" {
+		if err := r.cleanupMetrics(ctx, resource); err != nil {
+			return err
+		}
+
 		r.log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
 		if _, err := r.awsClient.DeleteVPCEndpoint(resource.Status.VPCEndpointId); err != nil {
 			return err
 		}
 
+		resource.Status.Status = "deleting"
 		resource.Status.VPCEndpointId = ""
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
@@ -94,11 +99,14 @@ func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource
 	return nil
 }
 
-// cleanupMetrics deletes metrics associated with a specific custom resource in a best-effort manner
+// cleanupMetrics deletes metrics associated with a specific VPCEndpoint custom resource in a best-effort manner
 func (r *VpcEndpointReconciler) cleanupMetrics(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
-	// DeleteLabelValues returns true if the metric is deleted, false otherwise, currently we don't really care
-	// either way, so just always return nil
-	vpcePendingAcceptance.DeleteLabelValues(resource.Name, resource.Namespace)
+	if resource.Status.VPCEndpointId != "" {
+		// DeleteLabelValues returns true if the metric is deleted, false otherwise, currently we don't really care
+		// either way, so just always return nil
+		vpcePendingAcceptance.DeleteLabelValues(resource.Name, "openshift-aws-vpce-operator", resource.Status.VPCEndpointId)
+	}
 
+	// If .status.VPCEndpointId is empty, we can't delete the metric, but don't care
 	return nil
 }
