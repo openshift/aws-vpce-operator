@@ -52,6 +52,45 @@ func TestGenerateAwsTags(t *testing.T) {
 	}
 }
 
+func TestGenerateAwsTagsAsMap(t *testing.T) {
+	tests := []struct {
+		name          string
+		clusterTagKey string
+		expectErr     bool
+		expected      map[string]string
+	}{
+		{
+			name:          "",
+			clusterTagKey: "",
+			expectErr:     true,
+		},
+		{
+			name:          "cluster",
+			clusterTagKey: "kubernetes.io/cluster/infra",
+			expectErr:     false,
+			expected: map[string]string{
+				"Name":                        "cluster",
+				"kubernetes.io/cluster/infra": "owned",
+				OperatorTagKey:                OperatorTagValue,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		actual, err := GenerateAwsTagsAsMap(test.name, test.clusterTagKey)
+		if test.expectErr {
+			assert.NotNil(t, err)
+		} else {
+			assert.Nil(t, err)
+			for k, v := range test.expected {
+				actualValue, ok := actual[k]
+				assert.True(t, ok)
+				assert.Equal(t, v, actualValue)
+			}
+		}
+	}
+}
+
 func TestGetClusterTagKey(t *testing.T) {
 	tests := []struct {
 		infraName string

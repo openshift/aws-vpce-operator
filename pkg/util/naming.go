@@ -28,6 +28,8 @@ const (
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
 )
 
+// GenerateAwsTags returns the tags that should be reconciled on every AWS resource
+// created by this operator
 func GenerateAwsTags(name, clusterTagKey string) ([]*ec2.Tag, error) {
 	if name == "" || clusterTagKey == "" {
 		return nil, fmt.Errorf("name and clusterTagKey must not be empty")
@@ -47,6 +49,22 @@ func GenerateAwsTags(name, clusterTagKey string) ([]*ec2.Tag, error) {
 			Value: aws.String(name),
 		},
 	}, nil
+}
+
+// GenerateAwsTagsAsMap converts the slice of tags returned by GenerateAwsTags into a map
+// for convenience
+func GenerateAwsTagsAsMap(name, clusterTagKey string) (map[string]string, error) {
+	tags, err := GenerateAwsTags(name, clusterTagKey)
+	if err != nil {
+		return nil, err
+	}
+
+	tagsMap := map[string]string{}
+	for _, tag := range tags {
+		tagsMap[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+	}
+
+	return tagsMap, nil
 }
 
 // GetClusterTagKey returns the tag assigned to all AWS resources for the given cluster

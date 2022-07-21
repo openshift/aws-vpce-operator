@@ -148,6 +148,10 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		// Should never happen
 		return fmt.Errorf("resource must be specified")
 	}
+	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+	if err != nil {
+		return err
+	}
 
 	r.log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
 	resp, err := r.awsClient.FilterSecurityGroupById(resource.Status.SecurityGroupId)
@@ -165,10 +169,6 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-			sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
-			if err != nil {
-				return err
-			}
 
 			createResp, err := r.awsClient.CreateSecurityGroup(sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
 			if err != nil {
@@ -188,29 +188,22 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 
 	sg := resp.SecurityGroups[0]
 
-	defaultTags := map[string]string{
-		r.clusterInfo.clusterTag: "",
-		util.OperatorTagKey:      util.OperatorTagValue,
+	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
+	if err != nil {
+		return err
 	}
 
 	// Fix tags if any are missing
-	if !TagsContains(sg.Tags, defaultTags) {
+	if !TagsContains(sg.Tags, defaultTagsMap) {
 		r.log.V(1).Info("Adding missing security group tags")
-		_, err := r.awsClient.CreateTags(&ec2.CreateTagsInput{
-			Resources: []*string{sg.GroupId},
-			Tags: []*ec2.Tag{
-				{
-					Key:   aws.String(r.clusterInfo.clusterTag),
-					Value: aws.String(""),
-				},
-				{
-					Key:   aws.String(util.OperatorTagKey),
-					Value: aws.String(util.OperatorTagValue),
-				},
-			},
-		})
-
+		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
 		if err != nil {
+			return err
+		}
+		if _, err := r.awsClient.CreateTags(&ec2.CreateTagsInput{
+			Resources: []*string{sg.GroupId},
+			Tags:      defaultTags,
+		}); err != nil {
 			return err
 		}
 	}
