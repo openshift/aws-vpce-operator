@@ -6,7 +6,8 @@ require (
 	github.com/aws/aws-sdk-go v1.44.41
 	github.com/go-logr/logr v1.2.3
 	github.com/go-logr/zapr v1.2.0
-	github.com/openshift/api v0.0.0-20220119132100-58db72a40994
+	github.com/openshift/api v0.0.0-20220414050251-a83e6f8f1d50
+	github.com/prometheus/client_golang v1.12.1
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/zap v1.19.1
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
@@ -55,7 +56,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/prometheus/client_golang v1.12.1 // indirect
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
