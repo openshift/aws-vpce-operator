@@ -45,7 +45,6 @@ objects:
         name: openshift-aws-vpce-operator
         labels:
           openshift.io/cluster-monitoring: 'true'
-    # TODO: Determine policies for CredentialRequest
     - apiVersion: cloudcredential.openshift.io/v1
       kind: CredentialsRequest
       metadata:
@@ -99,34 +98,6 @@ objects:
         name: aws-vpce-operator
         namespace: openshift-aws-vpce-operator
         apiGroup: rbac.authorization.k8s.io
-    - apiVersion: rbac.authorization.k8s.io/v1
-      kind: Role
-      metadata:
-        name: prometheus-k8s
-        namespace: openshift-aws-vpce-operator
-      rules:
-      - apiGroups:
-        - ''
-        resources:
-        - services
-        - endpoints
-        - pods
-        verbs:
-        - get
-        - list
-        - watch
-    - apiVersion: rbac.authorization.k8s.io/v1
-      kind: RoleBinding
-      metadata:
-        name: prometheus-k8s
-        namespace: openshift-aws-vpce-operator
-      roleRef:
-        kind: Role
-        name: prometheus-k8s
-      subjects:
-      - kind: ServiceAccount
-        name: prometheus-k8s
-        namespace: openshift-monitoring
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
