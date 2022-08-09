@@ -123,11 +123,6 @@ func (r *VpcEndpointReconciler) validateAWSResources(
 	validationFuncs []ValidateAWSResourceFunc) error {
 	for _, validationFunc := range validationFuncs {
 		if err := validationFunc(ctx, resource); err != nil {
-			if err := r.Status().Update(ctx, resource); err != nil {
-				r.log.V(0).Error(err, "failed to update status")
-				return err
-			}
-
 			return err
 		}
 
@@ -175,6 +170,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				return err
 			}
 
+			r.log.V(0).Info("Created security group", "id", *createResp.GroupId)
 			resource.Status.SecurityGroupId = *createResp.GroupId
 			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 				Type:    avov1alpha1.AWSSecurityGroupCondition,
@@ -182,6 +178,12 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 				Reason:  "FirstReconcile",
 				Message: "first reconcile",
 			})
+
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+
 			return fmt.Errorf("created security group, configuring in next reconcile loop")
 		}
 	}
@@ -338,6 +340,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
+	resource.Status.SecurityGroupId = *sg.GroupId
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 		Type:    avov1alpha1.AWSSecurityGroupCondition,
 		Status:  metav1.ConditionTrue,
