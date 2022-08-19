@@ -24,12 +24,24 @@ spec:
           command:
             - aws-vpce-operator
           env:
+            - name: "AWS_SECRET_ACCESS_KEY"
+              valueFrom:
+                secretKeyRef:
+                  name: avo-aws-iam-user-creds
+                  key: aws_secret_access_key
+                  optional: true
+            - name: "AWS_ACCESS_KEY_ID"
+              valueFrom:
+                secretKeyRef:
+                  name: avo-aws-iam-user-creds
+                  key: aws_access_key_id
+                  optional: true
             - name: "AWS_ROLE_ARN"
               valueFrom:
                 secretKeyRef:
                   name: avo-aws-creds
                   key: role_arn
-                  optional: false
+                  optional: true
             - name: "AWS_WEB_IDENTITY_TOKEN_FILE"
               value: "/var/run/secrets/openshift/serviceaccount/token"
           imagePullPolicy: Always
@@ -64,4 +76,8 @@ spec:
         - name: avo-aws-creds
           secret:
             secretName: avo-aws-creds
-            optional: false
+            optional: true
+        - name: avo-aws-iam-user-creds
+          secret:
+            secretName: avo-aws-iam-user-creds
+            optional: true
