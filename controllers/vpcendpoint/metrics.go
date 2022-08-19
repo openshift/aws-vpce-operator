@@ -25,7 +25,7 @@ var (
 	vpcePendingAcceptance = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "aws_vpce_operator_vpce_pendingAcceptance",
-			Help: "Count of VPC Endpoints in a pendingAcceptance state, labeled by name and namespace",
+			Help: "Count of VPC Endpoints in a pendingAcceptance state, labeled by name and AWS ID",
 		},
 		[]string{
 			"name",

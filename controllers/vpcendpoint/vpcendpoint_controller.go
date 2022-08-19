@@ -18,6 +18,7 @@ package vpcendpoint
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -72,7 +73,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	reqLogger, err := defaultAVOLogger()
 	if err != nil {
 		// Shouldn't happen, but if it does, we can't log
-		return ctrl.Result{}, err
+		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
 	}
 
 	r.log = reqLogger.WithValues("Request.Name", req.Name)
