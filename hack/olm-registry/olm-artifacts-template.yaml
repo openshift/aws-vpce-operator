@@ -35,7 +35,6 @@ objects:
       matchLabels:
         api.openshift.com/managed: 'true'
         api.openshift.com/fedramp: 'true'
-        api.openshift.com/sts: 'true'
         api.openshift.com/private-link: 'true'
     resourceApplyMode: Sync
     resources:
