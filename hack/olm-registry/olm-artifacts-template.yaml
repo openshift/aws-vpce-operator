@@ -48,11 +48,11 @@ objects:
     - apiVersion: cloudcredential.openshift.io/v1
       kind: CredentialsRequest
       metadata:
-        name: aws-vpce-operator-credentials-aws
+        name: avo-aws-iam-user-creds
         namespace: openshift-aws-vpce-operator
       spec:
         secretRef:
-          name: aws-vpce-operator-credentials-aws
+          name: avo-aws-iam-user-creds
           namespace: openshift-aws-vpce-operator
         providerSpec:
           apiVersion: cloudcredential.openshift.io/v1
