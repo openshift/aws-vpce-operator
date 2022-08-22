@@ -34,7 +34,7 @@ const (
 func (c *AWSClient) GetVPCId(tagKey string) (string, error) {
 	subnets, err := c.DescribePrivateSubnets(tagKey)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("unable to DescribeSubnets: %w", err)
 	}
 
 	if len(subnets.Subnets) == 0 {
