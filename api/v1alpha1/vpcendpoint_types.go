@@ -57,12 +57,13 @@ type VpcEndpointSpec struct {
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
 	SecurityGroup SecurityGroup `json:"securityGroup"`
 
+	// +kubebuilder:validation:Pattern=[a-z0-9]([-a-z0-9]*[a-z0-9])?
 	// SubdomainName is the name of the Route53 Hosted Zone CNAME rule to create in the cluster's
 	// Private Route53 Hosted Zone
 	SubdomainName string `json:"subdomainName"`
 
-	// ExternalNameService is the name of the Kubernetes Service supporting the VPC Endpoint Service
-	ExternalNameService ExternalNameServiceSpec `json:"externalNameService,omitempty"`
+	// ExternalNameService configures the name and namespace of the created Kubernetes ExternalName Service
+	ExternalNameService ExternalNameServiceSpec `json:"externalNameService"`
 }
 
 const (
@@ -91,10 +92,10 @@ type VpcEndpointStatus struct {
 }
 
 type ExternalNameServiceSpec struct {
-	// Name is the name of the externalName service
+	// Name of the ExternalName service
 	Name string `json:"name"`
 
-	// Namespace is the namespace of the externalName service
+	// Namespace of the ExternalName service
 	Namespace string `json:"namespace"`
 }
 
