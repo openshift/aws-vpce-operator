@@ -45,6 +45,8 @@ import (
 func defaultAVOLogger() (logr.Logger, error) {
 	config := zap.NewProductionConfig()
 	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
+	// TODO: Make this configurable
+	// config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
 
 	zapBase, err := config.Build()
 	if err != nil {
