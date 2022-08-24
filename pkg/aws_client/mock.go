@@ -175,3 +175,20 @@ func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (
 
 	return &ec2.DescribeVpcEndpointsOutput{}, nil
 }
+
+func (m *MockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
+	return &route53.ListHostedZonesByNameOutput{
+		DNSName:      input.DNSName,
+		HostedZoneId: aws.String(MockHostedZoneId),
+		HostedZones: []*route53.HostedZone{
+			{
+				Id:   aws.String(MockHostedZoneId),
+				Name: input.DNSName,
+			},
+		},
+	}, nil
+}
+
+func (m *MockedRoute53) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+	return &route53.ChangeResourceRecordSetsOutput{}, nil
+}

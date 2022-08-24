@@ -97,7 +97,7 @@ func TestDefaultResourceRecord(t *testing.T) {
 		Client:      mock.Client,
 		log:         testr.New(t),
 		Scheme:      mock.Client.Scheme(),
-		awsClient:   aws_client.NewAwsClientWithServiceClients(aws_client.NewMockedEC2WithSubnets(), aws_client.MockedRoute53{}),
+		awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
 		clusterInfo: nil,
 	}
 

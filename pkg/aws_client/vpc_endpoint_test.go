@@ -28,6 +28,7 @@ import (
 func (m *MockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.CreateVpcEndpointOutput, error) {
 	return &ec2.CreateVpcEndpointOutput{
 		VpcEndpoint: &ec2.VpcEndpoint{
+			State:         aws.String("available"),
 			VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
 		},
 	}, nil

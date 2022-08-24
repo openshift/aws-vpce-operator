@@ -19,33 +19,15 @@ package aws_client
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *MockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
-	return &route53.ListHostedZonesByNameOutput{
-		DNSName:      input.DNSName,
-		HostedZoneId: aws.String(MockHostedZoneId),
-		HostedZones: []*route53.HostedZone{
-			{
-				Id:   aws.String(MockHostedZoneId),
-				Name: input.DNSName,
-			},
-		},
-	}, nil
-}
-
 func (m *MockedRoute53) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
 	return &route53.ListResourceRecordSetsOutput{
 		ResourceRecordSets: []*route53.ResourceRecordSet{mockResourceRecordSet},
 	}, nil
-}
-
-func (m *MockedRoute53) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
-	return &route53.ChangeResourceRecordSetsOutput{}, nil
 }
 
 func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
