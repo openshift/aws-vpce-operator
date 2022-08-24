@@ -48,14 +48,14 @@ spec:
             description: VpcEndpointSpec defines the desired state of VpcEndpoint
             properties:
               externalNameService:
-                description: ExternalNameService is the name of the Kubernetes Service
-                  supporting the VPC Endpoint Service
+                description: ExternalNameService configures the name and namespace
+                  of the created Kubernetes ExternalName Service
                 properties:
                   name:
-                    description: Name is the name of the externalName service
+                    description: Name of the ExternalName service
                     type: string
                   namespace:
-                    description: Namespace is the namespace of the externalName service
+                    description: Namespace of the ExternalName service
                     type: string
                 required:
                 - name
@@ -125,8 +125,10 @@ spec:
               subdomainName:
                 description: SubdomainName is the name of the Route53 Hosted Zone
                   CNAME rule to create in the cluster's Private Route53 Hosted Zone
+                pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?'
                 type: string
             required:
+            - externalNameService
             - securityGroup
             - serviceName
             - subdomainName
