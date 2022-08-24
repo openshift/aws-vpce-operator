@@ -19,101 +19,19 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/route53"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 
-	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 )
-
-// TagsContains returns true if the all the tags in tagsToCheck exist in tags
-func TagsContains(tags []*ec2.Tag, tagsToCheck map[string]string) bool {
-	for k, v := range tagsToCheck {
-		found := false
-		for _, tag := range tags {
-			if *tag.Key == k && *tag.Value == v {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	return true
-}
-
-// validateExternalNameService checks if the expected ExternalName service exists, creating or updating it as needed
-func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
-	found := &corev1.Service{}
-	expected, err := r.expectedServiceForVpce(resource)
-	if err != nil {
-		return err
-	}
-
-	if err := r.Get(ctx, types.NamespacedName{
-		Name:      resource.Spec.ExternalNameService.Name,
-		Namespace: resource.Spec.ExternalNameService.Namespace,
-	}, found); err != nil {
-		if kerr.IsNotFound(err) {
-			// Create the ExternalName service since it's missing
-			r.log.V(0).Info("Creating ExternalName service", "service", expected)
-			if err := r.Create(ctx, expected); err != nil {
-				r.log.V(0).Error(err, "failed to create ExternalName service")
-				return err
-			}
-
-			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-				Type:   avov1alpha1.ExternalNameServiceCondition,
-				Status: metav1.ConditionTrue,
-				Reason: "Created",
-			})
-
-			// Requeue, but no error
-			return fmt.Errorf("requeue to validate service")
-		} else {
-			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-				Type:    avov1alpha1.ExternalNameServiceCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  "UnknownError",
-				Message: fmt.Sprintf("Unkown error: %v", err),
-			})
-
-			return err
-		}
-	}
-
-	// The only mutable field we care about is .spec.ExternalName, fix it if it got messed up
-	if found.Spec.ExternalName != expected.Spec.ExternalName {
-		found.Spec.ExternalName = expected.Spec.ExternalName
-		r.log.V(0).Info("Updating ExternalName service", "service", found)
-		if err := r.Update(ctx, found); err != nil {
-			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-				Type:    avov1alpha1.ExternalNameServiceCondition,
-				Status:  metav1.ConditionFalse,
-				Reason:  "UnknownError",
-				Message: fmt.Sprintf("Unkown error: %v", err),
-			})
-
-			return err
-		}
-
-		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-			Type:   avov1alpha1.ExternalNameServiceCondition,
-			Status: metav1.ConditionTrue,
-			Reason: "Reconciled",
-		})
-	}
-
-	return nil
-}
 
 type ValidateAWSResourceFunc func(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error
 
@@ -196,7 +114,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	}
 
 	// Fix tags if any are missing
-	if !TagsContains(sg.Tags, defaultTagsMap) {
+	if !tagsContains(sg.Tags, defaultTagsMap) {
 		r.log.V(1).Info("Adding missing security group tags")
 		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
 		if err != nil {
@@ -559,6 +477,73 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		Reason:  "Created",
 		Message: fmt.Sprintf("Created: %s.%s", resource.Spec.SubdomainName, *hostedZone.Name),
 	})
+
+	return nil
+}
+
+// validateExternalNameService checks if the expected ExternalName service exists, creating or updating it as needed
+func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	found := &corev1.Service{}
+	expected, err := r.expectedServiceForVpce(resource)
+	if err != nil {
+		return err
+	}
+
+	err = r.Get(ctx, types.NamespacedName{
+		Name:      resource.Spec.ExternalNameService.Name,
+		Namespace: resource.Spec.ExternalNameService.Namespace,
+	}, found)
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			// Create the ExternalName service since it's missing
+			r.log.V(0).Info("Creating ExternalName service", "service", expected)
+			err = r.Create(ctx, expected)
+			if err != nil {
+				r.log.V(0).Error(err, "failed to create ExternalName service")
+				return err
+			}
+
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:   avov1alpha1.ExternalNameServiceCondition,
+				Status: metav1.ConditionTrue,
+				Reason: "Created",
+			})
+
+			// Requeue, but no error
+			return fmt.Errorf("requeue to validate service")
+		} else {
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha1.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+
+			return err
+		}
+	}
+
+	// The only mutable field we care about is .spec.ExternalName, fix it if it got messed up
+	if found.Spec.ExternalName != expected.Spec.ExternalName {
+		found.Spec.ExternalName = expected.Spec.ExternalName
+		r.log.V(0).Info("Updating ExternalName service", "service", found)
+		if err := r.Update(ctx, found); err != nil {
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha1.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+
+			return err
+		}
+
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha1.ExternalNameServiceCondition,
+			Status: metav1.ConditionTrue,
+			Reason: "Reconciled",
+		})
+	}
 
 	return nil
 }

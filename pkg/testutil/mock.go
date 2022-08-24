@@ -21,6 +21,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -83,6 +84,10 @@ func NewTestMock(t *testing.T, objs ...client.Object) *MockKubeClient {
 
 func NewMock(obs ...client.Object) (*MockKubeClient, error) {
 	s := runtime.NewScheme()
+	if err := corev1.AddToScheme(s); err != nil {
+		return nil, err
+	}
+
 	if err := configv1.Install(s); err != nil {
 		return nil, err
 	}
