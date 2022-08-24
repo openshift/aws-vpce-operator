@@ -23,6 +23,7 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
@@ -154,6 +155,11 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 
 // expectedServiceForVpce generates the expected ExternalName service for a VpcEndpoint CustomResource
 func (r *VpcEndpointReconciler) expectedServiceForVpce(resource *v1alpha1.VpcEndpoint) (*corev1.Service, error) {
+	if resource == nil {
+		// Should never happen
+		return nil, fmt.Errorf("resource must be specified")
+	}
+
 	if resource.Spec.SubdomainName == "" {
 		return nil, fmt.Errorf("subdomainName is a required field")
 	}
@@ -178,4 +184,22 @@ func (r *VpcEndpointReconciler) expectedServiceForVpce(resource *v1alpha1.VpcEnd
 	}
 
 	return svc, nil
+}
+
+// tagsContains returns true if the all the tags in tagsToCheck exist in tags
+func tagsContains(tags []*ec2.Tag, tagsToCheck map[string]string) bool {
+	for k, v := range tagsToCheck {
+		found := false
+		for _, tag := range tags {
+			if *tag.Key == k && *tag.Value == v {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
 }

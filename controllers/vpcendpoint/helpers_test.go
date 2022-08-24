@@ -21,6 +21,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-logr/logr/testr"
 	"github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
@@ -200,5 +202,62 @@ func TestServiceForVpce(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, test.expected, actual)
 		}
+	}
+}
+
+func TestTagsContains(t *testing.T) {
+	tests := []struct {
+		name        string
+		tags        []*ec2.Tag
+		tagsToCheck map[string]string
+		expected    bool
+	}{
+		{
+			name:        "empty set",
+			tagsToCheck: map[string]string{},
+			expected:    true,
+		},
+		{
+			name: "contains subset",
+			tags: []*ec2.Tag{
+				{
+					Key:   aws.String("key1"),
+					Value: aws.String("val1"),
+				},
+				{
+					Key:   aws.String("key2"),
+					Value: aws.String("val2"),
+				},
+			},
+			tagsToCheck: map[string]string{
+				"key1": "val1",
+			},
+			expected: true,
+		},
+		{
+			name: "missing",
+			tags: []*ec2.Tag{
+				{
+					Key:   aws.String("key1"),
+					Value: aws.String("val1"),
+				},
+				{
+					Key:   aws.String("key2"),
+					Value: aws.String("val2"),
+				},
+			},
+			tagsToCheck: map[string]string{
+				"key1": "val1",
+				"key3": "val3",
+			},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := tagsContains(test.tags, test.tagsToCheck)
+			assert.Equal(t, test.expected, actual)
+		})
 	}
 }
