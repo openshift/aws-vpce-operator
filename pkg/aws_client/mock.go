@@ -176,6 +176,11 @@ func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (
 	return &ec2.DescribeVpcEndpointsOutput{}, nil
 }
 
+func (m *MockedEC2) ModifyVpcEndpoint(input *ec2.ModifyVpcEndpointInput) (*ec2.ModifyVpcEndpointOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.ModifyVpcEndpointOutput{}, nil
+}
+
 func (m *MockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
 	return &route53.ListHostedZonesByNameOutput{
 		DNSName:      input.DNSName,

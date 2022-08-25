@@ -277,50 +277,9 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return fmt.Errorf("resource must be specified")
 	}
 
-	// If there's no previously written condition, add one to mark that the controller has attempted to reconcile it
-	if prevCondition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha1.AWSVpcEndpointCondition); prevCondition == nil {
-		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-			Type:    avov1alpha1.AWSVpcEndpointCondition,
-			Status:  metav1.ConditionUnknown,
-			Reason:  "FirstReconcile",
-			Message: "first reconcile",
-		})
-	}
-
-	var vpce *ec2.VpcEndpoint
-
-	r.log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
-	resp, err := r.awsClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
+	vpce, err := r.findOrCreateVpcEndpoint(resource)
 	if err != nil {
 		return err
-	}
-
-	// If there's no VPC Endpoint returned by ID, look for one by tag
-	if resp == nil || len(resp.VpcEndpoints) == 0 {
-		r.log.V(1).Info("Searching for VPC Endpoint by tags")
-		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag)
-		if err != nil {
-			return err
-		}
-
-		// If there are still no VPC Endpoints found, it needs to be created
-		if resp == nil || len(resp.VpcEndpoints) == 0 {
-			vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
-			if err != nil {
-				return err
-			}
-			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
-			if err != nil {
-				return fmt.Errorf("failed to create vpc endpoint: %v", err)
-			}
-
-			vpce = creationResp.VpcEndpoint
-			r.log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
-		} else {
-			vpce = resp.VpcEndpoints[0]
-		}
-	} else {
-		vpce = resp.VpcEndpoints[0]
 	}
 
 	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
@@ -367,68 +326,14 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return fmt.Errorf("vpc endpoint in a bad state: %s", *vpce.State)
 	}
 
-	subnetsResp, err := r.awsClient.DescribePrivateSubnets(r.clusterInfo.clusterTag)
+	err = r.ensureVpcEndpointSubnets(vpce)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to reconcile VPC Endpoint subnets: %w", err)
 	}
 
-	privateSubnetIds := make([]*string, len(subnetsResp.Subnets))
-	for i := range subnetsResp.Subnets {
-		privateSubnetIds[i] = subnetsResp.Subnets[i].SubnetId
-	}
-
-	subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
-
-	// Removing subnets first before adding to avoid
-	// DuplicateSubnetsInSameZone: Found another VPC endpoint subnet in the availability zone of <existing subnet>
-	if len(subnetsToRemove) > 0 {
-		r.log.V(1).Info("Removing subnet(s) from VPC Endpoint", "subnetsToRemove", subnetsToRemove)
-		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
-			RemoveSubnetIds: subnetsToRemove,
-			VpcEndpointId:   vpce.VpcEndpointId,
-		}); err != nil {
-			return err
-		}
-	}
-
-	if len(subnetsToAdd) > 0 {
-		r.log.V(1).Info("Adding subnet(s) to VPC Endpoint", "subnetsToAdd", subnetsToAdd)
-		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
-			AddSubnetIds:  subnetsToAdd,
-			VpcEndpointId: vpce.VpcEndpointId,
-		}); err != nil {
-			return err
-		}
-	}
-
-	vpceSgIds := make([]*string, len(vpce.Groups))
-	for i := range vpce.Groups {
-		vpceSgIds[i] = vpce.Groups[i].GroupId
-	}
-
-	sgToAdd, sgToRemove := util.StringSliceTwoWayDiff(
-		vpceSgIds,
-		[]*string{&resource.Status.SecurityGroupId},
-	)
-
-	if len(sgToAdd) > 0 {
-		r.log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
-		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
-			AddSecurityGroupIds: sgToAdd,
-			VpcEndpointId:       vpce.VpcEndpointId,
-		}); err != nil {
-			return err
-		}
-	}
-
-	if len(sgToRemove) > 0 {
-		r.log.V(1).Info("Removing security group(s) from VPC Endpoint", "sgToRemove", sgToRemove)
-		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
-			RemoveSecurityGroupIds: sgToRemove,
-			VpcEndpointId:          vpce.VpcEndpointId,
-		}); err != nil {
-			return err
-		}
+	err = r.ensureVpcEndpointSecurityGroups(vpce, resource)
+	if err != nil {
+		return fmt.Errorf("failed to reconcile VPC Endpoint security groups: %w", err)
 	}
 
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
@@ -453,7 +358,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return err
 	}
 
-	resourceRecord, err := r.defaultResourceRecord(resource)
+	resourceRecord, err := r.generateRoute53Record(resource)
 	if err != nil {
 		r.log.V(0).Info("Skipping Route53 Record, VPCEndpoint is not in the available state")
 		return nil
@@ -484,7 +389,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 // validateExternalNameService checks if the expected ExternalName service exists, creating or updating it as needed
 func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	found := &corev1.Service{}
-	expected, err := r.expectedServiceForVpce(resource)
+	expected, err := r.generateExternalNameService(resource)
 	if err != nil {
 		return err
 	}
