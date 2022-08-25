@@ -46,6 +46,9 @@ func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 		{
 			name: "minimum viable",
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
 				Status: avov1alpha1.VpcEndpointStatus{
 					VPCEndpointId: testutil.MockVpcEndpointId,
 				},
@@ -55,7 +58,13 @@ func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		client := testutil.NewTestMock(t).Client
+		if test.resource != nil {
+			client = testutil.NewTestMock(t, test.resource).Client
+		}
 		r := &VpcEndpointReconciler{
+			Client:    client,
+			Scheme:    client.Scheme(),
 			awsClient: aws_client.NewMockedAwsClientWithSubnets(),
 			log:       testr.New(t),
 			clusterInfo: &clusterInfo{

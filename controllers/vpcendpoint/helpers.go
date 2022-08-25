@@ -124,11 +124,75 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWS
 	return nil
 }
 
-// findOrCreateVpcEndpoint queries AWS and returns the VPC Endpoint for the provided CR and returns its ID.
+// findOrCreateSecurityGroup queries AWS and returns the Security Group for the provided CR and updates its status.
+// It first tries to use the Security Group ID that may be in the resource's status and falls back on
+// searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a Security Group,
+// it gets created.
+func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, resource *avov1alpha1.VpcEndpoint) (*ec2.SecurityGroup, error) {
+	var sg *ec2.SecurityGroup
+
+	r.log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
+	resp, err := r.awsClient.FilterSecurityGroupById(resource.Status.SecurityGroupId)
+	if err != nil {
+		return nil, err
+	}
+
+	// If there's no security group returned by ID, look for one by tag
+	if resp == nil || len(resp.SecurityGroups) == 0 {
+		r.log.V(1).Info("Searching for security group by tags")
+		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName)
+		if err != nil {
+			return nil, err
+		}
+
+		// If there are still no security groups found, it needs to be created
+		if resp == nil || len(resp.SecurityGroups) == 0 {
+			sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+			if err != nil {
+				return nil, err
+			}
+
+			createResp, err := r.awsClient.CreateSecurityGroup(sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
+			if err != nil {
+				return nil, err
+			}
+
+			r.log.V(0).Info("Created security group", "id", *createResp.GroupId)
+
+			// Unfortunately CreateSecurityGroup doesn't return an *ec2.SecurityGroup so just return an error to
+			// put this back in the work queue after recording the security group id
+			resource.Status.SecurityGroupId = *createResp.GroupId
+			if err := r.Status().Update(ctx, resource); err != nil {
+				return nil, fmt.Errorf("failed to update status")
+			}
+
+			return nil, fmt.Errorf("initial security group creation, reconciling again to configure")
+		} else {
+			// TODO: Pending fix in FilterSecurityGroupByDefaultTags this should only return one match
+			sg = resp.SecurityGroups[0]
+		}
+	} else {
+		sg = resp.SecurityGroups[0]
+	}
+
+	if sg == nil {
+		return nil, fmt.Errorf("unexpectedly got a nil security group response from AWS")
+	}
+
+	r.log.V(1).Info("Found security group", "id", *resp.SecurityGroups[0].GroupId)
+	resource.Status.SecurityGroupId = *sg.GroupId
+	if err := r.Status().Update(ctx, resource); err != nil {
+		return nil, fmt.Errorf("failed to update status")
+	}
+
+	return sg, nil
+}
+
+// findOrCreateVpcEndpoint queries AWS and returns the VPC Endpoint for the provided CR and updates its status.
 // It first tries to use the VPC Endpoint ID that may be in the resource's status and falls back on
-// searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a VPC
-// Endpoint, it creates the VPC Endpoint and returns its ID.
-func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(resource *avov1alpha1.VpcEndpoint) (*ec2.VpcEndpoint, error) {
+// searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a VPC Endpoint,
+// it gets created.
+func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, resource *avov1alpha1.VpcEndpoint) (*ec2.VpcEndpoint, error) {
 	var vpce *ec2.VpcEndpoint
 
 	r.log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
@@ -165,6 +229,16 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(resource *avov1alpha1.Vp
 	} else {
 		// There can only be one match returned by DescribeSingleVpcEndpointById
 		vpce = resp.VpcEndpoints[0]
+	}
+
+	if vpce == nil {
+		return nil, fmt.Errorf("unexpectedly got a nil vpce response from AWS")
+	}
+
+	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
+	resource.Status.Status = *vpce.State
+	if err := r.Status().Update(ctx, resource); err != nil {
+		return nil, fmt.Errorf("failed to update status: %w", err)
 	}
 
 	return vpce, nil
