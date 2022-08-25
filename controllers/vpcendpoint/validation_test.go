@@ -32,6 +32,52 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  *avov1alpha1.VpcEndpoint
+		expectErr bool
+	}{
+		{
+			name:      "Nil resource",
+			resource:  nil,
+			expectErr: true,
+		},
+		{
+			name: "minimum viable",
+			resource: &avov1alpha1.VpcEndpoint{
+				Status: avov1alpha1.VpcEndpointStatus{
+					VPCEndpointId: testutil.MockVpcEndpointId,
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		r := &VpcEndpointReconciler{
+			awsClient: aws_client.NewMockedAwsClientWithSubnets(),
+			log:       testr.New(t),
+			clusterInfo: &clusterInfo{
+				clusterTag: aws_client.MockClusterTag,
+			},
+		}
+
+		t.Run(test.name, func(t *testing.T) {
+			err := r.validateVPCEndpoint(context.TODO(), test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				condition := meta.FindStatusCondition(test.resource.Status.Conditions, avov1alpha1.AWSVpcEndpointCondition)
+				assert.NotNilf(t, condition, "missing expected %s condition", avov1alpha1.AWSVpcEndpointCondition)
+				assert.Equal(t, metav1.ConditionTrue, condition.Status)
+			}
+		})
+	}
+}
+
 func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {
 	tests := []struct {
 		name       string

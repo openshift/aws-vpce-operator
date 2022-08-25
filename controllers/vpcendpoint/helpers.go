@@ -27,7 +27,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	"github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
@@ -124,7 +124,156 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWS
 	return nil
 }
 
-func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndpoint) (*route53.ResourceRecord, error) {
+// findOrCreateVpcEndpoint queries AWS and returns the VPC Endpoint for the provided CR and returns its ID.
+// It first tries to use the VPC Endpoint ID that may be in the resource's status and falls back on
+// searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a VPC
+// Endpoint, it creates the VPC Endpoint and returns its ID.
+func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(resource *avov1alpha1.VpcEndpoint) (*ec2.VpcEndpoint, error) {
+	var vpce *ec2.VpcEndpoint
+
+	r.log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
+	resp, err := r.awsClient.DescribeSingleVPCEndpointById(resource.Status.VPCEndpointId)
+	if err != nil {
+		return nil, err
+	}
+
+	// If there's no VPC Endpoint returned by ID, look for one by tag
+	if resp == nil || len(resp.VpcEndpoints) == 0 {
+		r.log.V(1).Info("Searching for VPC Endpoint by tags")
+		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag)
+		if err != nil {
+			return nil, err
+		}
+
+		// If there are still no VPC Endpoints found, it needs to be created
+		if resp == nil || len(resp.VpcEndpoints) == 0 {
+			vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
+			if err != nil {
+				return nil, err
+			}
+			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create vpc endpoint: %v", err)
+			}
+
+			vpce = creationResp.VpcEndpoint
+			r.log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
+		} else {
+			// TODO: Pending fix in FilterVpcEndpointByDefaultTags this should only return one match
+			vpce = resp.VpcEndpoints[0]
+		}
+	} else {
+		// There can only be one match returned by DescribeSingleVpcEndpointById
+		vpce = resp.VpcEndpoints[0]
+	}
+
+	return vpce, nil
+}
+
+// ensureVpcEndpointSubnets ensures that the subnets attached to the VPC Endpoint are the cluster's private subnets
+func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(vpce *ec2.VpcEndpoint) error {
+	subnetsToAdd, subnetsToRemove, err := r.diffVpcEndpointSubnets(vpce)
+	if err != nil {
+		return err
+	}
+
+	// Removing subnets first before adding to avoid
+	// DuplicateSubnetsInSameZone: Found another VPC endpoint subnet in the availability zone of <existing subnet>
+	if len(subnetsToRemove) > 0 {
+		r.log.V(1).Info("Removing subnet(s) from VPC Endpoint", "subnetsToRemove", subnetsToRemove)
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+			RemoveSubnetIds: subnetsToRemove,
+			VpcEndpointId:   vpce.VpcEndpointId,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if len(subnetsToAdd) > 0 {
+		r.log.V(1).Info("Adding subnet(s) to VPC Endpoint", "subnetsToAdd", subnetsToAdd)
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+			AddSubnetIds:  subnetsToAdd,
+			VpcEndpointId: vpce.VpcEndpointId,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// diffVpcEndpointSubnets searches for the cluster's private subnets and compares them to the subnets associated with
+// the VPC Endpoint, returning subnets that need to be added to the VPC Endpoint and subnets that need to be removed
+// from the VPC Endpoint.
+func (r *VpcEndpointReconciler) diffVpcEndpointSubnets(vpce *ec2.VpcEndpoint) ([]*string, []*string, error) {
+	if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
+		return nil, nil, fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
+	}
+
+	subnetsResp, err := r.awsClient.DescribePrivateSubnets(r.clusterInfo.clusterTag)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	privateSubnetIds := make([]*string, len(subnetsResp.Subnets))
+	for i := range subnetsResp.Subnets {
+		privateSubnetIds[i] = subnetsResp.Subnets[i].SubnetId
+	}
+
+	subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
+	return subnetsToAdd, subnetsToRemove, nil
+}
+
+// ensureVpcEndpointSecurityGroups ensures that the security group associated with the VPC Endpoint
+// is only the expected one.
+func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(vpce *ec2.VpcEndpoint, resource *avov1alpha1.VpcEndpoint) error {
+	sgToAdd, sgToRemove, err := r.diffVpcEndpointSecurityGroups(vpce, resource)
+	if err != nil {
+		return err
+	}
+
+	if len(sgToAdd) > 0 {
+		r.log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+			AddSecurityGroupIds: sgToAdd,
+			VpcEndpointId:       vpce.VpcEndpointId,
+		}); err != nil {
+			return err
+		}
+	}
+
+	if len(sgToRemove) > 0 {
+		r.log.V(1).Info("Removing security group(s) from VPC Endpoint", "sgToRemove", sgToRemove)
+		if _, err := r.awsClient.ModifyVpcEndpoint(&ec2.ModifyVpcEndpointInput{
+			RemoveSecurityGroupIds: sgToRemove,
+			VpcEndpointId:          vpce.VpcEndpointId,
+		}); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// diffVpcEndpointSecurityGroups compares the security groups associated with the VPC Endpoint with
+// the security group ID recorded in the resource's status, returning security groups that need to be added
+// and security groups that need to be removed from the VPC Endpoint.
+func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2.VpcEndpoint, resource *avov1alpha1.VpcEndpoint) ([]*string, []*string, error) {
+	vpceSgIds := make([]*string, len(vpce.Groups))
+	for i := range vpce.Groups {
+		vpceSgIds[i] = vpce.Groups[i].GroupId
+	}
+
+	sgToAdd, sgToRemove := util.StringSliceTwoWayDiff(
+		vpceSgIds,
+		[]*string{&resource.Status.SecurityGroupId},
+	)
+
+	return sgToAdd, sgToRemove, nil
+}
+
+// generateRoute53Record generates the expected Route53 Record for a provided VpcEndpoint CR
+func (r *VpcEndpointReconciler) generateRoute53Record(resource *avov1alpha1.VpcEndpoint) (*route53.ResourceRecord, error) {
 	if resource.Status.VPCEndpointId == "" {
 		return nil, fmt.Errorf("VPCEndpointID status is missing")
 	}
@@ -153,8 +302,8 @@ func (r *VpcEndpointReconciler) defaultResourceRecord(resource *v1alpha1.VpcEndp
 	}, nil
 }
 
-// expectedServiceForVpce generates the expected ExternalName service for a VpcEndpoint CustomResource
-func (r *VpcEndpointReconciler) expectedServiceForVpce(resource *v1alpha1.VpcEndpoint) (*corev1.Service, error) {
+// generateExternalNameService generates the expected ExternalName service for a VpcEndpoint CustomResource
+func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha1.VpcEndpoint) (*corev1.Service, error) {
 	if resource == nil {
 		// Should never happen
 		return nil, fmt.Errorf("resource must be specified")

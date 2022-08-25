@@ -39,11 +39,6 @@ func (m *MockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2
 	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
-func (m *MockedEC2) ModifyVpcEndpoint(input *ec2.ModifyVpcEndpointInput) (*ec2.ModifyVpcEndpointOutput, error) {
-	// TODO: This is a no-op
-	return &ec2.ModifyVpcEndpointOutput{}, nil
-}
-
 func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 	client := NewMockedAwsClient()
 

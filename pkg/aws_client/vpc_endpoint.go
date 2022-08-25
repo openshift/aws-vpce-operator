@@ -62,6 +62,7 @@ func (c *AWSClient) FilterVPCEndpointByDefaultTags(clusterTag string) (*ec2.Desc
 	}
 
 	return c.ec2Client.DescribeVpcEndpoints(&ec2.DescribeVpcEndpointsInput{
+		// TODO: This filter doesn't work if there are multiple VPCE CR's in the same cluster
 		Filters: []*ec2.Filter{
 			{
 				Name:   aws.String("tag-key"),
