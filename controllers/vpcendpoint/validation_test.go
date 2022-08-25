@@ -32,6 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {}
+
 func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 	tests := []struct {
 		name      string

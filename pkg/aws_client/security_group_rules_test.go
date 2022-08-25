@@ -24,13 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *MockedEC2) DescribeSecurityGroupRules(input *ec2.DescribeSecurityGroupRulesInput) (*ec2.DescribeSecurityGroupRulesOutput, error) {
-	// TODO: This is a no-op
-	return &ec2.DescribeSecurityGroupRulesOutput{
-		SecurityGroupRules: []*ec2.SecurityGroupRule{},
-	}, nil
-}
-
 func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
 	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
 	for i, permission := range input.IpPermissions {

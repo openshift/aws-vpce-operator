@@ -23,11 +23,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *MockedEC2) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
-	// TODO: this is a no-op
-	return &ec2.CreateTagsOutput{}, nil
-}
-
 func TestAWSClient_CreateTags(t *testing.T) {
 	tests := []struct {
 		input     *ec2.CreateTagsInput

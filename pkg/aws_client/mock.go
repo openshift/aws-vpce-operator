@@ -165,6 +165,18 @@ func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInpu
 	return &ec2.DescribeSecurityGroupsOutput{}, nil
 }
 
+func (m *MockedEC2) DescribeSecurityGroupRules(input *ec2.DescribeSecurityGroupRulesInput) (*ec2.DescribeSecurityGroupRulesOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.DescribeSecurityGroupRulesOutput{
+		SecurityGroupRules: []*ec2.SecurityGroupRule{},
+	}, nil
+}
+
+func (m *MockedEC2) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
+	// TODO: this is a no-op
+	return &ec2.CreateTagsOutput{}, nil
+}
+
 func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
 	if len(input.VpcEndpointIds) > 0 {

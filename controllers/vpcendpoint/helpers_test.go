@@ -18,6 +18,7 @@ package vpcendpoint
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 
 	corev1 "k8s.io/api/core/v1"
@@ -119,6 +121,161 @@ func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
+	tests := []struct {
+		name        string
+		sg          *ec2.SecurityGroup
+		clusterInfo *clusterInfo
+		resource    *avov1alpha1.VpcEndpoint
+		expectErr   bool
+	}{
+		{
+			name: "perfect match",
+			sg: &ec2.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(util.OperatorTagKey),
+						Value: aws.String(util.OperatorTagValue),
+					},
+					{
+						Key:   aws.String(aws_client.MockClusterTag),
+						Value: aws.String("owned"),
+					},
+					{
+						Key:   aws.String("Name"),
+						Value: aws.String(fmt.Sprintf("%s-%s-sg", testutil.MockInfrastructureName, "mock1")),
+					},
+				},
+			},
+			clusterInfo: &clusterInfo{
+				clusterTag: aws_client.MockClusterTag,
+				infraName:  testutil.MockInfrastructureName,
+			},
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
+			},
+		},
+		{
+			name: "missing tags",
+			sg: &ec2.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(util.OperatorTagKey),
+						Value: aws.String(util.OperatorTagValue),
+					},
+				},
+			},
+			clusterInfo: &clusterInfo{
+				clusterTag: aws_client.MockClusterTag,
+				infraName:  testutil.MockInfrastructureName,
+			},
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock2",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		r := &VpcEndpointReconciler{
+			Client:      testutil.NewTestMock(t, test.resource).Client,
+			Scheme:      testutil.NewTestMock(t).Client.Scheme(),
+			log:         testr.New(t),
+			awsClient:   aws_client.NewMockedAwsClient(),
+			clusterInfo: test.clusterInfo,
+		}
+		t.Run(test.name, func(t *testing.T) {
+			err := r.createMissingSecurityGroupTags(test.sg, test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
+	tests := []struct {
+		name               string
+		clusterInfo        *clusterInfo
+		resource           *avov1alpha1.VpcEndpoint
+		sg                 *ec2.SecurityGroup
+		expectedNumIngress int
+		expectedNumEgress  int
+		expectErr          bool
+	}{
+		{
+			name:      "nil",
+			expectErr: true,
+		},
+		{
+			name: "valid",
+			clusterInfo: &clusterInfo{
+				infraName: testutil.MockInfrastructureName,
+			},
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
+				Spec: avov1alpha1.VpcEndpointSpec{
+					SecurityGroup: avov1alpha1.SecurityGroup{
+						EgressRules: []avov1alpha1.SecurityGroupRule{
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
+							},
+						},
+						IngressRules: []avov1alpha1.SecurityGroupRule{
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
+							},
+						},
+					},
+				},
+			},
+			sg: &ec2.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+			},
+			expectedNumEgress:  1,
+			expectedNumIngress: 1,
+			expectErr:          false,
+		},
+	}
+
+	for _, test := range tests {
+		client := testutil.NewTestMock(t).Client
+		if test.resource != nil {
+			client = testutil.NewTestMock(t, test.resource).Client
+		}
+		r := &VpcEndpointReconciler{
+			Client:      client,
+			Scheme:      client.Scheme(),
+			log:         testr.New(t),
+			awsClient:   aws_client.NewMockedAwsClient(),
+			clusterInfo: test.clusterInfo,
+		}
+		t.Run(test.name, func(t *testing.T) {
+			ingress, egress, err := r.generateMissingSecurityGroupRules(test.sg, test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equalf(t, test.expectedNumIngress, len(ingress.IpPermissions), "expected %d ingress rules, got %d", test.expectedNumIngress, len(ingress.IpPermissions))
+				assert.Equalf(t, test.expectedNumEgress, len(egress.IpPermissions), "expected %d egress rules, got %d", test.expectedNumEgress, len(egress.IpPermissions))
 			}
 		})
 	}
