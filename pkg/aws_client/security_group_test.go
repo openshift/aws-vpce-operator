@@ -37,10 +37,6 @@ func (m *MockedEC2) CreateSecurityGroup(input *ec2.CreateSecurityGroupInput) (*e
 	}, nil
 }
 
-func (m *MockedEC2) DeleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
-	return &ec2.DeleteSecurityGroupOutput{}, nil
-}
-
 func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 	tests := []struct {
 		tagKey    string

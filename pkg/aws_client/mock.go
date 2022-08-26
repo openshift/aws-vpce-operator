@@ -129,6 +129,10 @@ func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.Descr
 	return &ec2.DescribeSubnetsOutput{}, nil
 }
 
+func (m *MockedEC2) DeleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
+	return &ec2.DeleteSecurityGroupOutput{}, nil
+}
+
 func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
 	if len(input.GroupIds) > 0 {
 		securityGroups := make([]*ec2.SecurityGroup, len(input.GroupIds))
@@ -205,6 +209,11 @@ func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGro
 func (m *MockedEC2) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
 	// TODO: this is a no-op
 	return &ec2.CreateTagsOutput{}, nil
+}
+
+func (m *MockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2.DeleteVpcEndpointsOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
 func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {

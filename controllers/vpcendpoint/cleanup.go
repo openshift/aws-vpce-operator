@@ -27,8 +27,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// deleteAWSResources cleans up AWS resources associated with a VPC Endpoint.
-func (r *VpcEndpointReconciler) deleteAWSResources(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+// cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
+func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha1.AWSRoute53RecordCondition) {
 		resourceRecord, err := r.generateRoute53Record(resource)
 		if err != nil {
