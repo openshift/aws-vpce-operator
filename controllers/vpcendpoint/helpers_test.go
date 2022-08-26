@@ -71,6 +71,59 @@ func TestVpcEndpointReconciler_parseClusterInfo(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
+	tests := []struct {
+		name        string
+		resource    *avov1alpha1.VpcEndpoint
+		clusterInfo *clusterInfo
+		expectErr   bool
+	}{
+		{
+			name: "SecurityGroupID populated",
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
+				Status: avov1alpha1.VpcEndpointStatus{
+					SecurityGroupId: aws_client.MockSecurityGroupId,
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "SecurityGroupID missing",
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock2",
+				},
+				Status: avov1alpha1.VpcEndpointStatus{},
+			},
+			clusterInfo: &clusterInfo{
+				infraName: testutil.MockInfrastructureName,
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		r := &VpcEndpointReconciler{
+			Client:      testutil.NewTestMock(t, test.resource).Client,
+			Scheme:      testutil.NewTestMock(t).Client.Scheme(),
+			log:         testr.New(t),
+			awsClient:   aws_client.NewMockedAwsClient(),
+			clusterInfo: test.clusterInfo,
+		}
+		t.Run(test.name, func(t *testing.T) {
+			_, err := r.findOrCreateSecurityGroup(context.TODO(), test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -81,6 +134,9 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 		{
 			name: "VPCEndpointID populated",
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
 				Status: avov1alpha1.VpcEndpointStatus{
 					VPCEndpointId: testutil.MockVpcEndpointId,
 				},
@@ -90,6 +146,9 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 		{
 			name: "VPCEndpointID missing",
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock2",
+				},
 				Status: avov1alpha1.VpcEndpointStatus{},
 			},
 			clusterInfo: &clusterInfo{
@@ -103,16 +162,19 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 
 	for _, test := range tests {
 		r := &VpcEndpointReconciler{
+			Client:      testutil.NewTestMock(t, test.resource).Client,
+			Scheme:      testutil.NewTestMock(t).Client.Scheme(),
 			log:         testr.New(t),
 			awsClient:   aws_client.NewMockedAwsClient(),
 			clusterInfo: test.clusterInfo,
 		}
 		t.Run(test.name, func(t *testing.T) {
-			_, err := r.findOrCreateVpcEndpoint(test.resource)
+			_, err := r.findOrCreateVpcEndpoint(context.TODO(), test.resource)
 			if test.expectErr {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
+				assert.Equalf(t, "available", test.resource.Status.Status, "expected state to be %s, got %s", "available", test.resource.Status.Status)
 			}
 		})
 	}

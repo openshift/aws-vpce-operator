@@ -129,6 +129,42 @@ func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.Descr
 	return &ec2.DescribeSubnetsOutput{}, nil
 }
 
+func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
+	if len(input.GroupIds) > 0 {
+		securityGroups := make([]*ec2.SecurityGroup, len(input.GroupIds))
+		for i, groupId := range input.GroupIds {
+			securityGroups[i] = &ec2.SecurityGroup{
+				GroupId: groupId,
+			}
+		}
+		return &ec2.DescribeSecurityGroupsOutput{
+			SecurityGroups: securityGroups,
+		}, nil
+	}
+
+	if len(input.Filters) > 0 {
+		for _, filter := range input.Filters {
+			if *filter.Name == "tag-key" {
+				return &ec2.DescribeSecurityGroupsOutput{
+					SecurityGroups: []*ec2.SecurityGroup{
+						{
+							GroupId: aws.String(MockSecurityGroupId),
+							Tags: []*ec2.Tag{
+								{
+									Key:   filter.Values[0],
+									Value: nil,
+								},
+							},
+						},
+					},
+				}, nil
+			}
+		}
+	}
+
+	return &ec2.DescribeSecurityGroupsOutput{}, nil
+}
+
 func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
 	if len(input.VpcEndpointIds) > 0 {
@@ -154,6 +190,7 @@ func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (
 				return &ec2.DescribeVpcEndpointsOutput{
 					VpcEndpoints: []*ec2.VpcEndpoint{
 						{
+							VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
 							DnsEntries: []*ec2.DnsEntry{
 								{
 									DnsName: aws.String(testutil.MockVpcEndpointDnsName),

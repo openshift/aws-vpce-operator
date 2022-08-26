@@ -61,52 +61,16 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		// Should never happen
 		return fmt.Errorf("resource must be specified")
 	}
+
+	sg, err := r.findOrCreateSecurityGroup(ctx, resource)
+	if err != nil {
+		return err
+	}
+
 	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
 	if err != nil {
 		return err
 	}
-
-	r.log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
-	resp, err := r.awsClient.FilterSecurityGroupById(resource.Status.SecurityGroupId)
-	if err != nil {
-		return err
-	}
-
-	// If there's no security group returned by ID, look for one by tag
-	if resp == nil || len(resp.SecurityGroups) == 0 {
-		r.log.V(1).Info("Searching for security group by tags")
-		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName)
-		if err != nil {
-			return err
-		}
-
-		// If there are still no security groups found, it needs to be created
-		if resp == nil || len(resp.SecurityGroups) == 0 {
-
-			createResp, err := r.awsClient.CreateSecurityGroup(sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
-			if err != nil {
-				return err
-			}
-
-			r.log.V(0).Info("Created security group", "id", *createResp.GroupId)
-			resource.Status.SecurityGroupId = *createResp.GroupId
-			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-				Type:    avov1alpha1.AWSSecurityGroupCondition,
-				Status:  metav1.ConditionUnknown,
-				Reason:  "FirstReconcile",
-				Message: "first reconcile",
-			})
-
-			if err := r.Status().Update(ctx, resource); err != nil {
-				r.log.V(0).Error(err, "failed to update status")
-				return err
-			}
-
-			return fmt.Errorf("created security group, configuring in next reconcile loop")
-		}
-	}
-
-	sg := resp.SecurityGroups[0]
 
 	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
 	if err != nil {
@@ -258,7 +222,6 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	resource.Status.SecurityGroupId = *sg.GroupId
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 		Type:    avov1alpha1.AWSSecurityGroupCondition,
 		Status:  metav1.ConditionTrue,
@@ -277,7 +240,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return fmt.Errorf("resource must be specified")
 	}
 
-	vpce, err := r.findOrCreateVpcEndpoint(resource)
+	vpce, err := r.findOrCreateVpcEndpoint(ctx, resource)
 	if err != nil {
 		return err
 	}
