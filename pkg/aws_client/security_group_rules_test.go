@@ -24,36 +24,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
-	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
-	for i, permission := range input.IpPermissions {
-		rules[i] = &ec2.SecurityGroupRule{
-			FromPort:   permission.FromPort,
-			IpProtocol: permission.IpProtocol,
-			ToPort:     permission.ToPort,
-		}
-	}
-
-	return &ec2.AuthorizeSecurityGroupIngressOutput{
-		SecurityGroupRules: rules,
-	}, nil
-}
-
-func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGroupEgressInput) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
-	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
-	for i, permission := range input.IpPermissions {
-		rules[i] = &ec2.SecurityGroupRule{
-			FromPort:   permission.FromPort,
-			IpProtocol: permission.IpProtocol,
-			ToPort:     permission.ToPort,
-		}
-	}
-
-	return &ec2.AuthorizeSecurityGroupEgressOutput{
-		SecurityGroupRules: rules,
-	}, nil
-}
-
 func TestAWSClient_DescribeSecurityGroupRules(t *testing.T) {
 	tests := []struct {
 		groupId   string

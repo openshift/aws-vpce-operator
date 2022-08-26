@@ -53,7 +53,6 @@ func (r *VpcEndpointReconciler) validateAWSResources(
 
 // validateSecurityGroup checks a security group against what's expected, returning an error if there are differences.
 // Security groups can't be updated-in-place, so a new one will need to be created before deleting this existing one.
-// TODO: Split out a ReconcileSecurityGroupRule function?
 func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if resource == nil {
 		// Should never happen

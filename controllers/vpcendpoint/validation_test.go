@@ -32,7 +32,79 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {}
+func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  *avov1alpha1.VpcEndpoint
+		expectErr bool
+	}{
+		{
+			name:      "Nil resource",
+			resource:  nil,
+			expectErr: true,
+		},
+		{
+			name: "minimum viable",
+			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock1",
+				},
+				Spec: avov1alpha1.VpcEndpointSpec{
+					SecurityGroup: avov1alpha1.SecurityGroup{
+						EgressRules: []avov1alpha1.SecurityGroupRule{
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
+							},
+						},
+						IngressRules: []avov1alpha1.SecurityGroupRule{
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
+							},
+						},
+					},
+				},
+				Status: avov1alpha1.VpcEndpointStatus{
+					SecurityGroupId: aws_client.MockSecurityGroupId,
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		client := testutil.NewTestMock(t).Client
+		if test.resource != nil {
+			client = testutil.NewTestMock(t, test.resource).Client
+		}
+		r := &VpcEndpointReconciler{
+			Client:    client,
+			Scheme:    client.Scheme(),
+			awsClient: aws_client.NewMockedAwsClientWithSubnets(),
+			log:       testr.New(t),
+			clusterInfo: &clusterInfo{
+				clusterTag: aws_client.MockClusterTag,
+				infraName:  testutil.MockInfrastructureName,
+			},
+		}
+
+		t.Run(test.name, func(t *testing.T) {
+			err := r.validateSecurityGroup(context.TODO(), test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+
+				condition := meta.FindStatusCondition(test.resource.Status.Conditions, avov1alpha1.AWSSecurityGroupCondition)
+				assert.NotNilf(t, condition, "missing expected %s condition", avov1alpha1.AWSVpcEndpointCondition)
+				assert.Equal(t, metav1.ConditionTrue, condition.Status)
+			}
+		})
+	}
+}
 
 func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 	tests := []struct {
