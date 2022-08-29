@@ -21,10 +21,8 @@ import (
 	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/route53"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
-	"github.com/openshift/aws-vpce-operator/pkg/util"
 
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -55,7 +53,6 @@ func (r *VpcEndpointReconciler) validateAWSResources(
 
 // validateSecurityGroup checks a security group against what's expected, returning an error if there are differences.
 // Security groups can't be updated-in-place, so a new one will need to be created before deleting this existing one.
-// TODO: Split out a ReconcileSecurityGroupRule function?
 func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if resource == nil {
 		// Should never happen
@@ -67,154 +64,13 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
-	if err != nil {
+	if err := r.createMissingSecurityGroupTags(sg, resource); err != nil {
 		return err
 	}
 
-	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
+	ingressInput, egressInput, err := r.generateMissingSecurityGroupRules(sg, resource)
 	if err != nil {
 		return err
-	}
-
-	// Fix tags if any are missing
-	if !tagsContains(sg.Tags, defaultTagsMap) {
-		r.log.V(1).Info("Adding missing security group tags")
-		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
-		if err != nil {
-			return err
-		}
-		if _, err := r.awsClient.CreateTags(&ec2.CreateTagsInput{
-			Resources: []*string{sg.GroupId},
-			Tags:      defaultTags,
-		}); err != nil {
-			return err
-		}
-	}
-
-	rulesResp, err := r.awsClient.DescribeSecurityGroupRules(*sg.GroupId)
-	if err != nil {
-		return err
-	}
-
-	sourceSgResp, err := r.awsClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.clusterInfo.infraName)
-	if err != nil {
-		return err
-	}
-
-	sourceSgIds := make([]*string, len(sourceSgResp.SecurityGroups))
-	for i := range sourceSgResp.SecurityGroups {
-		sourceSgIds[i] = sourceSgResp.SecurityGroups[i].GroupId
-	}
-
-	// Ensure ingress/egress rules
-	var (
-		ingressRules []*ec2.IpPermission
-		egressRules  []*ec2.IpPermission
-	)
-
-	for i := range resource.Spec.SecurityGroup.IngressRules {
-		for _, sourceSgId := range sourceSgIds {
-			create := true
-			for _, rule := range rulesResp.SecurityGroupRules {
-				// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
-				if *rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
-					*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
-					*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort &&
-					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
-					create = false
-					break
-				}
-			}
-
-			if create {
-				ingressRules = append(ingressRules, &ec2.IpPermission{
-					IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
-					FromPort:   aws.Int64(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
-					ToPort:     aws.Int64(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
-					UserIdGroupPairs: []*ec2.UserIdGroupPair{
-						{
-							GroupId: sourceSgId,
-						},
-					},
-				})
-			}
-		}
-	}
-
-	for i := range resource.Spec.SecurityGroup.EgressRules {
-		for _, sourceSgId := range sourceSgIds {
-			create := true
-			for _, rule := range rulesResp.SecurityGroupRules {
-				if *rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
-					*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
-					*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort &&
-					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
-					create = false
-					break
-				}
-			}
-
-			if create {
-				egressRules = append(egressRules, &ec2.IpPermission{
-					IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
-					FromPort:   aws.Int64(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
-					ToPort:     aws.Int64(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
-					UserIdGroupPairs: []*ec2.UserIdGroupPair{
-						{
-							GroupId: sourceSgId,
-						},
-					},
-				})
-			}
-		}
-	}
-
-	if len(ingressRules) > 0 {
-		r.log.V(1).Info("Need to create ingress rules", "ingressRules", ingressRules)
-	}
-	if len(egressRules) > 0 {
-		r.log.V(1).Info("Need to create egress rules", "egressRules", egressRules)
-	}
-
-	ingressInput := &ec2.AuthorizeSecurityGroupIngressInput{
-		GroupId:       sg.GroupId,
-		IpPermissions: ingressRules,
-		TagSpecifications: []*ec2.TagSpecification{
-			{
-				ResourceType: aws.String("security-group-rule"),
-				Tags: []*ec2.Tag{
-					{
-						Key:   aws.String(r.clusterInfo.clusterTag),
-						Value: aws.String(""),
-					},
-					{
-						Key:   aws.String(util.OperatorTagKey),
-						Value: aws.String(util.OperatorTagValue),
-					},
-				},
-			},
-		},
-	}
-
-	egressInput := &ec2.AuthorizeSecurityGroupEgressInput{
-		GroupId:       sg.GroupId,
-		IpPermissions: egressRules,
-		TagSpecifications: []*ec2.TagSpecification{
-			{
-				ResourceType: aws.String("security-group-rule"),
-				Tags: []*ec2.Tag{
-					{
-						Key:   aws.String(r.clusterInfo.clusterTag),
-						Value: aws.String(""),
-					},
-					{
-						Key:   aws.String(util.OperatorTagKey),
-						Value: aws.String(util.OperatorTagValue),
-					},
-				},
-			},
-		},
 	}
 
 	// Not idempotent

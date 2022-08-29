@@ -188,6 +188,174 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	return sg, nil
 }
 
+// createMissingSecurityGroupTags ensures the expected AWS tags exist on a VpcEndpoint CR's Security Group.
+// It will not delete any extra tags and only create missing ones.
+func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(sg *ec2.SecurityGroup, resource *avov1alpha1.VpcEndpoint) error {
+	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+	if err != nil {
+		return fmt.Errorf("failed to generate security group name: %v", err)
+	}
+
+	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
+	if err != nil {
+		return err
+	}
+
+	// Fix tags if any are missing
+	if !tagsContains(sg.Tags, defaultTagsMap) {
+		r.log.V(1).Info("Adding missing security group tags")
+		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
+		if err != nil {
+			return fmt.Errorf("failed to generate expected tags: %v", err)
+		}
+		if _, err := r.awsClient.CreateTags(&ec2.CreateTagsInput{
+			Resources: []*string{sg.GroupId},
+			Tags:      defaultTags,
+		}); err != nil {
+			return fmt.Errorf("failed to create tags: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// generateMissingSecurityGroupRules ensures that the cluster's worker and master security groups are allowed ingresses
+// to the VPC Endpoint security group as well as and other configured rules from the CR.
+// It will not remove an extra security group rules and only create missing ones.
+func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(sg *ec2.SecurityGroup, resource *avov1alpha1.VpcEndpoint) (
+	*ec2.AuthorizeSecurityGroupIngressInput, *ec2.AuthorizeSecurityGroupEgressInput, error) {
+	if sg == nil || resource == nil {
+		return nil, nil, fmt.Errorf("security group and resource must not be nil")
+	}
+
+	rulesResp, err := r.awsClient.DescribeSecurityGroupRules(*sg.GroupId)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sourceSgResp, err := r.awsClient.FilterClusterNodeSecurityGroupsByDefaultTags(r.clusterInfo.infraName)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sourceSgIds := make([]*string, len(sourceSgResp.SecurityGroups))
+	for i := range sourceSgResp.SecurityGroups {
+		sourceSgIds[i] = sourceSgResp.SecurityGroups[i].GroupId
+	}
+
+	// Ensure ingress/egress rules
+	var (
+		ingressRules []*ec2.IpPermission
+		egressRules  []*ec2.IpPermission
+	)
+
+	for i := range resource.Spec.SecurityGroup.IngressRules {
+		for _, sourceSgId := range sourceSgIds {
+			create := true
+			for _, rule := range rulesResp.SecurityGroupRules {
+				// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
+				if *rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
+					*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
+					*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort &&
+					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
+					create = false
+					break
+				}
+			}
+
+			if create {
+				ingressRules = append(ingressRules, &ec2.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
+					FromPort:   aws.Int64(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
+					ToPort:     aws.Int64(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{
+						{
+							GroupId: sourceSgId,
+						},
+					},
+				})
+			}
+		}
+	}
+
+	for i := range resource.Spec.SecurityGroup.EgressRules {
+		for _, sourceSgId := range sourceSgIds {
+			create := true
+			for _, rule := range rulesResp.SecurityGroupRules {
+				if *rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
+					*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
+					*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort &&
+					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
+					create = false
+					break
+				}
+			}
+
+			if create {
+				egressRules = append(egressRules, &ec2.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
+					FromPort:   aws.Int64(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
+					ToPort:     aws.Int64(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+					UserIdGroupPairs: []*ec2.UserIdGroupPair{
+						{
+							GroupId: sourceSgId,
+						},
+					},
+				})
+			}
+		}
+	}
+
+	if len(ingressRules) > 0 {
+		r.log.V(1).Info("Need to create ingress rules", "ingressRules", ingressRules)
+	}
+	if len(egressRules) > 0 {
+		r.log.V(1).Info("Need to create egress rules", "egressRules", egressRules)
+	}
+
+	ingressInput := &ec2.AuthorizeSecurityGroupIngressInput{
+		GroupId:       sg.GroupId,
+		IpPermissions: ingressRules,
+		TagSpecifications: []*ec2.TagSpecification{
+			{
+				ResourceType: aws.String("security-group-rule"),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(r.clusterInfo.clusterTag),
+						Value: aws.String(""),
+					},
+					{
+						Key:   aws.String(util.OperatorTagKey),
+						Value: aws.String(util.OperatorTagValue),
+					},
+				},
+			},
+		},
+	}
+
+	egressInput := &ec2.AuthorizeSecurityGroupEgressInput{
+		GroupId:       sg.GroupId,
+		IpPermissions: egressRules,
+		TagSpecifications: []*ec2.TagSpecification{
+			{
+				ResourceType: aws.String("security-group-rule"),
+				Tags: []*ec2.Tag{
+					{
+						Key:   aws.String(r.clusterInfo.clusterTag),
+						Value: aws.String(""),
+					},
+					{
+						Key:   aws.String(util.OperatorTagKey),
+						Value: aws.String(util.OperatorTagValue),
+					},
+				},
+			},
+		},
+	}
+
+	return ingressInput, egressInput, nil
+}
+
 // findOrCreateVpcEndpoint queries AWS and returns the VPC Endpoint for the provided CR and updates its status.
 // It first tries to use the VPC Endpoint ID that may be in the resource's status and falls back on
 // searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a VPC Endpoint,

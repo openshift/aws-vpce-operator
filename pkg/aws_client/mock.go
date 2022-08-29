@@ -165,6 +165,48 @@ func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInpu
 	return &ec2.DescribeSecurityGroupsOutput{}, nil
 }
 
+func (m *MockedEC2) DescribeSecurityGroupRules(input *ec2.DescribeSecurityGroupRulesInput) (*ec2.DescribeSecurityGroupRulesOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.DescribeSecurityGroupRulesOutput{
+		SecurityGroupRules: []*ec2.SecurityGroupRule{},
+	}, nil
+}
+
+func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
+	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
+	for i, permission := range input.IpPermissions {
+		rules[i] = &ec2.SecurityGroupRule{
+			FromPort:   permission.FromPort,
+			IpProtocol: permission.IpProtocol,
+			ToPort:     permission.ToPort,
+		}
+	}
+
+	return &ec2.AuthorizeSecurityGroupIngressOutput{
+		SecurityGroupRules: rules,
+	}, nil
+}
+
+func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGroupEgressInput) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
+	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
+	for i, permission := range input.IpPermissions {
+		rules[i] = &ec2.SecurityGroupRule{
+			FromPort:   permission.FromPort,
+			IpProtocol: permission.IpProtocol,
+			ToPort:     permission.ToPort,
+		}
+	}
+
+	return &ec2.AuthorizeSecurityGroupEgressOutput{
+		SecurityGroupRules: rules,
+	}, nil
+}
+
+func (m *MockedEC2) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
+	// TODO: this is a no-op
+	return &ec2.CreateTagsOutput{}, nil
+}
+
 func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
 	if len(input.VpcEndpointIds) > 0 {
