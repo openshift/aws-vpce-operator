@@ -103,7 +103,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(avo, avoFinalizer) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.deleteAWSResources(ctx, avo); err != nil {
+			if err := r.cleanupAwsResources(ctx, avo); err != nil {
 				if awsErr, ok := err.(awserr.Error); ok {
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
