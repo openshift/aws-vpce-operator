@@ -46,7 +46,7 @@ type VpcEndpointReconciler struct {
 // clusterInfo contains naming and AWS information unique to the cluster
 type clusterInfo struct {
 	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
-	// e.g. "k8s.io/cluster/${infraName}"
+	// e.g. "kubernetes.io/cluster/${infraName}"
 	clusterTag string
 	// domainName is the domain name for the cluster's private hosted zone
 	// e.g. "${clusterName}.abcd.s1.devshift.org"
