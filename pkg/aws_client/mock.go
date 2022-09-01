@@ -27,6 +27,7 @@ import (
 
 const (
 	MockClusterTag             = "kubernetes.io/cluster/mock-12345"
+	MockClusterNameTag         = "mock-12345-vpce"
 	MockHostedZoneId           = "R53HZ12345"
 	MockPublicSubnetId         = "subnet-pub12345"
 	MockPrivateSubnetId        = "subnet-priv12345"

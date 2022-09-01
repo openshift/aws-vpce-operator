@@ -63,10 +63,12 @@ func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 func TestAWSClient_FilterSecurityGroupByDefaultTags(t *testing.T) {
 	tests := []struct {
 		tagKey    string
+		nameTag   string
 		expectErr bool
 	}{
 		{
 			tagKey:    MockClusterTag,
+			nameTag:   MockSecurityGroupId,
 			expectErr: false,
 		},
 	}
@@ -74,7 +76,7 @@ func TestAWSClient_FilterSecurityGroupByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.FilterSecurityGroupByDefaultTags(test.tagKey)
+		_, err := client.FilterSecurityGroupByDefaultTags(test.tagKey, test.nameTag)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
