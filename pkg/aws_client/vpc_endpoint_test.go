@@ -17,8 +17,9 @@ limitations under the License.
 package aws_client
 
 import (
-	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"testing"
+
+	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -45,7 +46,7 @@ func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.FilterVPCEndpointByDefaultTags(MockClusterTag)
+	_, err := client.FilterVPCEndpointByDefaultTags(MockClusterTag, MockClusterNameTag)
 	assert.NoError(t, err)
 }
 

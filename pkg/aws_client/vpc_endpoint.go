@@ -18,6 +18,7 @@ package aws_client
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -56,14 +57,17 @@ func (c *AWSClient) DescribeSingleVPCEndpointById(id string) (*ec2.DescribeVpcEn
 }
 
 // FilterVPCEndpointByDefaultTags returns information about a VPC endpoint with the default expected tags.
-func (c *AWSClient) FilterVPCEndpointByDefaultTags(clusterTag string) (*ec2.DescribeVpcEndpointsOutput, error) {
+func (c *AWSClient) FilterVPCEndpointByDefaultTags(clusterTag, vpceNameTag string) (*ec2.DescribeVpcEndpointsOutput, error) {
 	if clusterTag == "" {
 		return &ec2.DescribeVpcEndpointsOutput{}, nil
 	}
 
 	return c.ec2Client.DescribeVpcEndpoints(&ec2.DescribeVpcEndpointsInput{
-		// TODO: This filter doesn't work if there are multiple VPCE CR's in the same cluster
 		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:Name"),
+				Values: []*string{aws.String(vpceNameTag)},
+			},
 			{
 				Name:   aws.String("tag-key"),
 				Values: []*string{aws.String(clusterTag)},

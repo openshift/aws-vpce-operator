@@ -138,19 +138,21 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	}
 
 	// If there's no security group returned by ID, look for one by tag
+	// first, generate the security group name to search tags or use it later to create it
 	if resp == nil || len(resp.SecurityGroups) == 0 {
+		sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+		if err != nil {
+			return nil, err
+		}
+
 		r.log.V(1).Info("Searching for security group by tags")
-		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName)
+		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName, sgName)
 		if err != nil {
 			return nil, err
 		}
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-			sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
-			if err != nil {
-				return nil, err
-			}
 
 			createResp, err := r.awsClient.CreateSecurityGroup(sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
 			if err != nil {
@@ -168,7 +170,6 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 
 			return nil, fmt.Errorf("initial security group creation, reconciling again to configure")
 		} else {
-			// TODO: Pending fix in FilterSecurityGroupByDefaultTags this should only return one match
 			sg = resp.SecurityGroups[0]
 		}
 	} else {
@@ -370,19 +371,22 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	}
 
 	// If there's no VPC Endpoint returned by ID, look for one by tag
+	// first, generate the VPC Endpoint name to search tags or use it later to create it
 	if resp == nil || len(resp.VpcEndpoints) == 0 {
+		vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
+		if err != nil {
+			return nil, err
+		}
+
 		r.log.V(1).Info("Searching for VPC Endpoint by tags")
-		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag)
+		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag, vpceName)
 		if err != nil {
 			return nil, err
 		}
 
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
-			vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
-			if err != nil {
-				return nil, err
-			}
+
 			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create vpc endpoint: %v", err)
@@ -391,7 +395,6 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 			vpce = creationResp.VpcEndpoint
 			r.log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
 		} else {
-			// TODO: Pending fix in FilterVpcEndpointByDefaultTags this should only return one match
 			vpce = resp.VpcEndpoints[0]
 		}
 	} else {

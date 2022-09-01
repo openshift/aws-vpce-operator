@@ -104,7 +104,7 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
 ## Running in a ROSA STS cluster
 
 1. Build and push a container image for the operator (or use an existing image from [quay.io/app-sre/aws-vpce-operator](https://quay.io/repository/app-sre/aws-vpce-operator?tab=tags)).
-2. Update the container image in `./deploy/20_avo_deployment.yml`
+2. Update the container image in `./deploy/20_operator.yml`
 3. Apply all the resources (namespace, RBAC, deployment) to the cluster
 
     ```bash
