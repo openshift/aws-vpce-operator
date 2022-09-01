@@ -138,7 +138,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	}
 
 	// If there's no security group returned by ID, look for one by tag
-	// first, generate the security group name to search tags or later use to create it
+	// first, generate the security group name to search tags or use it later to create it
 	if resp == nil || len(resp.SecurityGroups) == 0 {
 		sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
 		if err != nil {
@@ -371,7 +371,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	}
 
 	// If there's no VPC Endpoint returned by ID, look for one by tag
-	// first, generate the VPC Endpoint name to search tags or later use to create it
+	// first, generate the VPC Endpoint name to search tags or use it later to create it
 	if resp == nil || len(resp.VpcEndpoints) == 0 {
 		vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
 		if err != nil {
