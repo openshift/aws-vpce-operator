@@ -52,8 +52,7 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(infraName strin
 
 // FilterSecurityGroupByDefaultTags describes the security group attached to the VPC Endpoint this operator manages
 // by filtering by the clusterTag and operator tag
-func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName string) (*ec2.DescribeSecurityGroupsOutput, error) {
-	// TODO: What if a cluster has multiple VPC Endpoints?
+func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName, sgNameTag string) (*ec2.DescribeSecurityGroupsOutput, error) {
 	clusterTag, err := util.GetClusterTagKey(infraName)
 	if err != nil {
 		return nil, err
@@ -61,6 +60,10 @@ func (c *AWSClient) FilterSecurityGroupByDefaultTags(infraName string) (*ec2.Des
 
 	return c.ec2Client.DescribeSecurityGroups(&ec2.DescribeSecurityGroupsInput{
 		Filters: []*ec2.Filter{
+			{
+				Name:   aws.String("tag:Name"),
+				Values: []*string{aws.String(sgNameTag)},
+			},
 			{
 				Name:   aws.String("tag-key"),
 				Values: []*string{aws.String(clusterTag)},

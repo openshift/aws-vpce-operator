@@ -146,7 +146,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 		}
 
 		r.log.V(1).Info("Searching for security group by tags")
-		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(sgName)
+		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(r.clusterInfo.infraName, sgName)
 		if err != nil {
 			return nil, err
 		}
@@ -379,7 +379,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 		}
 
 		r.log.V(1).Info("Searching for VPC Endpoint by tags")
-		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(vpceName)
+		resp, err = r.awsClient.FilterVPCEndpointByDefaultTags(r.clusterInfo.clusterTag, vpceName)
 		if err != nil {
 			return nil, err
 		}
