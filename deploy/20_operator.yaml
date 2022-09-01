@@ -20,7 +20,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: aws-vpce-operator
-          image: quay.io/anatale/aws-vpce-operator:v0.1.128-1751589
+          image: # TODO: Fill me out
           command:
             - aws-vpce-operator
           env:
