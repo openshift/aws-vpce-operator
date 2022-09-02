@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -34,26 +33,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-func TestDefaultAVORateLimiter(t *testing.T) {
-	limiter := defaultAVORateLimiter()
-
-	if expected, actual := 1*time.Second, limiter.When("test"); expected != actual {
-		t.Errorf("expected %v, got %v", expected, actual)
-	}
-	if expected, actual := 2*time.Second, limiter.When("test"); expected != actual {
-		t.Errorf("expected %v, got %v", expected, actual)
-	}
-	if expected, actual := 4*time.Second, limiter.When("test"); expected != actual {
-		t.Errorf("expected %v, got %v", expected, actual)
-	}
-	if expected, actual := 8*time.Second, limiter.When("test"); expected != actual {
-		t.Errorf("expected %v, got %v", expected, actual)
-	}
-	if expected, actual := 4, limiter.NumRequeues("test"); expected != actual {
-		t.Errorf("expected %v, got %v", expected, actual)
-	}
-}
 
 func TestVpcEndpointReconciler_parseClusterInfo(t *testing.T) {
 	mock, err := testutil.NewDefaultMock()
