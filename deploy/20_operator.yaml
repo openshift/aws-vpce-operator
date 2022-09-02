@@ -14,6 +14,16 @@ spec:
         name: aws-vpce-operator
     spec:
       serviceAccountName: aws-vpce-operator
+      securityContext:
+        runAsNonRoot: true
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - preference:
+                matchExpressions:
+                  - key: node-role.kubernetes.io/infra
+                    operator: Exists
+              weight: 1
       tolerations:
         - operator: Exists
           key: node-role.kubernetes.io/infra
