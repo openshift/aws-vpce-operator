@@ -24,7 +24,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/go-logr/logr"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -70,7 +72,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := defaultAVOLogger()
+	reqLogger, err := util.DefaultAVOLogger(controllerName)
 	if err != nil {
 		// Shouldn't happen, but if it does, we can't log
 		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
@@ -151,7 +153,7 @@ func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&avov1alpha1.VpcEndpoint{}).
 		Owns(&corev1.Service{}).
 		WithOptions(controller.Options{
-			RateLimiter: defaultAVORateLimiter(),
+			RateLimiter: util.DefaultAVORateLimiter(),
 		}).
 		Complete(r)
 }

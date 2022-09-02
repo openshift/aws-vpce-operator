@@ -19,56 +19,21 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"golang.org/x/time/rate"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/workqueue"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
-
-// defaultAVOLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
-func defaultAVOLogger() (logr.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
-	// TODO: Make this configurable
-	// config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
-
-	zapBase, err := config.Build()
-	if err != nil {
-		return logr.Logger{}, err
-	}
-
-	logger := zapr.NewLogger(zapBase)
-	return logger.WithName(controllerName), nil
-}
-
-// defaultAVORateLimiter returns a rate limiter that reconciles more slowly than the default.
-// The default is 5ms --> 1000s, but resources are created much more slowly in AWS than in
-// Kubernetes, so this helps avoid AWS rate limits.
-// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/throttling.html#throttling-limits
-func defaultAVORateLimiter() workqueue.RateLimiter {
-	return workqueue.NewMaxOfRateLimiter(
-		workqueue.NewItemExponentialFailureRateLimiter(1*time.Second, 5000*time.Second),
-		// 10 qps, 100 bucket size, only for overall retry limiting (not per item)
-		&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(10, 100)},
-	)
-}
 
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
 // and gets a new AWS session if refreshAWSSession is true.
