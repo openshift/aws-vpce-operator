@@ -61,17 +61,27 @@ spec:
             limits:
               memory: "1G"
           livenessProbe:
-            httpGet:
-              path: /healthz
-              port: 8081
+            exec:
+              command: 
+              - /bin/bash
+              - -c 
+              - '[[ (! -z "$AWS_SECRET_ACCESS_KEY" && ! -z "$AWS_ACCESS_KEY_ID") || (! -z "$AWS_ROLE_ARN" && ! -z "$AWS_WEB_IDENTITY_TOKEN_FILE") ]]'
             initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
-            httpGet:
-              path: /readyz
-              port: 8081
+            exec:
+              command: 
+              - /bin/bash
+              - -c 
+              - '[[ (! -z "$AWS_SECRET_ACCESS_KEY" && ! -z "$AWS_ACCESS_KEY_ID") || (! -z "$AWS_ROLE_ARN" && ! -z "$AWS_WEB_IDENTITY_TOKEN_FILE") ]]'
             initialDelaySeconds: 5
             periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: openshift-sa-token
               mountPath: "/var/run/secrets/openshift/serviceaccount"
