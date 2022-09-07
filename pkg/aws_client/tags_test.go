@@ -17,9 +17,10 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,7 +38,7 @@ func TestAWSClient_CreateTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.CreateTags(test.input)
+		_, err := client.CreateTags(context.TODO(), test.input)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {

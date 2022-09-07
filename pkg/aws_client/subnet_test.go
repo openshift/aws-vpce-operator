@@ -17,6 +17,7 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +43,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 	client := NewMockedAwsClientWithSubnets()
 
 	for _, test := range tests {
-		actualPrivate, err := client.DescribePrivateSubnets(test.clusterTag)
+		actualPrivate, err := client.DescribePrivateSubnets(context.TODO(), test.clusterTag)
 		if test.expectErr {
 			assert.NotNil(t, err)
 		} else {
@@ -51,7 +52,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 			assert.Equal(t, test.expectedPrivateId, *actualPrivate.Subnets[0].SubnetId)
 		}
 
-		actualPublic, err := client.DescribePublicSubnets(test.clusterTag)
+		actualPublic, err := client.DescribePublicSubnets(context.TODO(), test.clusterTag)
 		if test.expectErr {
 			assert.NotNil(t, err)
 		} else {
@@ -60,7 +61,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 			assert.Equal(t, test.expectedPublicId, *actualPublic.Subnets[0].SubnetId)
 		}
 
-		actualVpcId, err := client.GetVPCId(test.clusterTag)
+		actualVpcId, err := client.GetVPCId(context.TODO(), test.clusterTag)
 		if test.expectErr {
 			assert.NotNil(t, err)
 		} else {

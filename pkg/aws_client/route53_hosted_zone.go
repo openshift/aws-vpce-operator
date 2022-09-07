@@ -17,20 +17,22 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
 // GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone
-func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.HostedZone, error) {
+func (c *AWSClient) GetDefaultPrivateHostedZoneId(ctx context.Context, domainName string) (*types.HostedZone, error) {
 	input := &route53.ListHostedZonesByNameInput{
 		DNSName: aws.String(domainName),
 	}
 
 	// TODO: Unlikely, but would be nice to handle pagination
-	resp, err := c.route53Client.ListHostedZonesByName(input)
+	resp, err := c.route53Client.ListHostedZonesByName(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -39,17 +41,17 @@ func (c *AWSClient) GetDefaultPrivateHostedZoneId(domainName string) (*route53.H
 		return nil, fmt.Errorf("no hosted zone found for domain %s", domainName)
 	}
 
-	return resp.HostedZones[0], nil
+	return &resp.HostedZones[0], nil
 }
 
 // ListResourceRecordSets returns a list of records for a given hosted zone ID
-func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListResourceRecordSetsOutput, error) {
+func (c *AWSClient) ListResourceRecordSets(ctx context.Context, hostedZoneId string) (*route53.ListResourceRecordSetsOutput, error) {
 	input := &route53.ListResourceRecordSetsInput{
 		HostedZoneId: aws.String(hostedZoneId),
 	}
 
 	// TODO: Handle pagination
-	resp, err := c.route53Client.ListResourceRecordSets(input)
+	resp, err := c.route53Client.ListResourceRecordSets(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -58,14 +60,14 @@ func (c *AWSClient) ListResourceRecordSets(hostedZoneId string) (*route53.ListRe
 }
 
 // UpsertResourceRecordSet updates or creates a resource record set
-func (c *AWSClient) UpsertResourceRecordSet(rrs *route53.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
+func (c *AWSClient) UpsertResourceRecordSet(ctx context.Context, rrs *types.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
 	input := &route53.ChangeResourceRecordSetsInput{
-		ChangeBatch: &route53.ChangeBatch{
-			Changes: []*route53.Change{
+		ChangeBatch: &types.ChangeBatch{
+			Changes: []types.Change{
 				{
 					// Upsert behavior: If a resource record set doesn't already exist, Route 53 creates it.
 					// If a resource record set does exist, Route 53 updates it with the values in the request.
-					Action:            aws.String("UPSERT"),
+					Action:            types.ChangeActionUpsert,
 					ResourceRecordSet: rrs,
 				},
 			},
@@ -73,17 +75,17 @@ func (c *AWSClient) UpsertResourceRecordSet(rrs *route53.ResourceRecordSet, host
 		HostedZoneId: aws.String(hostedZoneId),
 	}
 
-	return c.route53Client.ChangeResourceRecordSets(input)
+	return c.route53Client.ChangeResourceRecordSets(ctx, input)
 }
 
 // DeleteResourceRecordSet deletes a specific record from a hosted zone
 // NOTE: To delete a resource record set, you must specify all the same values that you specified when you created it.
-func (c *AWSClient) DeleteResourceRecordSet(rrs *route53.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
+func (c *AWSClient) DeleteResourceRecordSet(ctx context.Context, rrs *types.ResourceRecordSet, hostedZoneId string) (*route53.ChangeResourceRecordSetsOutput, error) {
 	input := &route53.ChangeResourceRecordSetsInput{
-		ChangeBatch: &route53.ChangeBatch{
-			Changes: []*route53.Change{
+		ChangeBatch: &types.ChangeBatch{
+			Changes: []types.Change{
 				{
-					Action:            aws.String("DELETE"),
+					Action:            types.ChangeActionDelete,
 					ResourceRecordSet: rrs,
 				},
 			},
@@ -92,5 +94,5 @@ func (c *AWSClient) DeleteResourceRecordSet(rrs *route53.ResourceRecordSet, host
 		HostedZoneId: aws.String(hostedZoneId),
 	}
 
-	return c.route53Client.ChangeResourceRecordSets(input)
+	return c.route53Client.ChangeResourceRecordSets(ctx, input)
 }

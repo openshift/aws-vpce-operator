@@ -76,7 +76,7 @@ spec:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow. To allow a single port, set both
                             to the same value.
-                          format: int64
+                          format: int32
                           type: integer
                         protocol:
                           description: Protocol is the IP protocol, tcp | udp | icmp
@@ -86,7 +86,7 @@ spec:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow To allow a single port, set both
                             to the same value.
-                          format: int64
+                          format: int32
                           type: integer
                       type: object
                     type: array
@@ -102,7 +102,7 @@ spec:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow. To allow a single port, set both
                             to the same value.
-                          format: int64
+                          format: int32
                           type: integer
                         protocol:
                           description: Protocol is the IP protocol, tcp | udp | icmp
@@ -112,7 +112,7 @@ spec:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow To allow a single port, set both
                             to the same value.
-                          format: int64
+                          format: int32
                           type: integer
                       type: object
                     type: array

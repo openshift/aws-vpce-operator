@@ -17,10 +17,12 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -38,7 +40,7 @@ func TestAWSClient_DescribeSecurityGroupRules(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.DescribeSecurityGroupRules(test.groupId)
+		_, err := client.DescribeSecurityGroupRules(context.TODO(), test.groupId)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -57,21 +59,21 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 		{
 			ingress: &ec2.AuthorizeSecurityGroupIngressInput{
 				GroupId: aws.String(MockSecurityGroupId),
-				IpPermissions: []*ec2.IpPermission{
+				IpPermissions: []types.IpPermission{
 					{
-						FromPort:   aws.Int64(80),
+						FromPort:   aws.Int32(80),
 						IpProtocol: aws.String("tcp"),
-						ToPort:     aws.Int64(80),
+						ToPort:     aws.Int32(80),
 					},
 				},
 			},
 			egress: &ec2.AuthorizeSecurityGroupEgressInput{
 				GroupId: aws.String(MockSecurityGroupId),
-				IpPermissions: []*ec2.IpPermission{
+				IpPermissions: []types.IpPermission{
 					{
-						FromPort:   aws.Int64(80),
+						FromPort:   aws.Int32(80),
 						IpProtocol: aws.String("tcp"),
-						ToPort:     aws.Int64(80),
+						ToPort:     aws.Int32(80),
 					},
 				},
 			},
@@ -83,7 +85,7 @@ func TestAWSClient_AuthorizeSecurityGroupRules(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		resp, err := client.AuthorizeSecurityGroupRules(test.ingress, test.egress)
+		resp, err := client.AuthorizeSecurityGroupRules(context.TODO(), test.ingress, test.egress)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {

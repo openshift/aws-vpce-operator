@@ -17,28 +17,18 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/stretchr/testify/assert"
 )
-
-func (m *MockedEC2) CreateVpcEndpoint(input *ec2.CreateVpcEndpointInput) (*ec2.CreateVpcEndpointOutput, error) {
-	return &ec2.CreateVpcEndpointOutput{
-		VpcEndpoint: &ec2.VpcEndpoint{
-			State:         aws.String("available"),
-			VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
-		},
-	}, nil
-}
 
 func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	resp, err := client.DescribeSingleVPCEndpointById(testutil.MockVpcEndpointId)
+	resp, err := client.DescribeSingleVPCEndpointById(context.TODO(), testutil.MockVpcEndpointId)
 	assert.NoError(t, err)
 	assert.Equal(t, testutil.MockVpcEndpointId, *resp.VpcEndpoints[0].VpcEndpointId)
 }
@@ -46,17 +36,17 @@ func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.FilterVPCEndpointByDefaultTags(MockClusterTag, MockClusterNameTag)
+	_, err := client.FilterVPCEndpointByDefaultTags(context.TODO(), MockClusterTag, MockClusterNameTag)
 	assert.NoError(t, err)
 }
 
 func TestCreateDeleteVPCEndpoint(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	resp, err := client.CreateDefaultInterfaceVPCEndpoint("name", MockVpcId, MockVpcEndpointServiceName, MockClusterTag)
+	resp, err := client.CreateDefaultInterfaceVPCEndpoint(context.TODO(), "name", MockVpcId, MockVpcEndpointServiceName, MockClusterTag)
 	assert.NoError(t, err)
 
-	_, err = client.DeleteVPCEndpoint(*resp.VpcEndpoint.VpcEndpointId)
+	_, err = client.DeleteVPCEndpoint(context.TODO(), *resp.VpcEndpoint.VpcEndpointId)
 	assert.NoError(t, err)
 }
 
@@ -74,7 +64,7 @@ func TestAWSClient_ModifyVPCEndpoint(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.ModifyVpcEndpoint(test.input)
+		_, err := client.ModifyVpcEndpoint(context.TODO(), test.input)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {

@@ -25,11 +25,11 @@ import (
 type SecurityGroupRule struct {
 	// FromPort and ToPort are the start and end of the port range to allow.
 	// To allow a single port, set both to the same value.
-	FromPort int64 `json:"fromPort,omitempty"`
+	FromPort int32 `json:"fromPort,omitempty"`
 
 	// FromPort and ToPort are the start and end of the port range to allow
 	// To allow a single port, set both to the same value.
-	ToPort int64 `json:"toPort,omitempty"`
+	ToPort int32 `json:"toPort,omitempty"`
 
 	// Protocol is the IP protocol, tcp | udp | icmp | all
 	Protocol string `json:"protocol,omitempty"`

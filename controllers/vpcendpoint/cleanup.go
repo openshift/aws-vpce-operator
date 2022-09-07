@@ -19,9 +19,9 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/route53"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,25 +30,25 @@ import (
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
 func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha1.AWSRoute53RecordCondition) {
-		resourceRecord, err := r.generateRoute53Record(resource)
+		resourceRecord, err := r.generateRoute53Record(ctx, resource)
 		if err != nil {
 			return err
 		}
 
-		hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(r.clusterInfo.domainName)
+		hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, r.clusterInfo.domainName)
 		if err != nil {
 			return err
 		}
 
-		input := &route53.ResourceRecordSet{
+		input := &route53Types.ResourceRecordSet{
 			Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name)),
-			ResourceRecords: []*route53.ResourceRecord{resourceRecord},
+			ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
 			TTL:             aws.Int64(300),
-			Type:            aws.String("CNAME"),
+			Type:            route53Types.RRTypeCname,
 		}
 
 		r.log.V(0).Info("Deleting Route53 Hosted Zone Record")
-		if _, err := r.awsClient.DeleteResourceRecordSet(input, *hostedZone.Id); err != nil {
+		if _, err := r.awsClient.DeleteResourceRecordSet(ctx, input, *hostedZone.Id); err != nil {
 			return err
 		}
 
@@ -71,7 +71,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 		}
 
 		r.log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
-		if _, err := r.awsClient.DeleteVPCEndpoint(resource.Status.VPCEndpointId); err != nil {
+		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {
 			return err
 		}
 
@@ -85,7 +85,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 
 	if resource.Status.SecurityGroupId != "" {
 		r.log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
-		if _, err := r.awsClient.DeleteSecurityGroup(resource.Status.SecurityGroupId); err != nil {
+		if _, err := r.awsClient.DeleteSecurityGroup(ctx, resource.Status.SecurityGroupId); err != nil {
 			return err
 		}
 
