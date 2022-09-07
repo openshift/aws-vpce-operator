@@ -20,8 +20,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 
 	corev1 "k8s.io/api/core/v1"
@@ -64,17 +65,17 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	if err := r.createMissingSecurityGroupTags(sg, resource); err != nil {
+	if err := r.createMissingSecurityGroupTags(ctx, sg, resource); err != nil {
 		return err
 	}
 
-	ingressInput, egressInput, err := r.generateMissingSecurityGroupRules(sg, resource)
+	ingressInput, egressInput, err := r.generateMissingSecurityGroupRules(ctx, sg, resource)
 	if err != nil {
 		return err
 	}
 
 	// Not idempotent
-	if _, err := r.awsClient.AuthorizeSecurityGroupRules(ingressInput, egressInput); err != nil {
+	if _, err := r.awsClient.AuthorizeSecurityGroupRules(ctx, ingressInput, egressInput); err != nil {
 		return err
 	}
 
@@ -102,55 +103,57 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
-	resource.Status.Status = *vpce.State
+	resource.Status.Status = string(vpce.State)
 
-	switch *vpce.State {
+	// When this bug is fixed we can switch/case off of enums
+	// https://github.com/aws/aws-sdk/issues/116
+	switch vpce.State {
 	case "pendingAcceptance":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(1)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted
-		r.log.V(0).Info("Waiting for VPC Endpoint connection acceptance", "status", *vpce.State)
+		r.log.V(0).Info("Waiting for VPC Endpoint connection acceptance", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 			Type:   avov1alpha1.AWSVpcEndpointCondition,
 			Status: metav1.ConditionFalse,
-			Reason: *vpce.State,
+			Reason: string(vpce.State),
 		})
 
 		return nil
 	case "deleting", "pending":
 		// Nothing we can do at the moment, the VPC Endpoint needs to finish moving into a stable state
-		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 			Type:   avov1alpha1.AWSVpcEndpointCondition,
 			Status: metav1.ConditionFalse,
-			Reason: *vpce.State,
+			Reason: string(vpce.State),
 		})
 
 		return nil
 	case "available":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(0)
-		r.log.V(0).Info("VPC Endpoint ready", "status", *vpce.State)
-	case "failed", "rejected", "deleted":
+		r.log.V(0).Info("VPC Endpoint ready", "status", string(vpce.State))
+	case ec2Types.StateFailed, ec2Types.StateRejected, ec2Types.StateDeleted:
 		// No other known states, but just in case catch with a default
 		fallthrough
 	default:
 		// TODO: If rejected, we may want an option to recreate the VPC Endpoint and try again
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(0)
-		r.log.V(0).Info("VPC Endpoint in a bad state", "status", *vpce.State)
+		r.log.V(0).Info("VPC Endpoint in a bad state", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 			Type:   avov1alpha1.AWSVpcEndpointCondition,
 			Status: metav1.ConditionFalse,
-			Reason: *vpce.State,
+			Reason: string(vpce.State),
 		})
 
-		return fmt.Errorf("vpc endpoint in a bad state: %s", *vpce.State)
+		return fmt.Errorf("vpc endpoint in a bad state: %s", vpce.State)
 	}
 
-	err = r.ensureVpcEndpointSubnets(vpce)
+	err = r.ensureVpcEndpointSubnets(ctx, vpce)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile VPC Endpoint subnets: %w", err)
 	}
 
-	err = r.ensureVpcEndpointSecurityGroups(vpce, resource)
+	err = r.ensureVpcEndpointSecurityGroups(ctx, vpce, resource)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile VPC Endpoint security groups: %w", err)
 	}
@@ -158,7 +161,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 		Type:   avov1alpha1.AWSVpcEndpointCondition,
 		Status: metav1.ConditionTrue,
-		Reason: *vpce.State,
+		Reason: string(vpce.State),
 	})
 
 	return nil
@@ -172,25 +175,25 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	}
 
 	r.log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.clusterInfo.domainName)
-	hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(r.clusterInfo.domainName)
+	hostedZone, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, r.clusterInfo.domainName)
 	if err != nil {
 		return err
 	}
 
-	resourceRecord, err := r.generateRoute53Record(resource)
+	resourceRecord, err := r.generateRoute53Record(ctx, resource)
 	if err != nil {
 		r.log.V(0).Info("Skipping Route53 Record, VPCEndpoint is not in the available state")
 		return nil
 	}
 
-	input := &route53.ResourceRecordSet{
+	input := &route53Types.ResourceRecordSet{
 		Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name)),
-		ResourceRecords: []*route53.ResourceRecord{resourceRecord},
+		ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
 		TTL:             aws.Int64(300),
-		Type:            aws.String("CNAME"),
+		Type:            route53Types.RRTypeCname,
 	}
 
-	if _, err := r.awsClient.UpsertResourceRecordSet(input, *hostedZone.Id); err != nil {
+	if _, err := r.awsClient.UpsertResourceRecordSet(ctx, input, *hostedZone.Id); err != nil {
 		return err
 	}
 	r.log.V(1).Info("Route53 Hosted Zone Record exists", "domainName", fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name))

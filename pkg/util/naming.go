@@ -17,9 +17,11 @@ limitations under the License.
 package util
 
 import (
+	"errors"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 const (
@@ -30,12 +32,12 @@ const (
 
 // GenerateAwsTags returns the tags that should be reconciled on every AWS resource
 // created by this operator
-func GenerateAwsTags(name, clusterTagKey string) ([]*ec2.Tag, error) {
+func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {
 	if name == "" || clusterTagKey == "" {
-		return nil, fmt.Errorf("name and clusterTagKey must not be empty")
+		return nil, errors.New("name and clusterTagKey must not be empty")
 	}
 
-	return []*ec2.Tag{
+	return []types.Tag{
 		{
 			Key:   aws.String(OperatorTagKey),
 			Value: aws.String(OperatorTagValue),
@@ -61,7 +63,7 @@ func GenerateAwsTagsAsMap(name, clusterTagKey string) (map[string]string, error)
 
 	tagsMap := map[string]string{}
 	for _, tag := range tags {
-		tagsMap[aws.StringValue(tag.Key)] = aws.StringValue(tag.Value)
+		tagsMap[*tag.Key] = *tag.Value
 	}
 
 	return tagsMap, nil

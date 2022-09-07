@@ -18,10 +18,11 @@ package vpcendpoint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/smithy-go"
 	"github.com/go-logr/logr"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/controllers/util"
@@ -106,14 +107,16 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		if controllerutil.ContainsFinalizer(avo, avoFinalizer) {
 			// our finalizer is present, so lets handle any external dependency
 			if err := r.cleanupAwsResources(ctx, avo); err != nil {
-				if awsErr, ok := err.(awserr.Error); ok {
+				var ae smithy.APIError
+				if errors.As(err, &ae) {
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
-					if awsErr.Code() == "DependencyViolation" {
-						r.log.V(0).Info("AWS dependency violation, requeueing", "error", awsErr.Message())
+					if ae.ErrorCode() == "DependencyViolation" {
+						r.log.V(0).Info("AWS dependency violation, requeueing", "error", ae.ErrorMessage())
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 				}
+
 				// Catch other errors and retry
 				return ctrl.Result{}, err
 			}

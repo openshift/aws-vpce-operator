@@ -17,25 +17,11 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/stretchr/testify/assert"
 )
-
-func (m *MockedEC2) CreateSecurityGroup(input *ec2.CreateSecurityGroupInput) (*ec2.CreateSecurityGroupOutput, error) {
-	if len(input.TagSpecifications) > 0 {
-		return &ec2.CreateSecurityGroupOutput{
-			GroupId: aws.String(MockSecurityGroupId),
-			Tags:    input.TagSpecifications[0].Tags,
-		}, nil
-	}
-
-	return &ec2.CreateSecurityGroupOutput{
-		GroupId: aws.String(MockSecurityGroupId),
-	}, nil
-}
 
 func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 	tests := []struct {
@@ -51,7 +37,7 @@ func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.FilterClusterNodeSecurityGroupsByDefaultTags(test.tagKey)
+		_, err := client.FilterClusterNodeSecurityGroupsByDefaultTags(context.TODO(), test.tagKey)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -76,7 +62,7 @@ func TestAWSClient_FilterSecurityGroupByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.FilterSecurityGroupByDefaultTags(test.tagKey, test.nameTag)
+		_, err := client.FilterSecurityGroupByDefaultTags(context.TODO(), test.tagKey, test.nameTag)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -99,7 +85,7 @@ func TestAWSClient_FilterSecurityGroupById(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		resp, err := client.FilterSecurityGroupById(test.groupId)
+		resp, err := client.FilterSecurityGroupById(context.TODO(), test.groupId)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -112,9 +98,9 @@ func TestAWSClient_FilterSecurityGroupById(t *testing.T) {
 func TestAWSClient_CreateDeleteSecurityGroup(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	resp, err := client.CreateSecurityGroup("name", MockVpcId, MockClusterTag)
+	resp, err := client.CreateSecurityGroup(context.TODO(), "name", MockVpcId, MockClusterTag)
 	assert.NoError(t, err)
 
-	_, err = client.DeleteSecurityGroup(*resp.GroupId)
+	_, err = client.DeleteSecurityGroup(context.TODO(), *resp.GroupId)
 	assert.NoError(t, err)
 }

@@ -18,30 +18,30 @@ package util
 
 // StringSliceTwoWayDiff returns the objects in expected that are not in current (to be used for creation)
 // and the objects in current that are not in expected (to be used for deletion).
-func StringSliceTwoWayDiff(current, expected []*string) ([]*string, []*string) {
+func StringSliceTwoWayDiff(current, expected []string) ([]string, []string) {
 	currentMap := map[string]bool{}
 	for _, val := range current {
-		currentMap[*val] = true
+		currentMap[val] = true
 	}
 
 	expectedMap := map[string]bool{}
 	for _, val := range expected {
-		expectedMap[*val] = true
+		expectedMap[val] = true
 	}
 
 	var (
-		toCreate []*string
-		toDelete []*string
+		toCreate []string
+		toDelete []string
 	)
 	for k := range currentMap {
 		if !expectedMap[k] {
-			toDelete = append(toDelete, &k)
+			toDelete = append(toDelete, k)
 		}
 	}
 
 	for k := range expectedMap {
 		if !currentMap[k] {
-			toCreate = append(toCreate, &k)
+			toCreate = append(toCreate, k)
 		}
 	}
 	return toCreate, toDelete

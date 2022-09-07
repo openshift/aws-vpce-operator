@@ -19,60 +19,39 @@ package util
 import (
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestStringSliceTwoWayDiff(t *testing.T) {
 	tests := []struct {
-		firstSlice       []*string
-		secondSlice      []*string
-		expectedToCreate []*string
-		expectedToDelete []*string
+		firstSlice       []string
+		secondSlice      []string
+		expectedToCreate []string
+		expectedToDelete []string
 	}{
 		{
-			firstSlice: []*string{
-				aws.String("a"),
-			},
-			secondSlice: []*string{
-				aws.String("a"),
-			},
-			expectedToCreate: []*string{},
-			expectedToDelete: []*string{},
+			firstSlice:       []string{"a"},
+			secondSlice:      []string{"a"},
+			expectedToCreate: []string{},
+			expectedToDelete: []string{},
 		},
 		{
-			firstSlice: []*string{
-				aws.String("a"),
-			},
-			secondSlice:      []*string{},
-			expectedToCreate: []*string{},
-			expectedToDelete: []*string{
-				aws.String("a"),
-			},
+			firstSlice:       []string{"a"},
+			secondSlice:      []string{},
+			expectedToCreate: []string{},
+			expectedToDelete: []string{"a"},
 		},
 		{
-			firstSlice: []*string{},
-			secondSlice: []*string{
-				aws.String("a"),
-			},
-			expectedToCreate: []*string{
-				aws.String("a"),
-			},
-			expectedToDelete: []*string{},
+			firstSlice:       []string{},
+			secondSlice:      []string{"a"},
+			expectedToCreate: []string{"a"},
+			expectedToDelete: []string{},
 		},
 		{
-			firstSlice: []*string{
-				aws.String("a"),
-			},
-			secondSlice: []*string{
-				aws.String("b"),
-			},
-			expectedToCreate: []*string{
-				aws.String("b"),
-			},
-			expectedToDelete: []*string{
-				aws.String("a"),
-			},
+			firstSlice:       []string{"a"},
+			secondSlice:      []string{"b"},
+			expectedToCreate: []string{"b"},
+			expectedToDelete: []string{"a"},
 		},
 	}
 
@@ -82,7 +61,7 @@ func TestStringSliceTwoWayDiff(t *testing.T) {
 		for _, val := range test.expectedToCreate {
 			contains := false
 			for _, val2 := range toCreate {
-				if *val == *val2 {
+				if val == val2 {
 					contains = true
 					break
 				}
@@ -95,7 +74,7 @@ func TestStringSliceTwoWayDiff(t *testing.T) {
 		for _, val := range test.expectedToDelete {
 			contains := false
 			for _, val2 := range toDelete {
-				if *val == *val2 {
+				if val == val2 {
 					contains = true
 					break
 				}

@@ -17,17 +17,20 @@ limitations under the License.
 package aws_client
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 // DescribeSecurityGroupRules describes the security group rules attached to a specific security group id
-func (c *AWSClient) DescribeSecurityGroupRules(groupId string) (*ec2.DescribeSecurityGroupRulesOutput, error) {
-	return c.ec2Client.DescribeSecurityGroupRules(&ec2.DescribeSecurityGroupRulesInput{
-		Filters: []*ec2.Filter{
+func (c *AWSClient) DescribeSecurityGroupRules(ctx context.Context, groupId string) (*ec2.DescribeSecurityGroupRulesOutput, error) {
+	return c.ec2Client.DescribeSecurityGroupRules(ctx, &ec2.DescribeSecurityGroupRulesInput{
+		Filters: []types.Filter{
 			{
 				Name:   aws.String("group-id"),
-				Values: []*string{aws.String(groupId)},
+				Values: []string{groupId},
 			},
 		},
 	})
@@ -35,11 +38,11 @@ func (c *AWSClient) DescribeSecurityGroupRules(groupId string) (*ec2.DescribeSec
 
 // AuthorizeSecurityGroupRules authorizes provided ingress and egress rules for a security group,
 // returning the updated security group rules and any errors
-func (c *AWSClient) AuthorizeSecurityGroupRules(ingress *ec2.AuthorizeSecurityGroupIngressInput, egress *ec2.AuthorizeSecurityGroupEgressInput) ([]*ec2.SecurityGroupRule, error) {
-	var rules []*ec2.SecurityGroupRule
+func (c *AWSClient) AuthorizeSecurityGroupRules(ctx context.Context, ingress *ec2.AuthorizeSecurityGroupIngressInput, egress *ec2.AuthorizeSecurityGroupEgressInput) ([]types.SecurityGroupRule, error) {
+	var rules []types.SecurityGroupRule
 
 	if len(ingress.IpPermissions) > 0 {
-		ingressResp, err := c.ec2Client.AuthorizeSecurityGroupIngress(ingress)
+		ingressResp, err := c.ec2Client.AuthorizeSecurityGroupIngress(ctx, ingress)
 		if err != nil {
 			return nil, err
 		}
@@ -47,7 +50,7 @@ func (c *AWSClient) AuthorizeSecurityGroupRules(ingress *ec2.AuthorizeSecurityGr
 	}
 
 	if len(egress.IpPermissions) > 0 {
-		egressResp, err := c.ec2Client.AuthorizeSecurityGroupEgress(egress)
+		egressResp, err := c.ec2Client.AuthorizeSecurityGroupEgress(ctx, egress)
 		if err != nil {
 			return nil, err
 		}

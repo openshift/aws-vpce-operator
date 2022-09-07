@@ -17,10 +17,12 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
 const (
@@ -31,8 +33,8 @@ const (
 // GetVPCId returns the VPC ID which contains subnets with the specified tag key
 // Returns an error if there are no subnets with the specified tag key or
 // subnets with the specified tag key are not all in the same VPC
-func (c *AWSClient) GetVPCId(tagKey string) (string, error) {
-	subnets, err := c.DescribePrivateSubnets(tagKey)
+func (c *AWSClient) GetVPCId(ctx context.Context, tagKey string) (string, error) {
+	subnets, err := c.DescribePrivateSubnets(ctx, tagKey)
 	if err != nil {
 		return "", fmt.Errorf("unable to DescribeSubnets: %w", err)
 	}
@@ -54,24 +56,24 @@ func (c *AWSClient) GetVPCId(tagKey string) (string, error) {
 // DescribePrivateSubnets returns a list of private ROSA subnets that have the
 // specified cluster tag key, typically "kubernetes.io/cluster/<cluster-name>".
 // Private subnets are differentiated by also having the `kubernetes.io/role/internal-elb` tag key.
-func (c *AWSClient) DescribePrivateSubnets(clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
-	return c.DescribeSubnetsByTagKey(clusterTag, privateSubnetTagKey)
+func (c *AWSClient) DescribePrivateSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
+	return c.DescribeSubnetsByTagKey(ctx, clusterTag, privateSubnetTagKey)
 }
 
 // DescribePublicSubnets returns a list of public ROSA subnets that have the
 // specified cluster tag key, typically "kubernetes.io/cluster/<cluster-name>".
 // Public subnets are differentiated by also having the `kubernetes.io/role/elb` tag key.
-func (c *AWSClient) DescribePublicSubnets(clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
-	return c.DescribeSubnetsByTagKey(clusterTag, publicSubnetTagKey)
+func (c *AWSClient) DescribePublicSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
+	return c.DescribeSubnetsByTagKey(ctx, clusterTag, publicSubnetTagKey)
 }
 
 // DescribeSubnetsByTagKey returns a list of subnets that have all the specified tag key(s).
-func (c *AWSClient) DescribeSubnetsByTagKey(tagKey ...string) (*ec2.DescribeSubnetsOutput, error) {
-	filters := make([]*ec2.Filter, len(tagKey))
+func (c *AWSClient) DescribeSubnetsByTagKey(ctx context.Context, tagKey ...string) (*ec2.DescribeSubnetsOutput, error) {
+	filters := make([]types.Filter, len(tagKey))
 	for i := range tagKey {
-		filters[i] = &ec2.Filter{
+		filters[i] = types.Filter{
 			Name:   aws.String("tag-key"),
-			Values: []*string{aws.String(tagKey[i])},
+			Values: []string{tagKey[i]},
 		}
 	}
 
@@ -79,5 +81,5 @@ func (c *AWSClient) DescribeSubnetsByTagKey(tagKey ...string) (*ec2.DescribeSubn
 		Filters: filters,
 	}
 
-	return c.ec2Client.DescribeSubnets(input)
+	return c.ec2Client.DescribeSubnets(ctx, input)
 }

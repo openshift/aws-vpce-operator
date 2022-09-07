@@ -17,11 +17,13 @@ limitations under the License.
 package aws_client
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 )
 
@@ -37,30 +39,30 @@ const (
 )
 
 type MockedEC2 struct {
-	ec2iface.EC2API
+	AvoEC2API
 
-	Subnets []*ec2.Subnet
+	Subnets []*ec2Types.Subnet
 }
 
 type MockedRoute53 struct {
-	route53iface.Route53API
+	AvoRoute53API
 }
 
-var mockResourceRecordSet = &route53.ResourceRecordSet{
+var mockResourceRecordSet = &route53Types.ResourceRecordSet{
 	Name: aws.String("mock"),
-	ResourceRecords: []*route53.ResourceRecord{
+	ResourceRecords: []route53Types.ResourceRecord{
 		{
 			Value: aws.String(testutil.MockVpcEndpointDnsName),
 		},
 	},
 	TTL:  aws.Int64(300),
-	Type: aws.String("CNAME"),
+	Type: route53Types.RRTypeCname,
 }
 
-var mockSubnets = []*ec2.Subnet{
+var mockSubnets = []*ec2Types.Subnet{
 	{
 		SubnetId: aws.String(MockPrivateSubnetId),
-		Tags: []*ec2.Tag{
+		Tags: []ec2Types.Tag{
 			{
 				Key:   aws.String(privateSubnetTagKey),
 				Value: nil,
@@ -74,7 +76,7 @@ var mockSubnets = []*ec2.Subnet{
 	},
 	{
 		SubnetId: aws.String(MockPublicSubnetId),
-		Tags: []*ec2.Tag{
+		Tags: []ec2Types.Tag{
 			{
 				Key:   aws.String(publicSubnetTagKey),
 				Value: nil,
@@ -102,11 +104,11 @@ func NewMockedAwsClientWithSubnets() *AWSClient {
 	return NewAwsClientWithServiceClients(NewMockedEC2WithSubnets(), &MockedRoute53{})
 }
 
-func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.DescribeSubnetsOutput, error) {
+func (m *MockedEC2) DescribeSubnets(ctx context.Context, params *ec2.DescribeSubnetsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeSubnetsOutput, error) {
 	tagKeys := map[string]bool{}
-	for _, filter := range input.Filters {
+	for _, filter := range params.Filters {
 		for _, tagKey := range filter.Values {
-			tagKeys[*tagKey] = true
+			tagKeys[tagKey] = true
 		}
 	}
 
@@ -121,7 +123,7 @@ func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.Descr
 			}
 			if foundTags == len(tagKeys) {
 				return &ec2.DescribeSubnetsOutput{
-					Subnets: []*ec2.Subnet{subnet},
+					Subnets: []ec2Types.Subnet{*subnet},
 				}, nil
 			}
 		}
@@ -130,16 +132,29 @@ func (m *MockedEC2) DescribeSubnets(input *ec2.DescribeSubnetsInput) (*ec2.Descr
 	return &ec2.DescribeSubnetsOutput{}, nil
 }
 
-func (m *MockedEC2) DeleteSecurityGroup(input *ec2.DeleteSecurityGroupInput) (*ec2.DeleteSecurityGroupOutput, error) {
+func (m *MockedEC2) CreateSecurityGroup(ctx context.Context, params *ec2.CreateSecurityGroupInput, optFns ...func(*ec2.Options)) (*ec2.CreateSecurityGroupOutput, error) {
+	if len(params.TagSpecifications) > 0 {
+		return &ec2.CreateSecurityGroupOutput{
+			GroupId: aws.String(MockSecurityGroupId),
+			Tags:    params.TagSpecifications[0].Tags,
+		}, nil
+	}
+
+	return &ec2.CreateSecurityGroupOutput{
+		GroupId: aws.String(MockSecurityGroupId),
+	}, nil
+}
+
+func (m *MockedEC2) DeleteSecurityGroup(ctx context.Context, params *ec2.DeleteSecurityGroupInput, optFns ...func(*ec2.Options)) (*ec2.DeleteSecurityGroupOutput, error) {
 	return &ec2.DeleteSecurityGroupOutput{}, nil
 }
 
-func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInput) (*ec2.DescribeSecurityGroupsOutput, error) {
-	if len(input.GroupIds) > 0 {
-		securityGroups := make([]*ec2.SecurityGroup, len(input.GroupIds))
-		for i, groupId := range input.GroupIds {
-			securityGroups[i] = &ec2.SecurityGroup{
-				GroupId: groupId,
+func (m *MockedEC2) DescribeSecurityGroups(ctx context.Context, params *ec2.DescribeSecurityGroupsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupsOutput, error) {
+	if len(params.GroupIds) > 0 {
+		securityGroups := make([]ec2Types.SecurityGroup, len(params.GroupIds))
+		for i, groupId := range params.GroupIds {
+			securityGroups[i] = ec2Types.SecurityGroup{
+				GroupId: aws.String(groupId),
 			}
 		}
 		return &ec2.DescribeSecurityGroupsOutput{
@@ -147,16 +162,16 @@ func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInpu
 		}, nil
 	}
 
-	if len(input.Filters) > 0 {
-		for _, filter := range input.Filters {
+	if len(params.Filters) > 0 {
+		for _, filter := range params.Filters {
 			if *filter.Name == "tag-key" {
 				return &ec2.DescribeSecurityGroupsOutput{
-					SecurityGroups: []*ec2.SecurityGroup{
+					SecurityGroups: []ec2Types.SecurityGroup{
 						{
 							GroupId: aws.String(MockSecurityGroupId),
-							Tags: []*ec2.Tag{
+							Tags: []ec2Types.Tag{
 								{
-									Key:   filter.Values[0],
+									Key:   aws.String(filter.Values[0]),
 									Value: nil,
 								},
 							},
@@ -170,17 +185,17 @@ func (m *MockedEC2) DescribeSecurityGroups(input *ec2.DescribeSecurityGroupsInpu
 	return &ec2.DescribeSecurityGroupsOutput{}, nil
 }
 
-func (m *MockedEC2) DescribeSecurityGroupRules(input *ec2.DescribeSecurityGroupRulesInput) (*ec2.DescribeSecurityGroupRulesOutput, error) {
+func (m *MockedEC2) DescribeSecurityGroupRules(ctx context.Context, params *ec2.DescribeSecurityGroupRulesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupRulesOutput, error) {
 	// TODO: This is a no-op
 	return &ec2.DescribeSecurityGroupRulesOutput{
-		SecurityGroupRules: []*ec2.SecurityGroupRule{},
+		SecurityGroupRules: []ec2Types.SecurityGroupRule{},
 	}, nil
 }
 
-func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGroupIngressInput) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
-	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
-	for i, permission := range input.IpPermissions {
-		rules[i] = &ec2.SecurityGroupRule{
+func (m *MockedEC2) AuthorizeSecurityGroupIngress(ctx context.Context, params *ec2.AuthorizeSecurityGroupIngressInput, optFns ...func(*ec2.Options)) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {
+	rules := make([]ec2Types.SecurityGroupRule, len(params.IpPermissions))
+	for i, permission := range params.IpPermissions {
+		rules[i] = ec2Types.SecurityGroupRule{
 			FromPort:   permission.FromPort,
 			IpProtocol: permission.IpProtocol,
 			ToPort:     permission.ToPort,
@@ -192,10 +207,10 @@ func (m *MockedEC2) AuthorizeSecurityGroupIngress(input *ec2.AuthorizeSecurityGr
 	}, nil
 }
 
-func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGroupEgressInput) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
-	rules := make([]*ec2.SecurityGroupRule, len(input.IpPermissions))
-	for i, permission := range input.IpPermissions {
-		rules[i] = &ec2.SecurityGroupRule{
+func (m *MockedEC2) AuthorizeSecurityGroupEgress(ctx context.Context, params *ec2.AuthorizeSecurityGroupEgressInput, optFns ...func(*ec2.Options)) (*ec2.AuthorizeSecurityGroupEgressOutput, error) {
+	rules := make([]ec2Types.SecurityGroupRule, len(params.IpPermissions))
+	for i, permission := range params.IpPermissions {
+		rules[i] = ec2Types.SecurityGroupRule{
 			FromPort:   permission.FromPort,
 			IpProtocol: permission.IpProtocol,
 			ToPort:     permission.ToPort,
@@ -207,51 +222,60 @@ func (m *MockedEC2) AuthorizeSecurityGroupEgress(input *ec2.AuthorizeSecurityGro
 	}, nil
 }
 
-func (m *MockedEC2) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
+func (m *MockedEC2) CreateTags(ctx context.Context, params *ec2.CreateTagsInput, optFns ...func(*ec2.Options)) (*ec2.CreateTagsOutput, error) {
 	// TODO: this is a no-op
 	return &ec2.CreateTagsOutput{}, nil
 }
 
-func (m *MockedEC2) DeleteVpcEndpoints(input *ec2.DeleteVpcEndpointsInput) (*ec2.DeleteVpcEndpointsOutput, error) {
+func (m *MockedEC2) CreateVpcEndpoint(ctx context.Context, params *ec2.CreateVpcEndpointInput, optFns ...func(*ec2.Options)) (*ec2.CreateVpcEndpointOutput, error) {
+	return &ec2.CreateVpcEndpointOutput{
+		VpcEndpoint: &ec2Types.VpcEndpoint{
+			State:         "available",
+			VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
+		},
+	}, nil
+}
+
+func (m *MockedEC2) DeleteVpcEndpoints(ctx context.Context, params *ec2.DeleteVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DeleteVpcEndpointsOutput, error) {
 	// TODO: This is a no-op
 	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
-func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (*ec2.DescribeVpcEndpointsOutput, error) {
+func (m *MockedEC2) DescribeVpcEndpoints(ctx context.Context, params *ec2.DescribeVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
-	if len(input.VpcEndpointIds) > 0 {
+	if len(params.VpcEndpointIds) > 0 {
 		return &ec2.DescribeVpcEndpointsOutput{
-			VpcEndpoints: []*ec2.VpcEndpoint{
+			VpcEndpoints: []ec2Types.VpcEndpoint{
 				{
-					VpcEndpointId: input.VpcEndpointIds[0],
-					DnsEntries: []*ec2.DnsEntry{
+					VpcEndpointId: aws.String(params.VpcEndpointIds[0]),
+					DnsEntries: []ec2Types.DnsEntry{
 						{
 							DnsName: aws.String(testutil.MockVpcEndpointDnsName),
 						},
 					},
-					State: aws.String("available"),
+					State: "available",
 				},
 			},
 		}, nil
 	}
 
 	// Mock a VPC Endpoint with a specified tag-key
-	if len(input.Filters) > 0 {
-		for _, filter := range input.Filters {
+	if len(params.Filters) > 0 {
+		for _, filter := range params.Filters {
 			if *filter.Name == "tag-key" {
 				return &ec2.DescribeVpcEndpointsOutput{
-					VpcEndpoints: []*ec2.VpcEndpoint{
+					VpcEndpoints: []ec2Types.VpcEndpoint{
 						{
 							VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
-							DnsEntries: []*ec2.DnsEntry{
+							DnsEntries: []ec2Types.DnsEntry{
 								{
 									DnsName: aws.String(testutil.MockVpcEndpointDnsName),
 								},
 							},
-							State: aws.String("available"),
-							Tags: []*ec2.Tag{
+							State: "available",
+							Tags: []ec2Types.Tag{
 								{
-									Key:   filter.Values[0],
+									Key:   aws.String(filter.Values[0]),
 									Value: nil,
 								},
 							},
@@ -265,24 +289,30 @@ func (m *MockedEC2) DescribeVpcEndpoints(input *ec2.DescribeVpcEndpointsInput) (
 	return &ec2.DescribeVpcEndpointsOutput{}, nil
 }
 
-func (m *MockedEC2) ModifyVpcEndpoint(input *ec2.ModifyVpcEndpointInput) (*ec2.ModifyVpcEndpointOutput, error) {
+func (m *MockedEC2) ModifyVpcEndpoint(ctx context.Context, params *ec2.ModifyVpcEndpointInput, optFns ...func(*ec2.Options)) (*ec2.ModifyVpcEndpointOutput, error) {
 	// TODO: This is a no-op
 	return &ec2.ModifyVpcEndpointOutput{}, nil
 }
 
-func (m *MockedRoute53) ListHostedZonesByName(input *route53.ListHostedZonesByNameInput) (*route53.ListHostedZonesByNameOutput, error) {
+func (m *MockedRoute53) ListHostedZonesByName(ctx context.Context, params *route53.ListHostedZonesByNameInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByNameOutput, error) {
 	return &route53.ListHostedZonesByNameOutput{
-		DNSName:      input.DNSName,
+		DNSName:      params.DNSName,
 		HostedZoneId: aws.String(MockHostedZoneId),
-		HostedZones: []*route53.HostedZone{
+		HostedZones: []route53Types.HostedZone{
 			{
 				Id:   aws.String(MockHostedZoneId),
-				Name: input.DNSName,
+				Name: params.DNSName,
 			},
 		},
 	}, nil
 }
 
-func (m *MockedRoute53) ChangeResourceRecordSets(input *route53.ChangeResourceRecordSetsInput) (*route53.ChangeResourceRecordSetsOutput, error) {
+func (m *MockedRoute53) ListResourceRecordSets(ctx context.Context, params *route53.ListResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ListResourceRecordSetsOutput, error) {
+	return &route53.ListResourceRecordSetsOutput{
+		ResourceRecordSets: []route53Types.ResourceRecordSet{*mockResourceRecordSet},
+	}, nil
+}
+
+func (m *MockedRoute53) ChangeResourceRecordSets(ctx context.Context, params *route53.ChangeResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ChangeResourceRecordSetsOutput, error) {
 	return &route53.ChangeResourceRecordSetsOutput{}, nil
 }

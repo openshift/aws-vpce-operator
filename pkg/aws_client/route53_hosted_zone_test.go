@@ -17,18 +17,12 @@ limitations under the License.
 package aws_client
 
 import (
+	"context"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
-
-func (m *MockedRoute53) ListResourceRecordSets(input *route53.ListResourceRecordSetsInput) (*route53.ListResourceRecordSetsOutput, error) {
-	return &route53.ListResourceRecordSetsOutput{
-		ResourceRecordSets: []*route53.ResourceRecordSet{mockResourceRecordSet},
-	}, nil
-}
 
 func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 	tests := []struct {
@@ -44,7 +38,7 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.GetDefaultPrivateHostedZoneId(test.domainName)
+		_, err := client.GetDefaultPrivateHostedZoneId(context.TODO(), test.domainName)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -56,16 +50,16 @@ func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
 func TestAWSClient_ListResourceRecordSets(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.ListResourceRecordSets(MockHostedZoneId)
+	_, err := client.ListResourceRecordSets(context.TODO(), MockHostedZoneId)
 	assert.NoError(t, err)
 }
 
 func TestAWSClient_UpsertDeleteResourceRecordSet(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.UpsertResourceRecordSet(mockResourceRecordSet, MockHostedZoneId)
+	_, err := client.UpsertResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId)
 	assert.NoError(t, err)
 
-	_, err = client.DeleteResourceRecordSet(mockResourceRecordSet, MockHostedZoneId)
+	_, err = client.DeleteResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId)
 	assert.NoError(t, err)
 }

@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/go-logr/logr/testr"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
@@ -108,16 +108,16 @@ func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 	tests := []struct {
 		name        string
-		sg          *ec2.SecurityGroup
+		sg          *ec2Types.SecurityGroup
 		clusterInfo *clusterInfo
 		resource    *avov1alpha1.VpcEndpoint
 		expectErr   bool
 	}{
 		{
 			name: "perfect match",
-			sg: &ec2.SecurityGroup{
+			sg: &ec2Types.SecurityGroup{
 				GroupId: aws.String(aws_client.MockSecurityGroupId),
-				Tags: []*ec2.Tag{
+				Tags: []ec2Types.Tag{
 					{
 						Key:   aws.String(util.OperatorTagKey),
 						Value: aws.String(util.OperatorTagValue),
@@ -144,9 +144,9 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 		},
 		{
 			name: "missing tags",
-			sg: &ec2.SecurityGroup{
+			sg: &ec2Types.SecurityGroup{
 				GroupId: aws.String(aws_client.MockSecurityGroupId),
-				Tags: []*ec2.Tag{
+				Tags: []ec2Types.Tag{
 					{
 						Key:   aws.String(util.OperatorTagKey),
 						Value: aws.String(util.OperatorTagValue),
@@ -174,7 +174,7 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 			clusterInfo: test.clusterInfo,
 		}
 		t.Run(test.name, func(t *testing.T) {
-			err := r.createMissingSecurityGroupTags(test.sg, test.resource)
+			err := r.createMissingSecurityGroupTags(context.TODO(), test.sg, test.resource)
 			if test.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -189,7 +189,7 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 		name               string
 		clusterInfo        *clusterInfo
 		resource           *avov1alpha1.VpcEndpoint
-		sg                 *ec2.SecurityGroup
+		sg                 *ec2Types.SecurityGroup
 		expectedNumIngress int
 		expectedNumEgress  int
 		expectErr          bool
@@ -226,7 +226,7 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 					},
 				},
 			},
-			sg: &ec2.SecurityGroup{
+			sg: &ec2Types.SecurityGroup{
 				GroupId: aws.String(aws_client.MockSecurityGroupId),
 			},
 			expectedNumEgress:  1,
@@ -248,7 +248,7 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 			clusterInfo: test.clusterInfo,
 		}
 		t.Run(test.name, func(t *testing.T) {
-			ingress, egress, err := r.generateMissingSecurityGroupRules(test.sg, test.resource)
+			ingress, egress, err := r.generateMissingSecurityGroupRules(context.TODO(), test.sg, test.resource)
 			if test.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -319,7 +319,7 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 	tests := []struct {
 		name                string
-		vpce                *ec2.VpcEndpoint
+		vpce                *ec2Types.VpcEndpoint
 		clusterTag          string
 		expectedNumToAdd    int
 		expectedNumToRemove int
@@ -333,8 +333,8 @@ func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 		{
 			name:       "exact match",
 			clusterTag: aws_client.MockClusterTag,
-			vpce: &ec2.VpcEndpoint{
-				SubnetIds: []*string{aws.String(aws_client.MockPrivateSubnetId)},
+			vpce: &ec2Types.VpcEndpoint{
+				SubnetIds: []string{aws_client.MockPrivateSubnetId},
 			},
 			expectedNumToAdd:    0,
 			expectedNumToRemove: 0,
@@ -343,7 +343,7 @@ func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 		{
 			name:                "subnet addition needed",
 			clusterTag:          aws_client.MockClusterTag,
-			vpce:                &ec2.VpcEndpoint{},
+			vpce:                &ec2Types.VpcEndpoint{},
 			expectedNumToAdd:    1,
 			expectedNumToRemove: 0,
 			expectErr:           false,
@@ -351,8 +351,8 @@ func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 		{
 			name:       "subnet removal needed",
 			clusterTag: "some/random/tag",
-			vpce: &ec2.VpcEndpoint{
-				SubnetIds: []*string{aws.String(aws_client.MockPrivateSubnetId)},
+			vpce: &ec2Types.VpcEndpoint{
+				SubnetIds: []string{aws_client.MockPrivateSubnetId},
 			},
 			expectedNumToAdd:    0,
 			expectedNumToRemove: 1,
@@ -367,7 +367,7 @@ func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 			clusterInfo: &clusterInfo{clusterTag: test.clusterTag},
 		}
 		t.Run(test.name, func(t *testing.T) {
-			actualToAdd, actualToRemove, err := r.diffVpcEndpointSubnets(test.vpce)
+			actualToAdd, actualToRemove, err := r.diffVpcEndpointSubnets(context.TODO(), test.vpce)
 			if test.expectErr {
 				assert.Error(t, err)
 			} else {
@@ -383,7 +383,7 @@ func TestVpcEndpointReconciler_diffVpcEndpointSecurityGroups(t *testing.T) {
 	tests := []struct {
 		name                string
 		resource            *avov1alpha1.VpcEndpoint
-		vpce                *ec2.VpcEndpoint
+		vpce                *ec2Types.VpcEndpoint
 		expectedNumToAdd    int
 		expectedNumToRemove int
 	}{
@@ -394,8 +394,8 @@ func TestVpcEndpointReconciler_diffVpcEndpointSecurityGroups(t *testing.T) {
 					SecurityGroupId: aws_client.MockSecurityGroupId,
 				},
 			},
-			vpce: &ec2.VpcEndpoint{
-				Groups: []*ec2.SecurityGroupIdentifier{
+			vpce: &ec2Types.VpcEndpoint{
+				Groups: []ec2Types.SecurityGroupIdentifier{
 					{
 						GroupId: aws.String(aws_client.MockSecurityGroupId),
 					},
@@ -411,8 +411,8 @@ func TestVpcEndpointReconciler_diffVpcEndpointSecurityGroups(t *testing.T) {
 					SecurityGroupId: aws_client.MockSecurityGroupId,
 				},
 			},
-			vpce: &ec2.VpcEndpoint{
-				Groups: []*ec2.SecurityGroupIdentifier{
+			vpce: &ec2Types.VpcEndpoint{
+				Groups: []ec2Types.SecurityGroupIdentifier{
 					{
 						GroupId: aws.String("sg-extra-to-remove"),
 					},
@@ -474,7 +474,7 @@ func TestVpcEndpointReconciler_generateRoute53Record(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		_, err = r.generateRoute53Record(test.resource)
+		_, err = r.generateRoute53Record(context.TODO(), test.resource)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -578,7 +578,7 @@ func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
 func TestTagsContains(t *testing.T) {
 	tests := []struct {
 		name        string
-		tags        []*ec2.Tag
+		tags        []ec2Types.Tag
 		tagsToCheck map[string]string
 		expected    bool
 	}{
@@ -589,7 +589,7 @@ func TestTagsContains(t *testing.T) {
 		},
 		{
 			name: "contains subset",
-			tags: []*ec2.Tag{
+			tags: []ec2Types.Tag{
 				{
 					Key:   aws.String("key1"),
 					Value: aws.String("val1"),
@@ -606,7 +606,7 @@ func TestTagsContains(t *testing.T) {
 		},
 		{
 			name: "missing",
-			tags: []*ec2.Tag{
+			tags: []ec2Types.Tag{
 				{
 					Key:   aws.String("key1"),
 					Value: aws.String("val1"),

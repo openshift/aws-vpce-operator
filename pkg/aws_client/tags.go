@@ -16,9 +16,13 @@ limitations under the License.
 
 package aws_client
 
-import "github.com/aws/aws-sdk-go/service/ec2"
+import (
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+)
 
 // CreateTags creates tags in an idempotent fashion
-func (c *AWSClient) CreateTags(input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
-	return c.ec2Client.CreateTags(input)
+func (c *AWSClient) CreateTags(ctx context.Context, input *ec2.CreateTagsInput) (*ec2.CreateTagsOutput, error) {
+	return c.ec2Client.CreateTags(ctx, input)
 }
