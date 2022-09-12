@@ -92,11 +92,8 @@ type VpcEndpointStatus struct {
 }
 
 type ExternalNameServiceSpec struct {
-	// Name of the ExternalName service
+	// Name of the ExternalName service to create in the same namespace as the VPCE CR
 	Name string `json:"name"`
-
-	// Namespace of the ExternalName service
-	Namespace string `json:"namespace"`
 }
 
 // +kubebuilder:subresource:status

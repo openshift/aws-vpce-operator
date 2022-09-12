@@ -226,10 +226,13 @@ func TestVPcEndpointReconciler_validateExternalNameService(t *testing.T) {
 		{
 			name: "need to create",
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mock-vpce",
+					Namespace: "mockns",
+				},
 				Spec: avov1alpha1.VpcEndpointSpec{
 					ExternalNameService: avov1alpha1.ExternalNameServiceSpec{
-						Name:      "mock",
-						Namespace: "mockns",
+						Name: "mock",
 					},
 					SubdomainName: "mocksubdomain",
 				},
@@ -241,10 +244,13 @@ func TestVPcEndpointReconciler_validateExternalNameService(t *testing.T) {
 		{
 			name: "need to modify",
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mock-vpce",
+					Namespace: "mockns",
+				},
 				Spec: avov1alpha1.VpcEndpointSpec{
 					ExternalNameService: avov1alpha1.ExternalNameServiceSpec{
-						Name:      "mock",
-						Namespace: "mockns",
+						Name: "mock",
 					},
 					SubdomainName: "mocksubdomain",
 				},
