@@ -109,7 +109,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	// https://github.com/aws/aws-sdk/issues/116
 	switch vpce.State {
 	case "pendingAcceptance":
-		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(1)
+		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(1)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted
 		r.log.V(0).Info("Waiting for VPC Endpoint connection acceptance", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
@@ -130,14 +130,14 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 		return nil
 	case "available":
-		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(0)
+		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(0)
 		r.log.V(0).Info("VPC Endpoint ready", "status", string(vpce.State))
 	case ec2Types.StateFailed, ec2Types.StateRejected, ec2Types.StateDeleted:
 		// No other known states, but just in case catch with a default
 		fallthrough
 	default:
 		// TODO: If rejected, we may want an option to recreate the VPC Endpoint and try again
-		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Status.VPCEndpointId).Set(0)
+		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(0)
 		r.log.V(0).Info("VPC Endpoint in a bad state", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 			Type:   avov1alpha1.AWSVpcEndpointCondition,
@@ -218,7 +218,7 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 
 	err = r.Get(ctx, types.NamespacedName{
 		Name:      resource.Spec.ExternalNameService.Name,
-		Namespace: resource.Spec.ExternalNameService.Namespace,
+		Namespace: resource.Namespace,
 	}, found)
 	if err != nil {
 		if kerr.IsNotFound(err) {

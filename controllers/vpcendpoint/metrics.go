@@ -29,6 +29,7 @@ var (
 		},
 		[]string{
 			"name",
+			"namespace",
 			"vpce_id",
 		},
 	)

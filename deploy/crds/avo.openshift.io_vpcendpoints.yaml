@@ -15,7 +15,7 @@ spec:
     shortNames:
     - vpce
     singular: vpcendpoint
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.status
@@ -54,12 +54,8 @@ spec:
                   name:
                     description: Name of the ExternalName service
                     type: string
-                  namespace:
-                    description: Namespace of the ExternalName service
-                    type: string
                 required:
                 - name
-                - namespace
                 type: object
               securityGroup:
                 description: SecurityGroup contains the configuration of the security
