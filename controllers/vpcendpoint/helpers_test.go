@@ -484,9 +484,8 @@ func TestVpcEndpointReconciler_generateRoute53Record(t *testing.T) {
 }
 
 func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
-	var (
-		trueBool = true
-	)
+	var trueBool = true
+
 	tests := []struct {
 		resource   *avov1alpha1.VpcEndpoint
 		domainName string
@@ -495,11 +494,14 @@ func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
 	}{
 		{
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo-vpce",
+					Namespace: "demo-ns",
+				},
 				Spec: avov1alpha1.VpcEndpointSpec{
 					SubdomainName: "demo",
 					ExternalNameService: avov1alpha1.ExternalNameServiceSpec{
-						Name:      "demo",
-						Namespace: "demo-ns",
+						Name: "demo",
 					},
 				},
 			},
@@ -512,6 +514,7 @@ func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
 						{
 							APIVersion:         "avo.openshift.io/v1alpha1",
 							Kind:               "VpcEndpoint",
+							Name:               "demo-vpce",
 							Controller:         &trueBool,
 							BlockOwnerDeletion: &trueBool,
 						},
@@ -526,10 +529,13 @@ func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
 		},
 		{
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo-vpce",
+					Namespace: "demo-ns",
+				},
 				Spec: avov1alpha1.VpcEndpointSpec{
 					ExternalNameService: avov1alpha1.ExternalNameServiceSpec{
-						Name:      "demo",
-						Namespace: "demo-ns",
+						Name: "demo",
 					},
 				},
 			},
@@ -538,11 +544,14 @@ func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
 		},
 		{
 			resource: &avov1alpha1.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo-vpce",
+					Namespace: "demo-ns",
+				},
 				Spec: avov1alpha1.VpcEndpointSpec{
 					SubdomainName: "demo",
 					ExternalNameService: avov1alpha1.ExternalNameServiceSpec{
-						Name:      "demo",
-						Namespace: "demo-ns",
+						Name: "demo",
 					},
 				},
 			},

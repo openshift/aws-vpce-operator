@@ -104,7 +104,7 @@ func (r *VpcEndpointReconciler) cleanupMetrics(ctx context.Context, resource *av
 	if resource.Status.VPCEndpointId != "" {
 		// DeleteLabelValues returns true if the metric is deleted, false otherwise, currently we don't really care
 		// either way, so just always return nil
-		vpcePendingAcceptance.DeleteLabelValues(resource.Name, resource.Status.VPCEndpointId)
+		vpcePendingAcceptance.DeleteLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId)
 	}
 
 	// If .status.VPCEndpointId is empty, we can't delete the metric, but don't care

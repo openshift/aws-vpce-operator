@@ -529,7 +529,7 @@ func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      resource.Spec.ExternalNameService.Name,
-			Namespace: resource.Spec.ExternalNameService.Namespace,
+			Namespace: resource.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:         corev1.ServiceTypeExternalName,

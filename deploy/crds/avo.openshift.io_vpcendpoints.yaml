@@ -15,7 +15,7 @@ spec:
     shortNames:
     - vpce
     singular: vpcendpoint
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.status
@@ -52,14 +52,11 @@ spec:
                   of the created Kubernetes ExternalName Service
                 properties:
                   name:
-                    description: Name of the ExternalName service
-                    type: string
-                  namespace:
-                    description: Namespace of the ExternalName service
+                    description: Name of the ExternalName service to create in the
+                      same namespace as the VPCE CR
                     type: string
                 required:
                 - name
-                - namespace
                 type: object
               securityGroup:
                 description: SecurityGroup contains the configuration of the security

@@ -79,7 +79,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
 	}
 
-	r.log = reqLogger.WithValues("Request.Name", req.Name)
+	r.log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	if err := r.parseClusterInfo(ctx, true); err != nil {
 		return ctrl.Result{}, err
