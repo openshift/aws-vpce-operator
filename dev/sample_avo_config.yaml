@@ -1,0 +1,12 @@
+---
+apiVersion: v1
+data:
+  avo_config.yaml: |-
+    apiVersion: avo.openshift.io/v1alpha1
+    kind: AvoConfig
+    enableVpcEndpointController: true
+    enableVpcEndpointAcceptanceController: false
+kind: ConfigMap
+metadata:
+  name: avo-config
+  namespace: openshift-aws-vpce-operator

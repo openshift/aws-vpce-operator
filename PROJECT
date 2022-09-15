@@ -11,7 +11,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: openshift.io
+  domain: avo.openshift.io
   group: avo
   kind: VpcEndpoint
   path: github.com/openshift/aws-vpce-operator/api/v1alpha1
@@ -23,6 +23,14 @@ resources:
   domain: avo.openshift.io
   group: avo
   kind: VpcEndpointAcceptance
+  path: github.com/openshift/aws-vpce-operator/api/v1alpha1
+  version: v1alpha1
+- api:
+    crdVersion: v1
+    namespaced: true
+  domain: avo.openshift.io
+  group: avo
+  kind: AvoConfig
   path: github.com/openshift/aws-vpce-operator/api/v1alpha1
   version: v1alpha1
 version: "3"

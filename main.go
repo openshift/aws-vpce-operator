@@ -35,6 +35,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
+	"github.com/openshift/aws-vpce-operator/controllers/vpcendpointacceptance"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -54,50 +55,76 @@ func init() {
 }
 
 func main() {
-	var metricsAddr string
-	var enableLeaderElection bool
-	var probeAddr string
-	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
-	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
-		"Enable leader election for controller manager. "+
-			"Enabling this will ensure there is only one active controller manager.")
+	var (
+		configFile string
+		err        error
+		trueBool   = true
+		falseBool  = false
+	)
+
+	flag.StringVar(&configFile, "config", "",
+		"The controller will load its initial configuration from this file. "+
+			"Omit this flag to use the default configuration values.")
+
 	opts := zap.Options{
 		Development: false,
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
-
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
-	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
+	// Setup default options and override with values from the AVO ComponentConfig
+	ctrlConfig := &avov1alpha1.AvoConfig{}
+	options := ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
-		HealthProbeBindAddress: probeAddr,
-		LeaderElection:         enableLeaderElection,
-		LeaderElectionID:       "80030346.openshift.io",
-	})
+		MetricsBindAddress:     ":8080",
+		HealthProbeBindAddress: ":8081",
+		LeaderElection:         false,
+	}
+
+	if configFile != "" {
+		options, err = options.AndFrom(ctrl.ConfigFile().AtPath(configFile).OfKind(ctrlConfig))
+		if err != nil {
+			setupLog.Error(err, "unable to load config file, continuing with defaults", "file", configFile)
+		}
+	}
+
+	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), options)
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
 		os.Exit(1)
 	}
 
-	if err = (&vpcendpoint.VpcEndpointReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VpcEndpoint")
-		os.Exit(1)
+	if ctrlConfig.EnableVpcEndpointController == nil {
+		ctrlConfig.EnableVpcEndpointController = &trueBool
 	}
-	//if err = (&vpcendpointacceptance.VpcEndpointAcceptanceReconciler{
-	//	Client: mgr.GetClient(),
-	//	Scheme: mgr.GetScheme(),
-	//}).SetupWithManager(mgr); err != nil {
-	//	setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointAcceptance")
-	//	os.Exit(1)
-	//}
+
+	if *ctrlConfig.EnableVpcEndpointController {
+		setupLog.Info("starting controller", "controller", "VpcEndpoint")
+		if err = (&vpcendpoint.VpcEndpointReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VpcEndpoint")
+			os.Exit(1)
+		}
+	}
+
+	if ctrlConfig.EnableVpcEndpointAcceptanceController == nil {
+		ctrlConfig.EnableVpcEndpointAcceptanceController = &falseBool
+	}
+
+	if *ctrlConfig.EnableVpcEndpointAcceptanceController {
+		setupLog.Info("starting controller", "controller", "VpcEndpointAcceptance")
+		if err = (&vpcendpointacceptance.VpcEndpointAcceptanceReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointAcceptance")
+			os.Exit(1)
+		}
+	}
 	//+kubebuilder:scaffold:builder
 
 	setupLog.Info("starting manager")
