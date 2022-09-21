@@ -33,6 +33,8 @@ spec:
           image: # TODO: Fill me out
           command:
             - aws-vpce-operator
+          args:
+            - "--config=/avo/avo_config.yaml"
           env:
             - name: "AWS_SECRET_ACCESS_KEY"
               valueFrom:
@@ -86,6 +88,9 @@ spec:
             - name: openshift-sa-token
               mountPath: "/var/run/secrets/openshift/serviceaccount"
               readOnly: true
+            - name: avo-config
+              mountPath: /avo
+              readOnly: true
       volumes:
         - name: openshift-sa-token
           projected:
@@ -100,4 +105,8 @@ spec:
         - name: avo-aws-iam-user-creds
           secret:
             secretName: avo-aws-iam-user-creds
+            optional: true
+        - name: avo-config
+          configMap:
+            name: avo-config
             optional: true

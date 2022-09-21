@@ -3,6 +3,7 @@ apiVersion: avo.openshift.io/v1alpha1
 kind: VpcEndpoint
 metadata:
   name: demo
+  namespace: demo
 spec:
   subdomainName: "splunk"
   serviceName: "com.amazonaws.vpce.us-east-1.vpce-svc-00000000000000000"
@@ -13,4 +14,3 @@ spec:
         protocol: tcp
   externalNameService:
     name: examplesvcname
-    namespace: demo
