@@ -80,10 +80,6 @@ spec:
             periodSeconds: 10
           securityContext:
             allowPrivilegeEscalation: false
-            seccompProfile:
-              type: RuntimeDefault
-            capabilities:
-              drop: ["ALL"]
           volumeMounts:
             - name: openshift-sa-token
               mountPath: "/var/run/secrets/openshift/serviceaccount"
