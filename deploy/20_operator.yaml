@@ -78,6 +78,8 @@ spec:
               - '[[ (! -z "$AWS_SECRET_ACCESS_KEY" && ! -z "$AWS_ACCESS_KEY_ID") || (! -z "$AWS_ROLE_ARN" && ! -z "$AWS_WEB_IDENTITY_TOKEN_FILE") ]]'
             initialDelaySeconds: 5
             periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
           volumeMounts:
             - name: openshift-sa-token
               mountPath: "/var/run/secrets/openshift/serviceaccount"
