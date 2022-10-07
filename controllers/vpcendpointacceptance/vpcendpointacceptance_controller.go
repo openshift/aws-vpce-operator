@@ -21,9 +21,16 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+
 	"github.com/go-logr/logr"
+	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	"github.com/openshift/aws-vpce-operator/controllers/util"
+	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -36,12 +43,14 @@ type VpcEndpointAcceptanceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 
-	log logr.Logger
+	log       logr.Logger
+	awsClient *aws_client.VpcEndpointAcceptanceAWSClient
 }
 
-//+kubebuilder:rbac:groups=avo.avo.openshift.io,resources=vpcendpointacceptances,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=avo.avo.openshift.io,resources=vpcendpointacceptances/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=avo.avo.openshift.io,resources=vpcendpointacceptances/finalizers,verbs=update
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpointacceptances,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpointacceptances/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpointacceptances/finalizers,verbs=update
+//+kubebuilder:rbac:groups=aws.managed.openshift.io,resources=account,verbs=get;list
 
 func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	reqLogger, err := util.DefaultAVOLogger(controllerName)
@@ -60,16 +69,60 @@ func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// Poll AWS for VPCE's in pendingAcceptance based on vpceAcceptance.spec.serviceIds
+	region := vpceAcceptance.Spec.Region
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
-	// Setup a map of AWS Account IDs:Namespaces
-	// List account.aws.managed.openshift.io's .spec.awsAccountId
+	// If an AssumeRoleArn is specified, sts:AssumeRole to the specified role
+	if len(vpceAcceptance.Spec.AssumeRoleArn) > 0 {
+		cfg.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(sts.NewFromConfig(cfg), vpceAcceptance.Spec.AssumeRoleArn))
+	}
 
-	// Connect to the cluster in that namespace to see if it's a valid request
+	r.awsClient = aws_client.NewVpcEndpointAcceptanceAwsClient(cfg)
+
+	// List VPC Endpoint Connections in a pendingAcceptance state
+	connections, err := r.awsClient.GetVpcEndpointConnectionsPendingAcceptance(ctx, vpceAcceptance.Spec.Id)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	var vpceToAccept []string
+	for _, connection := range connections.VpcEndpointConnections {
+		if vpceAcceptance.Spec.AcceptanceCriteria.AlwaysAccept {
+			// Always accept VPC Endpoint connections if this option is set
+			vpceToAccept = append(vpceToAccept, *connection.VpcEndpointId)
+
+			continue
+		} else if vpceAcceptance.Spec.AcceptanceCriteria.AwsAccountOperatorAccount != nil {
+			// If the AwsAccountOperatorAccount acceptance criteria is specified, then
+			// start generating a set of approved AWS Account IDs via listing
+			// account.aws.managed.openshift.io's .spec.awsAccountId
+			accounts := &aaov1alpha1.AccountList{}
+			if err := r.List(ctx, accounts, client.InNamespace(vpceAcceptance.Spec.AcceptanceCriteria.AwsAccountOperatorAccount.Namespace)); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			validAccounts := map[string]struct{}{}
+			for _, account := range accounts.Items {
+				validAccounts[account.Spec.AwsAccountID] = struct{}{}
+			}
+
+			// Only accept a VPC Endpoint Connection if it's coming from an expected AWS Account
+			if _, ok := validAccounts[*connection.VpcEndpointOwner]; ok {
+				vpceToAccept = append(vpceToAccept, *connection.VpcEndpointId)
+			}
+		}
+	}
 
 	// If valid, accept the VPCE connection
+	if _, err := r.awsClient.AcceptVpcEndpointConnection(ctx, vpceAcceptance.Spec.Id, vpceToAccept...); err != nil {
+		return ctrl.Result{}, err
+	}
 
-	// Check again in 30 sec
-	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
+	// Check again in 1 minute
+	return ctrl.Result{RequeueAfter: time.Minute * 1}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

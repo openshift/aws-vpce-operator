@@ -83,6 +83,10 @@ objects:
             - ec2:CreateTags
             - ec2:DeleteTags
             - ec2:DescribeTags
+            # VPCEndpointAcceptance
+            - sts:AssumeRole
+            - ec2:DescribeVpcEndpointConnections
+            - ec2:AcceptVpcEndpointConnections
     - kind: RoleBinding
       apiVersion: rbac.authorization.k8s.io/v1
       metadata:

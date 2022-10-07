@@ -13,9 +13,17 @@ rules:
     - list
     - watch
   - apiGroups:
+    - aws.managed.openshift.io
+    resources:
+    - account
+    verbs:
+    - get
+    - list
+  - apiGroups:
     - avo.openshift.io
     resources:
     - vpcendpoints
+    - vpcendpointacceptances
     verbs:
     - create
     - delete
@@ -28,6 +36,7 @@ rules:
       - avo.openshift.io
     resources:
       - vpcendpoints/status
+      - vpcendpointacceptances/status
     verbs:
       - get
       - update
@@ -36,6 +45,7 @@ rules:
       - avo.openshift.io
     resources:
       - vpcendpoints/finalizers
+      - vpcendpointacceptances/finalizers
     verbs:
       - update
   - apiGroups:

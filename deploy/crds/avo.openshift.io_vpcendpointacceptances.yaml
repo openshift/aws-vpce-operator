@@ -12,6 +12,8 @@ spec:
     kind: VpcEndpointAcceptance
     listKind: VpcEndpointAcceptanceList
     plural: vpcendpointacceptances
+    shortNames:
+    - vpceacceptance
     singular: vpcendpointacceptance
   scope: Namespaced
   versions:
@@ -36,27 +38,43 @@ spec:
           spec:
             description: VpcEndpointAcceptanceSpec defines the desired state of VpcEndpointAcceptance
             properties:
-              vpcEndpointServices:
-                description: ServiceIds is a slice of VPC Endpoint Service IDs for
-                  this controller to poll for VPC Endpoints in a pendingAcceptance
-                  state
-                items:
-                  properties:
-                    expectedVpceName:
-                      description: ExpectedVpceName is the name of the VpcEndpoint
-                        CR that should be generating acceptance requests
-                      minLength: 0
-                      type: string
-                    id:
-                      description: Id is the AWS ID of the VPC Endpoint Service for
-                        this controller to poll
-                      minLength: 0
-                      type: string
-                  required:
-                  - expectedVpceName
-                  - id
-                  type: object
-                type: array
+              acceptanceCriteria:
+                description: AcceptanceCriteria
+                properties:
+                  alwaysAccept:
+                    description: AlwaysAccept will instruct the controller to accept
+                      any VPC Endpoint Connections
+                    type: boolean
+                  awsAccountOperatorAccount:
+                    description: AwsAccountOperatorAccount will accept VPC Endpoint
+                      Connections that were requested from an AWS account that matches
+                      AWS accounts defined in account.aws.managed.openshift.io custom
+                      resources
+                    properties:
+                      namespace:
+                        type: string
+                    required:
+                    - namespace
+                    type: object
+                type: object
+              assumeRoleArn:
+                description: AssumeRoleArn is the ARN of an AWS IAM role in the same
+                  account as the specified VPC Endpoint Service. This is necessary
+                  if the IAM entity available to the controller is not in the same
+                  AWS account as the VPC Endpoint Service.
+                type: string
+              id:
+                description: Id is the AWS ID of the VPC Endpoint Service for this
+                  controller to poll
+                type: string
+              region:
+                description: Region is the AWS region that contains the specified
+                  VPC Endpoint Service
+                type: string
+            required:
+            - acceptanceCriteria
+            - id
+            - region
             type: object
           status:
             description: VpcEndpointAcceptanceStatus defines the observed state of
