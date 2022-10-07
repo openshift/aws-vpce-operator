@@ -5,12 +5,15 @@ go 1.18
 require (
 	github.com/aws/aws-sdk-go-v2 v1.16.14
 	github.com/aws/aws-sdk-go-v2/config v1.17.5
+	github.com/aws/aws-sdk-go-v2/credentials v1.12.18
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.54.4
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.21.11
+	github.com/aws/aws-sdk-go-v2/service/sts v1.16.17
 	github.com/aws/smithy-go v1.13.2
 	github.com/go-logr/logr v1.2.3
 	github.com/go-logr/zapr v1.2.0
 	github.com/openshift/api v0.0.0-20220414050251-a83e6f8f1d50
+	github.com/openshift/aws-account-operator/api v0.0.0-20220928162020-39afa7ea38a8
 	github.com/prometheus/client_golang v1.12.1
 	github.com/stretchr/testify v1.7.0
 	go.uber.org/zap v1.19.1
@@ -32,7 +35,6 @@ require (
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.12.18 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.12.15 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.21 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.15 // indirect
@@ -40,7 +42,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.15 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.11.21 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.13.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sts v1.16.17 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect

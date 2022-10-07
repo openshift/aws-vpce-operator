@@ -55,6 +55,15 @@ type AWSClient struct {
 	route53Client AvoRoute53API
 }
 
+type AvoVpcEndpointAcceptanceEc2Api interface {
+	AcceptVpcEndpointConnections(ctx context.Context, params *ec2.AcceptVpcEndpointConnectionsInput, optFns ...func(*ec2.Options)) (*ec2.AcceptVpcEndpointConnectionsOutput, error)
+	DescribeVpcEndpointConnections(ctx context.Context, params *ec2.DescribeVpcEndpointConnectionsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointConnectionsOutput, error)
+}
+
+type VpcEndpointAcceptanceAWSClient struct {
+	ec2Client AvoVpcEndpointAcceptanceEc2Api
+}
+
 // NewAwsClient returns an AWSClient with the provided session
 func NewAwsClient(cfg aws.Config) *AWSClient {
 	return NewAwsClientWithServiceClients(ec2.NewFromConfig(cfg), route53.NewFromConfig(cfg))
@@ -66,5 +75,11 @@ func NewAwsClientWithServiceClients(ec2 AvoEC2API, r53 AvoRoute53API) *AWSClient
 	return &AWSClient{
 		ec2Client:     ec2,
 		route53Client: r53,
+	}
+}
+
+func NewVpcEndpointAcceptanceAwsClient(cfg aws.Config) *VpcEndpointAcceptanceAWSClient {
+	return &VpcEndpointAcceptanceAWSClient{
+		ec2Client: ec2.NewFromConfig(cfg),
 	}
 }
