@@ -51,11 +51,11 @@ objects:
       kind: CredentialsRequest
       metadata:
         name: avo-aws-iam-user-creds
-        namespace: openshift-aws-vpce-operator
+        namespace: openshift-${REPO_NAME}
       spec:
         secretRef:
           name: avo-aws-iam-user-creds
-          namespace: openshift-aws-vpce-operator
+          namespace: openshift-${REPO_NAME}
         providerSpec:
           apiVersion: cloudcredential.openshift.io/v1
           kind: AWSProviderSpec
@@ -94,15 +94,15 @@ objects:
       apiVersion: rbac.authorization.k8s.io/v1
       metadata:
         name: aws-vpce-operator
-        namespace: openshift-aws-vpce-operator
+        namespace: openshift-${REPO_NAME}
       subjects:
       - kind: ServiceAccount
         name: aws-vpce-operator
-        namespace: openshift-aws-vpce-operator
+        namespace: openshift-${REPO_NAME}
       roleRef:
         kind: Role
         name: aws-vpce-operator
-        namespace: openshift-aws-vpce-operator
+        namespace: openshift-${REPO_NAME}
         apiGroup: rbac.authorization.k8s.io
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
@@ -162,4 +162,4 @@ objects:
       kind: ConfigMap
       metadata:
         name: avo-config
-        namespace: openshift-aws-vpce-operator
+        namespace: openshift-${REPO_NAME}
