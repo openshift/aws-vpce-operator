@@ -15,6 +15,9 @@ parameters:
 - name: DISPLAY_NAME
   value: AWS VPCE Operator
   required: true
+- name: ENABLE_VPC_ACCEPTANCE  
+  value: false
+  required: true
 metadata:
   name: selectorsyncset-template
 objects:
@@ -149,3 +152,14 @@ objects:
         name: ${REPO_NAME}
         source: ${REPO_NAME}-registry
         sourceNamespace: openshift-${REPO_NAME}
+    - apiVersion: v1
+      data:
+        avo_config.yaml: |-
+          apiVersion: avo.openshift.io/v1alpha1
+          kind: AvoConfig
+          enableVpcEndpointController: true
+          enableVpcEndpointAcceptanceController: ${ENABLE_VPC_ACCEPTANCE}
+      kind: ConfigMap
+      metadata:
+        name: avo-config
+        namespace: openshift-aws-vpce-operator
