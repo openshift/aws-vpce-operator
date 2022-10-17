@@ -16,7 +16,7 @@ parameters:
   value: AWS VPCE Operator
   required: true
 - name: ENABLE_VPC_ACCEPTANCE  
-  value: false
+  value: "false"
   required: true
 metadata:
   name: selectorsyncset-template
