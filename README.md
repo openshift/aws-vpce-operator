@@ -94,6 +94,28 @@ spec:
 * `.spec.externalNameService` defines the name and namespace the ExternalName service that will be created pointing to the Route53 record created above.
 * `.spec.securityGroup` defines security group ingress and egress rules that will be attached to the created VPC Endpoint
 
+## VpcEndpointAcceptance
+
+```yaml
+---
+apiVersion: avo.openshift.io/v1alpha1
+kind: VpcEndpointAcceptance
+metadata:
+  name: example-acceptance
+  namespace: example-namespace
+spec:
+  id: "vpce-svc-123456789"
+  assumeRoleArn: "arn:aws-us-gov:iam::123456789:role/exampleIAMrole"
+  region: "us-gov-west-1"
+  acceptanceCriteria:
+    awsAccountOperatorAccount:
+      namespace: aws-account-operator
+```
+
+* `.spec.id` is the Service ID of the VPC Endpoint Service to connect to
+* `.spec.assumeRoleArn` is the IAM role in the account of the Endpoint Service that grants permission to handle acceptance
+* `.spec.region` is the AWS region where the Endpoint Service resides
+
 # Development
 
 Looking to work on this? See [dev/README.md](./dev/README.md)

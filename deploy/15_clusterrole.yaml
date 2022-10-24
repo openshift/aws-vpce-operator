@@ -15,10 +15,11 @@ rules:
   - apiGroups:
     - aws.managed.openshift.io
     resources:
-    - account
+    - accounts
     verbs:
     - get
     - list
+    - watch
   - apiGroups:
     - avo.openshift.io
     resources:
