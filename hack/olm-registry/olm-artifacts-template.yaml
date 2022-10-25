@@ -152,6 +152,24 @@ objects:
         name: ${REPO_NAME}
         source: ${REPO_NAME}-registry
         sourceNamespace: openshift-${REPO_NAME}
+# config for hives only to enable VpcEndpointAcceptance        
+- apiVersion: hive.openshift.io/v1
+  kind: SelectorSyncSet
+  metadata:
+    name: aws-vpce-operator-frhive-sss
+  spec:
+    clusterDeploymentSelector:
+      matchExpressions:
+        - key: api.openshift.com/fedramp
+          operator: In
+          values:
+            - "true"
+        - key: ext-managed.openshift.io/hive-shard
+          operator: In
+          values:
+            - "true"
+    resourceApplyMode: Sync
+    resources:                    
     - apiVersion: v1
       data:
         avo_config.yaml: |-
