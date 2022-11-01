@@ -15,9 +15,6 @@ parameters:
 - name: DISPLAY_NAME
   value: AWS VPCE Operator
   required: true
-- name: ENABLE_VPC_ACCEPTANCE  
-  value: "false"
-  required: true
 metadata:
   name: selectorsyncset-template
 objects:
@@ -152,32 +149,3 @@ objects:
         name: ${REPO_NAME}
         source: ${REPO_NAME}-registry
         sourceNamespace: openshift-${REPO_NAME}
-# config for hives only to enable VpcEndpointAcceptance        
-- apiVersion: hive.openshift.io/v1
-  kind: SelectorSyncSet
-  metadata:
-    name: aws-vpce-operator-frhive-sss
-  spec:
-    clusterDeploymentSelector:
-      matchExpressions:
-        - key: api.openshift.com/fedramp
-          operator: In
-          values:
-            - "true"
-        - key: ext-managed.openshift.io/hive-shard
-          operator: In
-          values:
-            - "true"
-    resourceApplyMode: Sync
-    resources:                    
-    - apiVersion: v1
-      data:
-        avo_config.yaml: |-
-          apiVersion: avo.openshift.io/v1alpha1
-          kind: AvoConfig
-          enableVpcEndpointController: true
-          enableVpcEndpointAcceptanceController: ${ENABLE_VPC_ACCEPTANCE}
-      kind: ConfigMap
-      metadata:
-        name: avo-config
-        namespace: openshift-${REPO_NAME}

@@ -116,6 +116,14 @@ spec:
 * `.spec.assumeRoleArn` is the IAM role in the account of the Endpoint Service that grants permission to handle acceptance
 * `.spec.region` is the AWS region where the Endpoint Service resides
 
+# FedRAMP Cluster Deployments
+
+AVO is currently deployed to all FedRAMP clusters through App Interface using the template in this repo and OLM. To ensure clusters are automatically configured for Splunk log forwarding, a VPC Endpoint is created on all clusters using [Managed Cluster Config](https://github.com/openshift/managed-cluster-config/tree/master/deploy/osd-avo-resources/fedramp-vpc-endpoints). 
+
+Tangentially, AVO has a Namespace file in the FedRAMP App Interface to manage other crucial configurations:
+* A ConfigMap with an AvoConfig object to enable the acceptance controller on Hives
+* Two VpcEndpointAcceptance objects to handle auto-acceptance for our Splunk VPC Endpoint Service in either Gov Region
+
 # Development
 
 Looking to work on this? See [dev/README.md](./dev/README.md)
