@@ -63,19 +63,15 @@ spec:
             limits:
               memory: "1G"
           livenessProbe:
-            exec:
-              command: 
-              - /bin/bash
-              - -c 
-              - '[[ (! -z "$AWS_SECRET_ACCESS_KEY" && ! -z "$AWS_ACCESS_KEY_ID") || (! -z "$AWS_ROLE_ARN" && ! -z "$AWS_WEB_IDENTITY_TOKEN_FILE") ]]'
+            httpGet:
+              path: /healthz
+              port: 8081
             initialDelaySeconds: 15
             periodSeconds: 20
           readinessProbe:
-            exec:
-              command: 
-              - /bin/bash
-              - -c 
-              - '[[ (! -z "$AWS_SECRET_ACCESS_KEY" && ! -z "$AWS_ACCESS_KEY_ID") || (! -z "$AWS_ROLE_ARN" && ! -z "$AWS_WEB_IDENTITY_TOKEN_FILE") ]]'
+            httpGet:
+              path: /readyz
+              port: 8081
             initialDelaySeconds: 5
             periodSeconds: 10
           securityContext:
