@@ -47,7 +47,13 @@ func (c *VpcEndpointAcceptanceAWSClient) GetVpcEndpointConnectionsPendingAccepta
 	return c.ec2Client.DescribeVpcEndpointConnections(ctx, input)
 }
 
-func (c *VpcEndpointAcceptanceAWSClient) AcceptVpcEndpointConnection(ctx context.Context, serviceId string, vpcEndpointIds ...string) (*ec2.AcceptVpcEndpointConnectionsOutput, error) {
+// AcceptVpcEndpointConnections is a wrapper around ec2:AcceptVpcEndpointConnections for a give VPC Endpoint serviceId
+// and a slice of vpcEndpointIds
+func (c *VpcEndpointAcceptanceAWSClient) AcceptVpcEndpointConnections(ctx context.Context, serviceId string, vpcEndpointIds ...string) (*ec2.AcceptVpcEndpointConnectionsOutput, error) {
+	if len(vpcEndpointIds) == 0 {
+		return &ec2.AcceptVpcEndpointConnectionsOutput{}, nil
+	}
+
 	input := &ec2.AcceptVpcEndpointConnectionsInput{
 		ServiceId:      aws.String(serviceId),
 		VpcEndpointIds: vpcEndpointIds,

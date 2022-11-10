@@ -117,7 +117,7 @@ func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// If valid, accept the VPCE connection
-	if _, err := r.awsClient.AcceptVpcEndpointConnection(ctx, vpceAcceptance.Spec.Id, vpceToAccept...); err != nil {
+	if _, err := r.awsClient.AcceptVpcEndpointConnections(ctx, vpceAcceptance.Spec.Id, vpceToAccept...); err != nil {
 		return ctrl.Result{}, err
 	}
 
