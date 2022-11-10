@@ -18,7 +18,7 @@ package aws_client
 
 import (
 	"context"
-
+	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -36,6 +36,7 @@ const (
 	MockSecurityGroupId        = "sg-12345"
 	MockVpcId                  = "vpc-12345"
 	MockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
+	MockVpcEndpointServiceId   = "vpce-svc-12345"
 )
 
 type MockedEC2 struct {
@@ -98,6 +99,10 @@ func NewMockedEC2WithSubnets() *MockedEC2 {
 
 func NewMockedAwsClient() *AWSClient {
 	return NewAwsClientWithServiceClients(&MockedEC2{}, &MockedRoute53{})
+}
+
+func NewMockedVpceAcceptanceAwsClient() *VpcEndpointAcceptanceAWSClient {
+	return NewVpcEndpointAcceptanceAwsClientWithServiceClients(&MockedEC2{})
 }
 
 func NewMockedAwsClientWithSubnets() *AWSClient {
@@ -234,6 +239,19 @@ func (m *MockedEC2) CreateVpcEndpoint(ctx context.Context, params *ec2.CreateVpc
 			VpcEndpointId: aws.String(testutil.MockVpcEndpointId),
 		},
 	}, nil
+}
+
+func (m *MockedEC2) AcceptVpcEndpointConnections(ctx context.Context, params *ec2.AcceptVpcEndpointConnectionsInput, optFns ...func(*ec2.Options)) (*ec2.AcceptVpcEndpointConnectionsOutput, error) {
+	if len(params.VpcEndpointIds) == 0 {
+		return nil, fmt.Errorf("1 validation error(s) found.\n- missing required field")
+	}
+
+	return &ec2.AcceptVpcEndpointConnectionsOutput{}, nil
+}
+
+func (m *MockedEC2) DescribeVpcEndpointConnections(ctx context.Context, params *ec2.DescribeVpcEndpointConnectionsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointConnectionsOutput, error) {
+	// TODO: This is a no-op
+	return &ec2.DescribeVpcEndpointConnectionsOutput{}, nil
 }
 
 func (m *MockedEC2) DeleteVpcEndpoints(ctx context.Context, params *ec2.DeleteVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DeleteVpcEndpointsOutput, error) {

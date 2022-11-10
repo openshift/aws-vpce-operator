@@ -78,8 +78,17 @@ func NewAwsClientWithServiceClients(ec2 AvoEC2API, r53 AvoRoute53API) *AWSClient
 	}
 }
 
+// NewVpcEndpointAcceptanceAwsClient returns an VpcEndpointAcceptanceAWSClient with the provided session
 func NewVpcEndpointAcceptanceAwsClient(cfg aws.Config) *VpcEndpointAcceptanceAWSClient {
 	return &VpcEndpointAcceptanceAWSClient{
 		ec2Client: ec2.NewFromConfig(cfg),
+	}
+}
+
+// NewVpcEndpointAcceptanceAwsClientWithServiceClients returns a VpcEndpointAcceptanceAWSClient with the provided
+// EC2 client. Typically, not used directly except for building a mock for testing.
+func NewVpcEndpointAcceptanceAwsClientWithServiceClients(ec2 AvoVpcEndpointAcceptanceEc2Api) *VpcEndpointAcceptanceAWSClient {
+	return &VpcEndpointAcceptanceAWSClient{
+		ec2Client: ec2,
 	}
 }
