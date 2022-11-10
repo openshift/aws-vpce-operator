@@ -30,11 +30,13 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	configv1 "github.com/openshift/api/config/v1"
 	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpointacceptance"
 	//+kubebuilder:scaffold:imports
@@ -130,6 +132,15 @@ func main() {
 		}
 	}
 	//+kubebuilder:scaffold:builder
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		setupLog.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", util.AWSEnvVarReadyzChecker); err != nil {
+		setupLog.Error(err, "unable to set up ready check")
+		os.Exit(1)
+	}
 
 	setupLog.Info("starting manager")
 	if err := mgr.Start(ctrl.SetupSignalHandler()); err != nil {
