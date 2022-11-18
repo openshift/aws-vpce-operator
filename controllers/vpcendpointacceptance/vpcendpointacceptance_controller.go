@@ -68,6 +68,14 @@ func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// The object is being deleted
+	if !vpceAcceptance.ObjectMeta.DeletionTimestamp.IsZero() {
+		// Delete metrics
+		vpcEndpointAcceptanceQueue.DeleteLabelValues(vpceAcceptance.Name, vpceAcceptance.Namespace)
+		// Stop reconciliation as the item is being deleted
+		return ctrl.Result{}, nil
+	}
+
 	// Poll AWS for VPCE's in pendingAcceptance based on vpceAcceptance.spec.serviceIds
 	region := vpceAcceptance.Spec.Region
 	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
@@ -115,6 +123,7 @@ func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctr
 			}
 		}
 	}
+	vpcEndpointAcceptanceQueue.WithLabelValues(vpceAcceptance.Name, vpceAcceptance.Namespace).Set(float64(len(vpceToAccept)))
 
 	// If valid, accept the VPCE connection
 	if _, err := r.awsClient.AcceptVpcEndpointConnections(ctx, vpceAcceptance.Spec.Id, vpceToAccept...); err != nil {
