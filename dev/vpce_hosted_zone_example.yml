@@ -1,0 +1,17 @@
+---
+apiVersion: avo.openshift.io/v1alpha1
+kind: VpcEndpoint
+metadata:
+  name: demo
+  namespace: demo
+spec:
+  subdomainName: "splunk"
+  serviceName: "com.amazonaws.vpce.us-west-2.vpce-svc-00000000000000000"
+  securityGroup:
+    ingressRules:
+      - fromPort: 9997
+        toPort: 9997
+        protocol: tcp
+  externalNameService:
+    name: examplesvcname
+  addtlHostedZoneName: "sometestingdoma.in"

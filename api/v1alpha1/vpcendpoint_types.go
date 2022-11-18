@@ -64,6 +64,10 @@ type VpcEndpointSpec struct {
 
 	// ExternalNameService configures the name and namespace of the created Kubernetes ExternalName Service
 	ExternalNameService ExternalNameServiceSpec `json:"externalNameService"`
+
+	// AddtlHostedZoneName is an optional FQDN to support supplemental VPCE routing via Route53 Private Hosted Zone
+	// +optional
+	AddtlHostedZoneName string `json:"addtlHostedZoneName,omitempty"`
 }
 
 const (

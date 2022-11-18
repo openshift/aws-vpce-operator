@@ -47,6 +47,10 @@ spec:
           spec:
             description: VpcEndpointSpec defines the desired state of VpcEndpoint
             properties:
+              addtlHostedZoneName:
+                description: AddtlHostedZoneName is an optional FQDN to support supplemental
+                  VPCE routing via Route53 Private Hosted Zone
+                type: string
               externalNameService:
                 description: ExternalNameService configures the name and namespace
                   of the created Kubernetes ExternalName Service

@@ -22,6 +22,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 )
 
 const (
@@ -107,4 +108,22 @@ func generateName(prefix string, suffix string, maxLength int) (string, error) {
 	}
 
 	return fmt.Sprintf("%s-%s", prefix, suffix), nil
+}
+
+// GenerateR53Tags returns the tags that should be reconciled on every AWS resource created by this operator
+func GenerateR53Tags(clusterTagKey string) ([]route53Types.Tag, error) {
+	if clusterTagKey == "" {
+		return nil, errors.New("clusterTagKey must not be empty")
+	}
+
+	return []route53Types.Tag{
+		{
+			Key:   aws.String(OperatorTagKey),
+			Value: aws.String(OperatorTagValue),
+		},
+		{
+			Key:   aws.String(clusterTagKey),
+			Value: aws.String("owned"),
+		},
+	}, nil
 }

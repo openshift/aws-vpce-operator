@@ -19,10 +19,10 @@ package aws_client
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
 // GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone
@@ -95,4 +95,37 @@ func (c *AWSClient) DeleteResourceRecordSet(ctx context.Context, rrs *types.Reso
 	}
 
 	return c.route53Client.ChangeResourceRecordSets(ctx, input)
+}
+
+// CreateNewHostedZone is an implementation of the client's CreateHostedZone
+// NOTE: To associate additional Amazon VPCs with the hosted zone, use AssociateVPCWithHostedZone after you create a hosted zone.
+func (c *AWSClient) CreateNewHostedZone(ctx context.Context, domain, vpcId, callerRef, region string) (*route53.CreateHostedZoneOutput, error) {
+	zoneInput := &route53.CreateHostedZoneInput{
+		CallerReference:  aws.String(callerRef),
+		Name:             aws.String(domain),
+		HostedZoneConfig: &types.HostedZoneConfig{Comment: aws.String("Created via AVO"), PrivateZone: true},
+		VPC:              &types.VPC{VPCId: aws.String(vpcId), VPCRegion: types.VPCRegion(region)},
+	}
+	return c.route53Client.CreateHostedZone(ctx, zoneInput)
+}
+
+// GenerateDefaultTagsForHostedZoneInput generates the ChangeTagsForResourceInput using the default tags for the zoneId
+func (c *AWSClient) GenerateDefaultTagsForHostedZoneInput(zoneId, clusterTagKey string) (*route53.ChangeTagsForResourceInput, error) {
+	defaultTags, err := util.GenerateR53Tags(clusterTagKey)
+
+	changeTagsInput := &route53.ChangeTagsForResourceInput{
+		ResourceId:    aws.String(zoneId),
+		ResourceType:  types.TagResourceTypeHostedzone,
+		AddTags:       defaultTags,
+		RemoveTagKeys: nil,
+	}
+	return changeTagsInput, err
+}
+
+// FetchPrivateZoneTags takes context and a Route53 ZoneID and returns the output provided by ListTagsForResource for a hosted zone
+func (c *AWSClient) FetchPrivateZoneTags(ctx context.Context, zoneId string) (*route53.ListTagsForResourceOutput, error) {
+	return c.route53Client.ListTagsForResource(ctx, &route53.ListTagsForResourceInput{
+		ResourceId:   aws.String(zoneId),
+		ResourceType: types.TagResourceTypeHostedzone,
+	})
 }
