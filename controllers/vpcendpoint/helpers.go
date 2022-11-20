@@ -419,7 +419,7 @@ func (r *VpcEndpointReconciler) diffVpcEndpointSubnets(ctx context.Context, vpce
 		return nil, nil, fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
 	}
 
-	subnetsResp, err := r.awsClient.DescribePrivateSubnets(ctx, r.clusterInfo.clusterTag)
+	subnetsResp, err := r.awsClient.GetRosaVpceSubnets(ctx, r.clusterInfo.clusterTag)
 	if err != nil {
 		return nil, nil, err
 	}

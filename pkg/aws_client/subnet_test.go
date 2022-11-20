@@ -19,54 +19,37 @@ package aws_client
 import (
 	"context"
 	"testing"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestAWSClient_DescribeSubnets(t *testing.T) {
 	tests := []struct {
-		clusterTag        string
-		expectedPrivateId string
-		expectedPublicId  string
-		expectedVpcId     string
-		expectErr         bool
+		clusterTag string
+		expectErr  bool
 	}{
 		{
-			clusterTag:        MockClusterTag,
-			expectedPrivateId: MockPrivateSubnetId,
-			expectedPublicId:  MockPublicSubnetId,
-			expectedVpcId:     MockVpcId,
-			expectErr:         false,
+			clusterTag: MockClusterTag,
+			expectErr:  false,
+		},
+		{
+			clusterTag: "doesn't exist",
+			expectErr:  true,
 		},
 	}
 
 	client := NewMockedAwsClientWithSubnets()
 
 	for _, test := range tests {
-		actualPrivate, err := client.DescribePrivateSubnets(context.TODO(), test.clusterTag)
-		if test.expectErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-			assert.Equal(t, len(actualPrivate.Subnets), 1)
-			assert.Equal(t, test.expectedPrivateId, *actualPrivate.Subnets[0].SubnetId)
-		}
-
-		actualPublic, err := client.DescribePublicSubnets(context.TODO(), test.clusterTag)
-		if test.expectErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-			assert.Equal(t, len(actualPublic.Subnets), 1)
-			assert.Equal(t, test.expectedPublicId, *actualPublic.Subnets[0].SubnetId)
-		}
-
-		actualVpcId, err := client.GetVPCId(context.TODO(), test.clusterTag)
-		if test.expectErr {
-			assert.NotNil(t, err)
-		} else {
-			assert.Nil(t, err)
-			assert.Equal(t, test.expectedVpcId, actualVpcId)
-		}
+		t.Run(test.clusterTag, func(t *testing.T) {
+			_, err := client.GetRosaVpceSubnets(context.TODO(), test.clusterTag)
+			if err != nil {
+				if !test.expectErr {
+					t.Errorf("expected no error, got %s", err)
+				}
+			} else {
+				if test.expectErr {
+					t.Error("expected error, got nil")
+				}
+			}
+		})
 	}
 }

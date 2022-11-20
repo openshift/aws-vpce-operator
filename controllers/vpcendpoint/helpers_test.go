@@ -348,25 +348,15 @@ func TestVpcEndpointReconciler_diffVpcEndpointSubnets(t *testing.T) {
 			expectedNumToRemove: 0,
 			expectErr:           false,
 		},
-		{
-			name:       "subnet removal needed",
-			clusterTag: "some/random/tag",
-			vpce: &ec2Types.VpcEndpoint{
-				SubnetIds: []string{aws_client.MockPrivateSubnetId},
-			},
-			expectedNumToAdd:    0,
-			expectedNumToRemove: 1,
-			expectErr:           false,
-		},
 	}
 
 	for _, test := range tests {
-		r := &VpcEndpointReconciler{
-			awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
-			log:         testr.New(t),
-			clusterInfo: &clusterInfo{clusterTag: test.clusterTag},
-		}
 		t.Run(test.name, func(t *testing.T) {
+			r := &VpcEndpointReconciler{
+				awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
+				log:         testr.New(t),
+				clusterInfo: &clusterInfo{clusterTag: test.clusterTag},
+			}
 			actualToAdd, actualToRemove, err := r.diffVpcEndpointSubnets(context.TODO(), test.vpce)
 			if test.expectErr {
 				assert.Error(t, err)
