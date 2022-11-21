@@ -10,15 +10,15 @@ In a practical sense, given a service that is exposed via an AWS VPC Endpoint Se
 
 ```mermaid
 graph LR
-  B[VPC Endpoint] --> C
-  subgraph Service Hosting Account
-  C[Private VPC Endpoint Service]
+  B[VPCE] --> C
+  subgraph Splunk Hosting Account
+  C[Splunk VPCE Service]
   end
   subgraph Customer Account
-  subgraph Cluster
+  subgraph ROSA Cluster
   A[ExternalName Service] 
   end
-  A --Route53--> B
+  A --Cluster's Private Hosted Zone--> B
   end
 ```
 
