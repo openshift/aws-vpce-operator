@@ -4,11 +4,11 @@ go 1.19
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.17.1
-	github.com/aws/aws-sdk-go-v2/config v1.17.11
-	github.com/aws/aws-sdk-go-v2/credentials v1.12.24
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.70.0
-	github.com/aws/aws-sdk-go-v2/service/route53 v1.23.0
-	github.com/aws/aws-sdk-go-v2/service/sts v1.17.2
+	github.com/aws/aws-sdk-go-v2/config v1.18.2
+	github.com/aws/aws-sdk-go-v2/credentials v1.13.2
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.71.0
+	github.com/aws/aws-sdk-go-v2/service/route53 v1.24.0
+	github.com/aws/aws-sdk-go-v2/service/sts v1.17.4
 	github.com/aws/smithy-go v1.13.4
 	github.com/go-logr/logr v1.2.3
 	github.com/go-logr/zapr v1.2.3
@@ -75,7 +75,6 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/stretchr/objx v0.5.0 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20220315160706-3147a52a75dd // indirect
