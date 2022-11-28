@@ -35,7 +35,9 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
+
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpointacceptance"
@@ -57,6 +59,7 @@ func init() {
 	utilruntime.Must(aaov1alpha1.AddToScheme(scheme))
 
 	utilruntime.Must(avov1alpha1.AddToScheme(scheme))
+	utilruntime.Must(avov1alpha2.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
