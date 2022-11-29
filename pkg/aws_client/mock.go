@@ -77,17 +77,8 @@ var mockSubnets = []*ec2Types.Subnet{
 	},
 	{
 		SubnetId: aws.String(MockPublicSubnetId),
-		Tags: []ec2Types.Tag{
-			{
-				Key:   aws.String(publicSubnetTagKey),
-				Value: nil,
-			},
-			{
-				Key:   aws.String(MockClusterTag),
-				Value: aws.String("shared"),
-			},
-		},
-		VpcId: aws.String(MockVpcId),
+		Tags:     []ec2Types.Tag{},
+		VpcId:    aws.String(MockVpcId),
 	},
 }
 

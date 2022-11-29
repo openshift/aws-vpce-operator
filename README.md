@@ -28,7 +28,6 @@ If auto-acceptance is disabled on the VPC Endpoint Service, then the VPC Endpoin
 
 AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
 
-* The cluster's private subnets are tagged with `kubernetes.io/role/internal-elb` (not currently enforced for BYOVPC clusters)
 * The existence of a `infrastructures.config.openshift.io` CR named `default`
 * The existence of a `dnses.config.openshift.io` CR named `default`
 * Minimum K8s RBAC defined [here](./deploy/15_clusterrole.yaml)

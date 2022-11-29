@@ -25,16 +25,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
 
-const (
-	privateSubnetTagKey = "kubernetes.io/role/internal-elb"
-	publicSubnetTagKey  = "kubernetes.io/role/elb"
-)
+// privateSubnetTagKey is labelled by Hive on a non-BYOVPC cluster's subnets at install time
+const privateSubnetTagKey = "kubernetes.io/role/internal-elb"
 
 // GetVPCId returns the VPC ID which contains subnets with the specified tag key
 // Returns an error if there are no subnets with the specified tag key or
 // subnets with the specified tag key are not all in the same VPC
 func (c *AWSClient) GetVPCId(ctx context.Context, tagKey string) (string, error) {
-	subnets, err := c.DescribePrivateSubnets(ctx, tagKey)
+	subnets, err := c.GetRosaVpceSubnets(ctx, tagKey)
 	if err != nil {
 		return "", fmt.Errorf("unable to DescribeSubnets: %w", err)
 	}
@@ -53,18 +51,33 @@ func (c *AWSClient) GetVPCId(ctx context.Context, tagKey string) (string, error)
 	return *vpcId, nil
 }
 
-// DescribePrivateSubnets returns a list of private ROSA subnets that have the
-// specified cluster tag key, typically "kubernetes.io/cluster/<cluster-name>".
-// Private subnets are differentiated by also having the `kubernetes.io/role/internal-elb` tag key.
-func (c *AWSClient) DescribePrivateSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
-	return c.DescribeSubnetsByTagKey(ctx, clusterTag, privateSubnetTagKey)
-}
+// GetRosaVpceSubnets returns an AWS response of ROSA cluster subnets that are relevant to the VPC Endpoint.
+// A ROSA cluster's subnets are tagged with a tag key in AWS: "kubernetes.io/cluster/<cluster-name>".
+// Private subnets for non-BYOVPC clusters are differentiated by also having the `kubernetes.io/role/internal-elb` tag key.
+func (c *AWSClient) GetRosaVpceSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
+	// For non-BYOVPC clusters, resp will contain only the private subnets.
+	// Otherwise, resp will contain no subnets.
+	nonByovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag, privateSubnetTagKey)
+	if err != nil {
+		return nil, err
+	}
 
-// DescribePublicSubnets returns a list of public ROSA subnets that have the
-// specified cluster tag key, typically "kubernetes.io/cluster/<cluster-name>".
-// Public subnets are differentiated by also having the `kubernetes.io/role/elb` tag key.
-func (c *AWSClient) DescribePublicSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
-	return c.DescribeSubnetsByTagKey(ctx, clusterTag, publicSubnetTagKey)
+	if len(nonByovpc.Subnets) != 0 {
+		return nonByovpc, nil
+	}
+
+	// For BYOVPC clusters (which includes PrivateLink clusters), resp will contain only the private subnets.
+	// Otherwise, resp will contain the cluster's public and private subnets.
+	byovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(byovpc.Subnets) != 0 {
+		return byovpc, nil
+	}
+
+	return nil, fmt.Errorf("failed to find subnets with tag key: %s", clusterTag)
 }
 
 // DescribeSubnetsByTagKey returns a list of subnets that have all the specified tag key(s).
