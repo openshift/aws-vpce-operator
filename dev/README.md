@@ -13,6 +13,16 @@ The development environment chosen is mostly a matter of personal preference. Ru
 you to get faster feedback at the cost of additional local setup, while running it within a remote STS ROSA cluster will
 allow you to test the operator without having to consider the local environment.
 
+## Warnings and Caveats
+
+- Unlike most other Kubernetes operators, AVO creates AWS resources and cannot necessarily be depended on to have the
+opportunity to clean up after itself. Of course, as logic is written, the operator should still be able to correctly handle the
+creation, modification, and deletion of custom resources, but a customer may also choose to simply uninstall their
+cluster. This has the effect of immediately shutting down all EC2 instances underlying the cluster, leaving no time for
+cleanup. Thankfully, [Hive will cleanup AWS resources with a specific tag](https://github.com/openshift/hive/blob/2801c6b99a37e915382ef0858586688efa9416f5/pkg/install/generate.go#L545-L577).
+So when creating new AWS resources, ensure that all of them have the required tags. A helper function is available in 
+[pkg/util/naming.go](https://github.com/openshift/aws-vpce-operator/blob/fb4ba0bc5f93bc4a10e0d8640b1ace8552d4bf0b/pkg/util/naming.go#L33-L35).
+
 ## Prerequisites
 
 * An STS ROSA cluster (PrivateLink optional)
