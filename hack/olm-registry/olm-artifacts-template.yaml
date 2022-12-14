@@ -163,7 +163,7 @@ objects:
       managed.openshift.io/gitHash: ${IMAGE_TAG}
       managed.openshift.io/gitRepoName: ${REPO_NAME}
       managed.openshift.io/osd: 'true'
-    name: aws-vpce-operator
+    name: aws-vpce-operator-svc-sss
   spec:
     clusterDeploymentSelector:
       matchExpressions:
@@ -301,7 +301,7 @@ objects:
       managed.openshift.io/gitHash: ${IMAGE_TAG}
       managed.openshift.io/gitRepoName: ${REPO_NAME}
       managed.openshift.io/osd: 'true'
-    name: aws-vpce-operator
+    name: aws-vpce-operator-mgmt-sss
   spec:
     clusterDeploymentSelector:
       matchExpressions:
