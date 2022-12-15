@@ -172,9 +172,9 @@ objects:
           values: ["service-cluster"]
         - key: api.openshift.com/fedramp
           operator: NotIn
-          values: "true"
+          values: ["true"]
         - key: api.openshift.com/private-link
-          operator: In 
+          operator: In
           values: ["true"]
     resourceApplyMode: Sync
     resources:
@@ -312,7 +312,7 @@ objects:
           operator: NotIn
           values: ["true"]
         - key: api.openshift.com/private-link
-          operator: In 
+          operator: In
           values: ["true"]
     resourceApplyMode: Sync
     resources:
