@@ -30,6 +30,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,7 +40,8 @@ import (
 // VpcEndpointReconciler reconciles a VpcEndpoint object
 type VpcEndpointReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 
 	log         logr.Logger
 	awsClient   *aws_client.AWSClient
@@ -73,7 +75,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := util.DefaultAVOLogger(controllerName)
+	reqLogger, err := util.DefaultAVOLogger(ControllerName)
 	if err != nil {
 		// Shouldn't happen, but if it does, we can't log
 		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)

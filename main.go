@@ -112,12 +112,13 @@ func main() {
 	}
 
 	if *ctrlConfig.EnableVpcEndpointController {
-		setupLog.Info("starting controller", "controller", "VpcEndpoint")
+		setupLog.Info("starting controller", "controller", vpcendpoint.ControllerName)
 		if err = (&vpcendpoint.VpcEndpointReconciler{
-			Client: mgr.GetClient(),
-			Scheme: mgr.GetScheme(),
+			Client:   mgr.GetClient(),
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor(vpcendpoint.ControllerName),
 		}).SetupWithManager(mgr); err != nil {
-			setupLog.Error(err, "unable to create controller", "controller", "VpcEndpoint")
+			setupLog.Error(err, "unable to create controller", "controller", vpcendpoint.ControllerName)
 			os.Exit(1)
 		}
 	}
