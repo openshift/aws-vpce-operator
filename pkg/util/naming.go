@@ -28,6 +28,8 @@ import (
 const (
 	OperatorTagKey           = "kubernetes.io/aws-vpce-operator"
 	OperatorTagValue         = "managed"
+	RedHatManagedTagKey      = "red-hat-managed"
+	RedHatManagedTagValue    = "true"
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
 	RedHatManagedKey         = "red-hat-managed"
 	RedHatManagedValue       = "true"
@@ -37,13 +39,17 @@ const (
 // created by this operator
 func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {
 	if name == "" || clusterTagKey == "" {
-		return nil, errors.New("name and clusterTagKey must not be empty")
+		return nil, errors.New("failed to GenerateAwsTags: name and clusterTagKey must not be empty")
 	}
 
 	return []types.Tag{
 		{
 			Key:   aws.String(OperatorTagKey),
 			Value: aws.String(OperatorTagValue),
+		},
+		{
+			Key:   aws.String(RedHatManagedTagKey),
+			Value: aws.String(RedHatManagedTagValue),
 		},
 		{
 			Key:   aws.String(clusterTagKey),
@@ -79,7 +85,7 @@ func GenerateAwsTagsAsMap(name, clusterTagKey string) (map[string]string, error)
 // GetClusterTagKey returns the tag assigned to all AWS resources for the given cluster
 func GetClusterTagKey(infraName string) (string, error) {
 	if infraName == "" {
-		return "", fmt.Errorf("infraName must be specified")
+		return "", fmt.Errorf("failed to GetClusterTagKey: infraName must be specified")
 	}
 
 	return fmt.Sprintf("kubernetes.io/cluster/%s", infraName), nil
