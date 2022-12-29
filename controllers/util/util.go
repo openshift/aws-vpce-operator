@@ -17,7 +17,7 @@ limitations under the License.
 package util
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 	"time"
@@ -75,5 +75,5 @@ func AWSEnvVarReadyzChecker(_ *http.Request) error {
 		}
 	}
 
-	return fmt.Errorf("missing sufficient environment variables to build an AWS client")
+	return errors.New("missing sufficient environment variables to build an AWS client")
 }

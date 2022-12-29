@@ -219,7 +219,7 @@ spec:
             type: object
         type: object
     served: true
-    storage: true
+    storage: false
     subresources:
       status: {}
   - additionalPrinterColumns:
@@ -300,8 +300,6 @@ spec:
                         required:
                         - hostname
                         type: object
-                    required:
-                    - autoDiscoverPrivateHostedZone
                     type: object
                 type: object
               enablePrivateDns:
@@ -385,20 +383,17 @@ spec:
                       to use the subnets associated with this ROSA cluster if true.
                     type: boolean
                   subnetIds:
-                    description: SubnetIds is a list of subnet ids to associate with
-                      the VPC Endpoint. Each subnet must be in a different Availability
-                      Zone.
+                    description: 'SubnetIds is a list of subnet ids to associate with
+                      the VPC Endpoint, which must all be in the same VPC. If more
+                      than one is specified, each subnet must be in a different Availability
+                      Zone. Ref: https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html'
                     items:
                       type: string
                     type: array
-                required:
-                - autoDiscoverSubnets
                 type: object
             required:
-            - enablePrivateDns
             - securityGroup
             - serviceName
-            - vpc
             type: object
           status:
             description: VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -485,6 +480,6 @@ spec:
             type: object
         type: object
     served: true
-    storage: false
+    storage: true
     subresources:
       status: {}

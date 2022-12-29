@@ -50,12 +50,14 @@ type SecurityGroup struct {
 // Vpc represents the configuration for the AWS VPC to create the VPC Endpoint in
 type Vpc struct {
 	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
 
 	// AutoDiscoverSubnets will instruct the controller to use the subnets associated with this ROSA cluster if true.
-	AutoDiscoverSubnets bool `json:"autoDiscoverSubnets"`
+	AutoDiscoverSubnets bool `json:"autoDiscoverSubnets,omitempty"`
 
-	// SubnetIds is a list of subnet ids to associate with the VPC Endpoint. Each subnet must be in a different
-	// Availability Zone.
+	// SubnetIds is a list of subnet ids to associate with the VPC Endpoint, which must all be in the same VPC.
+	// If more than one is specified, each subnet must be in a different Availability Zone.
+	// Ref: https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html
 	SubnetIds []string `json:"subnetIds,omitempty"`
 }
 
@@ -77,9 +79,10 @@ type Route53HostedZoneRecord struct {
 // the resolves to the regional endpoint of the created VPCE.
 type Route53PrivateHostedZone struct {
 	// +kubebuilder:default=true
+	// +kubebuilder:validation:Optional
 
 	// AutoDiscover will use the existing ROSA cluster's Route 53 Private Hosted Zone
-	AutoDiscover bool `json:"autoDiscoverPrivateHostedZone"`
+	AutoDiscover bool `json:"autoDiscoverPrivateHostedZone,omitempty"`
 
 	// DomainName specifies the domain name of a Route 53 Private Hosted Zone to create
 	DomainName string `json:"domainName,omitempty"`
@@ -99,26 +102,36 @@ type CustomDns struct {
 
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
-	// AssumeRoleArn will allow AVO to use sts:AssumeRole to create VPC Endpoints in separate AWS Accounts
-	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
-
-	// Region will allow AVO to create VPC Endpoints and other AWS infrastructure in a specific region
-	// Defaults to the same region as the cluster AVO is running on
-	Region string `json:"region,omitempty"`
-
-	// +kubebuilder:default=false
-	// EnablePrivateDns will allow AVO to create VPC Endpoints with private DNS names specified by a VPC Endpoint Service
-	// https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html (defaults to false)
-	EnablePrivateDns bool `json:"enablePrivateDns"`
-
 	// ServiceName is the name of the VPC Endpoint Service to connect to
 	ServiceName string `json:"serviceName"`
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
 	SecurityGroup SecurityGroup `json:"securityGroup"`
 
+	// +kubebuilder:validation:Optional
+
+	// AssumeRoleArn will allow AVO to use sts:AssumeRole to create VPC Endpoints in separate AWS Accounts
+	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
+	// Region will allow AVO to create VPC Endpoints and other AWS infrastructure in a specific region
+	// Defaults to the same region as the cluster AVO is running on
+	Region string `json:"region,omitempty"`
+
+	// +kubebuilder:default=false
+	// +kubebuilder:validation:Optional
+
+	// EnablePrivateDns will allow AVO to create VPC Endpoints with private DNS names specified by a VPC Endpoint Service
+	// https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html (defaults to false)
+	EnablePrivateDns bool `json:"enablePrivateDns,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
 	// Vpc will allow AVO to use a specific VPC or use the same VPC as the ROSA cluster it's running on
-	Vpc Vpc `json:"vpc"`
+	Vpc Vpc `json:"vpc,omitempty"`
+
+	// +kubebuilder:validation:Optional
 
 	// CustomDns will define configurations for all other custom DNS setups, such as a separate Route 53 Private Hosted
 	// Zone or an `ExternalName` Kubernetes service.
