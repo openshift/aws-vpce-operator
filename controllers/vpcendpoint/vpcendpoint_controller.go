@@ -146,6 +146,13 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
+	// Validate presence of addtlHostedZoneName
+	if avo.Spec.AddtlHostedZoneName != "" {
+		if err := r.validatePrivateHostedZone(ctx, avo); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	// Check again in 30 sec
 	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 }

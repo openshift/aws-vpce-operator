@@ -19,7 +19,6 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -30,7 +29,6 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -560,4 +558,35 @@ func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {
 	}
 
 	return true
+}
+
+// createMissingPrivateZoneTags will compare existing tags to the required set and apply if missing
+func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, zoneID string) error {
+	// Find existing tags
+	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, zoneID)
+	if err != nil {
+		return fmt.Errorf("failed to list zone's tags %w", err)
+	}
+	// Generate default tags to compare against
+	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(zoneID, r.clusterInfo.clusterTag)
+	if err != nil {
+		return fmt.Errorf("failed to generate hosted zone's default tags %w", err)
+	}
+
+	actualTagsMap := map[string]string{}
+	for _, tag := range listTagsOut.ResourceTagSet.Tags {
+		actualTagsMap[*tag.Key] = *tag.Value
+	}
+
+	for _, tag := range generatedDefaultTagInput.AddTags {
+		v, ok := actualTagsMap[*tag.Key]
+		if !ok || v != *tag.Value {
+			if _, err := r.awsClient.ChangeTagsForResource(ctx, generatedDefaultTagInput); err != nil {
+				return fmt.Errorf("failed tag hosted zone with default tags %w", err)
+			}
+		}
+
+	}
+
+	return nil
 }

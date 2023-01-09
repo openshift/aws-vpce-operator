@@ -19,17 +19,17 @@ package vpcendpoint
 import (
 	"context"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
-
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"strings"
+	"time"
 )
 
 type ValidateAWSResourceFunc func(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error
@@ -272,5 +272,35 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 		})
 	}
 
+	return nil
+}
+
+// validatePrivateHostedZone attempts to find if the AddtlHostedZoneName has a zone, and if that zone is private, creating it if not found.
+func (r *VpcEndpointReconciler) validatePrivateHostedZone(ctx context.Context, resource *avov1alpha1.VpcEndpoint) error {
+	// AddtlHostedZoneName is optional, return if not present
+	if resource.Spec.AddtlHostedZoneName == "" {
+		return nil
+	}
+
+	zoneOut, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, resource.Spec.AddtlHostedZoneName)
+	if err != nil {
+		return fmt.Errorf("failed to locate private hosted zone: %s", err)
+	}
+
+	if zoneOut.Config.PrivateZone { // AddtlHostedZoneName found with a PrivateZone
+		r.log.V(1).Info("Found AddtlHostedZone's Route53 hosted zone", "domainName", zoneOut.Name)
+		trimmedZoneID := strings.TrimPrefix(aws.ToString(zoneOut.Id), "/hostedzone/")
+		if err := r.createMissingPrivateZoneTags(ctx, trimmedZoneID); err != nil {
+			return fmt.Errorf("failed to tag hosted zone: %w", err)
+		}
+		r.log.V(1).Info("Private Hosted Zone validated", "domainName", zoneOut.Name)
+		return nil
+	}
+
+	r.log.V(0).Info("Creating a new Route53 Hosted Zone", "domainName", resource.Spec.AddtlHostedZoneName)
+	_, err = r.awsClient.CreateNewHostedZone(ctx, resource.Spec.AddtlHostedZoneName, r.clusterInfo.vpcId, time.Now().String(), r.clusterInfo.region)
+	if err != nil {
+		return fmt.Errorf("failed to create hosted zone: %s", err)
+	}
 	return nil
 }
