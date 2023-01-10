@@ -26,3 +26,11 @@ install: ## Install CRDs into the K8s cluster specified in ~/.kube/config.
 .PHONY: uninstall
 uninstall: ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	oc delete --ignore-not-found=$(ignore-not-found) -f ./deploy/crds/
+
+DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+OUT_FILE := "$(DIR)avo-test-harness"
+# to ignore vendor directory
+GOFLAGS=-mod=mod
+.PHONY: osde2e
+osde2e:
+	CGO_ENABLED=0 go test -v -c ./osde2e/
