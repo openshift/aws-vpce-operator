@@ -29,6 +29,8 @@ const (
 	OperatorTagKey           = "kubernetes.io/aws-vpce-operator"
 	OperatorTagValue         = "managed"
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
+	RedHatManagedKey         = "red-hat-managed"
+	RedHatManagedValue       = "true"
 )
 
 // GenerateAwsTags returns the tags that should be reconciled on every AWS resource
@@ -50,6 +52,10 @@ func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {
 		{
 			Key:   aws.String("Name"),
 			Value: aws.String(name),
+		},
+		{
+			Key:   aws.String(RedHatManagedKey),
+			Value: aws.String(RedHatManagedValue),
 		},
 	}, nil
 }
@@ -124,6 +130,10 @@ func GenerateR53Tags(clusterTagKey string) ([]route53Types.Tag, error) {
 		{
 			Key:   aws.String(clusterTagKey),
 			Value: aws.String("owned"),
+		},
+		{
+			Key:   aws.String(RedHatManagedKey),
+			Value: aws.String(RedHatManagedValue),
 		},
 	}, nil
 }
