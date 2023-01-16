@@ -20,19 +20,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
-	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
@@ -110,12 +109,9 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
 	}
 
-	domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
-	if err != nil {
-		return err
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
 	}
-	r.clusterInfo.domainName = domainName
-	r.log.V(1).Info("Found domain name:", "domainName", domainName)
 
 	return nil
 }
@@ -464,32 +460,6 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 	return nil
 }
 
-// diffVpcEndpointSubnets searches for the cluster's private subnets and compares them to the subnets associated with
-// the VPC Endpoint, returning subnets that need to be added to the VPC Endpoint and subnets that need to be removed
-// from the VPC Endpoint.
-//func (r *VpcEndpointReconciler) diffVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) ([]string, []string, error) {
-//	if resource.Spec.Vpc.AutoDiscoverSubnets {
-//		if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
-//			return nil, nil, fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
-//		}
-//
-//		subnetsResp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
-//		if err != nil {
-//			return nil, nil, err
-//		}
-//
-//		privateSubnetIds := make([]string, len(subnetsResp.Subnets))
-//		for i := range subnetsResp.Subnets {
-//			privateSubnetIds[i] = *subnetsResp.Subnets[i].SubnetId
-//		}
-//		subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
-//		return subnetsToAdd, subnetsToRemove, nil
-//	}
-//
-//	subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, resource.Spec.Vpc.SubnetIds)
-//	return subnetsToAdd, subnetsToRemove, nil
-//}
-
 // ensureVpcEndpointSecurityGroups ensures that the security group associated with the VPC Endpoint
 // is only the expected one.
 func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
@@ -538,6 +508,39 @@ func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.Vpc
 	return sgToAdd, sgToRemove, nil
 }
 
+func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", r.clusterInfo.vpcId, "region", r.clusterInfo.region)
+	// TODO: Unlikely, but would be nice to handle pagination
+	resp, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.vpcId, r.clusterInfo.region)
+	if err != nil {
+		return err
+	}
+
+	if len(resp.HostedZoneSummaries) == 0 {
+		return fmt.Errorf("no hosted zone found associated to VPC: %s in region: %s", r.clusterInfo.vpcId, r.clusterInfo.region)
+	}
+
+	for _, hz := range resp.HostedZoneSummaries {
+		if *hz.Name == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
+			return nil
+		}
+	}
+
+	createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+	if err != nil {
+		return fmt.Errorf("failed to create hosted zone: %w", err)
+	}
+	r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", *createResp.HostedZone.Id)
+	r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", *createResp.HostedZone.Id)
+
+	resource.Status.HostedZoneId = *createResp.HostedZone.Id
+	if err := r.Status().Update(ctx, resource); err != nil {
+		return fmt.Errorf("failed to update status: %w", err)
+	}
+
+	return nil
+}
+
 // generateRoute53Record generates the expected Route53 Record for a provided VpcEndpoint CR
 func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resource *avov1alpha2.VpcEndpoint) (*route53Types.ResourceRecord, error) {
 	if resource.Status.VPCEndpointId == "" {
@@ -569,38 +572,38 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 }
 
 // generateExternalNameService generates the expected ExternalName service for a VpcEndpoint CustomResource
-func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha2.VpcEndpoint) (*corev1.Service, error) {
-	if resource == nil {
-		// Should never happen
-		return nil, errors.New("cannot generate ExternalName service: custom resource is nil")
-	}
-
-	if resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" ||
-		resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name == "" {
-		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: missing required hostname and externalName service name fields", resource.Namespace, resource.Name)
-	}
-
-	if r.clusterInfo.domainName == "" {
-		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: empty domainName", resource.Namespace, resource.Name)
-	}
-
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
-			Namespace: resource.Namespace,
-		},
-		Spec: corev1.ServiceSpec{
-			Type:         corev1.ServiceTypeExternalName,
-			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, r.clusterInfo.domainName),
-		},
-	}
-
-	if err := controllerutil.SetControllerReference(resource, svc, r.Scheme); err != nil {
-		return nil, err
-	}
-
-	return svc, nil
-}
+//func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha2.VpcEndpoint) (*corev1.Service, error) {
+//	if resource == nil {
+//		// Should never happen
+//		return nil, errors.New("cannot generate ExternalName service: custom resource is nil")
+//	}
+//
+//	if resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" ||
+//		resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name == "" {
+//		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: missing required hostname and externalName service name fields", resource.Namespace, resource.Name)
+//	}
+//
+//	if r.clusterInfo.domainName == "" {
+//		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: empty domainName", resource.Namespace, resource.Name)
+//	}
+//
+//	svc := &corev1.Service{
+//		ObjectMeta: metav1.ObjectMeta{
+//			Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
+//			Namespace: resource.Namespace,
+//		},
+//		Spec: corev1.ServiceSpec{
+//			Type:         corev1.ServiceTypeExternalName,
+//			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, r.clusterInfo.domainName),
+//		},
+//	}
+//
+//	if err := controllerutil.SetControllerReference(resource, svc, r.Scheme); err != nil {
+//		return nil, err
+//	}
+//
+//	return svc, nil
+//}
 
 // tagsContains returns true if the all the tags in tagsToCheck exist in tags
 func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {

@@ -253,8 +253,8 @@ spec:
             description: VpcEndpointSpec defines the desired state of VpcEndpoint
             properties:
               assumeRoleArn:
-                description: AssumeRoleArn will allow AVO to use sts:AssumeRole to
-                  create VPC Endpoints in separate AWS Accounts
+                description: 'AssumeRoleArn will allow AVO to use sts:AssumeRole to
+                  create VPC Endpoints in separate AWS Accounts TODO: Implement'
                 type: string
               customDns:
                 description: CustomDns will define configurations for all other custom
@@ -275,12 +275,12 @@ spec:
                           53 Private Hosted Zone to create
                         type: string
                       id:
-                        description: Id specifies the AWS ID of an existing Route
-                          53 Private Hosted Zone to use
+                        description: 'Id specifies the AWS ID of an existing Route
+                          53 Private Hosted Zone to use TODO: Implement'
                         type: string
                       record:
-                        description: Record is the configuration of a record within
-                          the selected Route 53 Private Hosted Zone
+                        description: 'Record is the configuration of a record within
+                          the selected Route 53 Private Hosted Zone TODO: Implement'
                         properties:
                           externalNameService:
                             description: ExternalNameService is the configuration
@@ -304,9 +304,9 @@ spec:
                 type: object
               enablePrivateDns:
                 default: false
-                description: EnablePrivateDns will allow AVO to create VPC Endpoints
+                description: 'EnablePrivateDns will allow AVO to create VPC Endpoints
                   with private DNS names specified by a VPC Endpoint Service https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html
-                  (defaults to false)
+                  (defaults to false) TODO: Implement'
                 type: boolean
               region:
                 description: Region will allow AVO to create VPC Endpoints and other
@@ -468,6 +468,10 @@ spec:
                   - type
                   type: object
                 type: array
+              hostedZoneId:
+                description: The AWS ID of the Route 53 Private Hosted Zone being
+                  used
+                type: string
               securityGroupId:
                 description: The AWS ID of the managed security group
                 type: string

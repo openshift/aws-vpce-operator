@@ -71,7 +71,10 @@ type ExternalNameService struct {
 // Route53HostedZoneRecord is the configuration of an AWS Route 53 Hosted Zone Record pointing to the created VPCE.
 type Route53HostedZoneRecord struct {
 	// Hostname is the hostname of the record.
-	Hostname            string              `json:"hostname"`
+	Hostname string `json:"hostname"`
+
+	// +kubebuilder:validation:Optional
+
 	ExternalNameService ExternalNameService `json:"externalNameService,omitempty"`
 }
 
@@ -88,9 +91,11 @@ type Route53PrivateHostedZone struct {
 	DomainName string `json:"domainName,omitempty"`
 
 	// Id specifies the AWS ID of an existing Route 53 Private Hosted Zone to use
+	// TODO: Implement
 	Id string `json:"id,omitempty"`
 
 	// Record is the configuration of a record within the selected Route 53 Private Hosted Zone
+	// TODO: Implement
 	Record Route53HostedZoneRecord `json:"record,omitempty"`
 }
 
@@ -111,6 +116,7 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 
 	// AssumeRoleArn will allow AVO to use sts:AssumeRole to create VPC Endpoints in separate AWS Accounts
+	// TODO: Implement
 	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -124,6 +130,7 @@ type VpcEndpointSpec struct {
 
 	// EnablePrivateDns will allow AVO to create VPC Endpoints with private DNS names specified by a VPC Endpoint Service
 	// https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html (defaults to false)
+	// TODO: Implement
 	EnablePrivateDns bool `json:"enablePrivateDns,omitempty"`
 
 	// +kubebuilder:validation:Optional
@@ -156,6 +163,10 @@ type VpcEndpointStatus struct {
 	// The AWS ID of the managed VPC Endpoint
 	// +optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`
+
+	// The AWS ID of the Route 53 Private Hosted Zone being used
+	// +optional
+	HostedZoneId string `json:"hostedZoneId,omitempty"`
 
 	// The status conditions of the AWS and K8s resources managed by this controller
 	// +optional

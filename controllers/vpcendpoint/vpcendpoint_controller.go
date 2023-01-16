@@ -53,9 +53,11 @@ type clusterInfo struct {
 	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
 	// e.g. "kubernetes.io/cluster/${infraName}"
 	clusterTag string
+
 	// domainName is the domain name for the cluster's private hosted zone
 	// e.g. "${clusterName}.abcd.s1.devshift.org"
-	domainName string
+	//domainName string
+
 	// infraName is the name shown in the cluster's infrastructures CR
 	// e.g. "${clusterName}-abcd"
 	infraName string
@@ -155,10 +157,11 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.validateAWSResources(ctx, vpce,
-		[]ValidateAWSResourceFunc{
+	if err := r.validateResources(ctx, vpce,
+		[]Validation{
 			r.validateSecurityGroup,
 			r.validateVPCEndpoint,
+			r.validateCustomDns,
 		}); err != nil {
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
