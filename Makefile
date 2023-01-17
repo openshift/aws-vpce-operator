@@ -28,9 +28,13 @@ uninstall: ## Uninstall CRDs from the K8s cluster specified in ~/.kube/config. C
 	oc delete --ignore-not-found=$(ignore-not-found) -f ./deploy/crds/
 
 DIR := $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
-OUT_FILE := "$(DIR)avo-test-harness"
 # to ignore vendor directory
 GOFLAGS=-mod=mod
 .PHONY: osde2e
 osde2e:
 	CGO_ENABLED=0 go test -v -c ./osde2e/
+	mv osde2e.test osde2e/.
+
+.PHONY: harness-build-push
+harness-build-push:
+	@${DIR}/osde2e/harness-build-push.sh 
