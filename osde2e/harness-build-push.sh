@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 	
-HARNESS_IMAGE="quay.io/rmundhe_oc/avo-test-harness:latest"
+HARNESS_IMAGE="quay.io/app-sre/aws-vpce-operator-test-harness"
 # Detect the container engine to use, allowing override from the env
 CONTAINER_ENGINE=${CONTAINER_ENGINE:-$(command -v podman || command -v docker || true)}
 if [[ -z "$CONTAINER_ENGINE" ]]; then
