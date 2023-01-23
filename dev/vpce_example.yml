@@ -10,12 +10,21 @@ metadata:
   name: demo
   namespace: openshift-aws-vpce-operator
 spec:
-  serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-0dd975383622be88c"
+  serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-0dafc278c1b504df3"
   securityGroup:
     ingressRules:
       - fromPort: 6443
         toPort: 6443
         protocol: tcp
+  customDns:
+    route53PrivateHostedZone:
+      autoDiscoverPrivateHostedZone: false
+      domainName: "avo.com"
+      record:
+        hostname: "test"
+        externalNameService:
+          name: "test"
   vpc:
+    autoDiscoverSubnets: false
     subnetIds:
-      - "subnet-0e4d3ac883d228789"
+      - "subnet-0f64d2ce8aea72990"

@@ -116,10 +116,13 @@ func (c *AWSClient) DeleteResourceRecordSet(ctx context.Context, rrs *types.Reso
 // vpcId + region.
 func (c *AWSClient) CreateHostedZone(ctx context.Context, domain, vpcId, region string) (*route53.CreateHostedZoneOutput, error) {
 	zoneInput := &route53.CreateHostedZoneInput{
-		CallerReference:  aws.String(time.Now().String()),
-		Name:             aws.String(domain),
-		HostedZoneConfig: &types.HostedZoneConfig{PrivateZone: true},
-		VPC:              &types.VPC{VPCId: aws.String(vpcId), VPCRegion: types.VPCRegion(region)},
+		CallerReference: aws.String(time.Now().String()),
+		Name:            aws.String(domain),
+		HostedZoneConfig: &types.HostedZoneConfig{
+			Comment:     aws.String("Managed by aws-vpce-operator"),
+			PrivateZone: true,
+		},
+		VPC: &types.VPC{VPCId: aws.String(vpcId), VPCRegion: types.VPCRegion(region)},
 	}
 	return c.route53Client.CreateHostedZone(ctx, zoneInput)
 }
@@ -132,6 +135,9 @@ func (c *AWSClient) DeleteHostedZone(ctx context.Context, id string) (*route53.D
 // GenerateDefaultTagsForHostedZoneInput generates the ChangeTagsForResourceInput using the default tags for the zoneId
 func (c *AWSClient) GenerateDefaultTagsForHostedZoneInput(zoneId, clusterTagKey string) (*route53.ChangeTagsForResourceInput, error) {
 	defaultTags, err := util.GenerateR53Tags(clusterTagKey)
+	if err != nil {
+		return nil, err
+	}
 
 	changeTagsInput := &route53.ChangeTagsForResourceInput{
 		ResourceId:    aws.String(zoneId),
@@ -139,7 +145,8 @@ func (c *AWSClient) GenerateDefaultTagsForHostedZoneInput(zoneId, clusterTagKey 
 		AddTags:       defaultTags,
 		RemoveTagKeys: nil,
 	}
-	return changeTagsInput, err
+
+	return changeTagsInput, nil
 }
 
 // FetchPrivateZoneTags takes context and a Route53 ZoneID and returns the output provided by ListTagsForResource for a hosted zone

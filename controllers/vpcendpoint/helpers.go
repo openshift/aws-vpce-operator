@@ -20,20 +20,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/aws/smithy-go"
 
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
@@ -116,6 +118,22 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 	}
 
 	return nil
+}
+
+// awsUnauthorizedOperationMetricHandler determines if an error is an AWS UnauthorizedOperation or AccessDenied and
+// increments the aws_vpce_operator_unauthorized_operation_total metric accordingly
+func awsUnauthorizedOperationMetricHandler(err error) {
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
+			var oe *smithy.OperationError
+			if errors.As(err, &oe) {
+				awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
+			} else {
+				awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
+			}
+		}
+	}
 }
 
 // findOrCreateSecurityGroup queries AWS and returns the Security Group for the provided CR and updates its status.
@@ -510,42 +528,50 @@ func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.Vpc
 	return sgToAdd, sgToRemove, nil
 }
 
+// findOrCreatePrivateHostedZone ensures the existence of a Route53 Private Hosted Zone given a custom domain name
 func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
-	r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", r.clusterInfo.vpcId, "region", r.clusterInfo.region)
-	// TODO: Unlikely, but would be nice to handle pagination
-	resp, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.vpcId, r.clusterInfo.region)
-	if err != nil {
-		return err
+	if resource == nil {
+		// Should never happen
+		return errors.New("resource must be specified")
 	}
 
-	if len(resp.HostedZoneSummaries) == 0 {
-		return fmt.Errorf("no hosted zone found associated to VPC: %s in region: %s", r.clusterInfo.vpcId, r.clusterInfo.region)
-	}
-
-	for _, hz := range resp.HostedZoneSummaries {
-		if *hz.Name == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
-			if resource.Status.HostedZoneId != *hz.HostedZoneId {
-				resource.Status.HostedZoneId = *hz.HostedZoneId
-				if err := r.Status().Update(ctx, resource); err != nil {
-					r.log.V(0).Error(err, "failed to update status")
-					return err
-				}
-			}
-
-			return nil
+	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+		r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", r.clusterInfo.vpcId, "region", r.clusterInfo.region)
+		// TODO: Unlikely, but would be nice to handle pagination
+		resp, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.vpcId, r.clusterInfo.region)
+		if err != nil {
+			return err
 		}
-	}
 
-	createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
-	if err != nil {
-		return fmt.Errorf("failed to create hosted zone: %w", err)
-	}
-	r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", *createResp.HostedZone.Id)
-	r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", *createResp.HostedZone.Id)
+		if len(resp.HostedZoneSummaries) == 0 {
+			return fmt.Errorf("no hosted zone found associated to VPC: %s in region: %s", r.clusterInfo.vpcId, r.clusterInfo.region)
+		}
 
-	resource.Status.HostedZoneId = *createResp.HostedZone.Id
-	if err := r.Status().Update(ctx, resource); err != nil {
-		return fmt.Errorf("failed to update status: %w", err)
+		for _, hz := range resp.HostedZoneSummaries {
+			if strings.TrimRight(*hz.Name, ".") == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
+				if resource.Status.HostedZoneId != *hz.HostedZoneId {
+					resource.Status.HostedZoneId = *hz.HostedZoneId
+					if err := r.Status().Update(ctx, resource); err != nil {
+						r.log.V(0).Error(err, "failed to update status")
+						return err
+					}
+				}
+
+				return nil
+			}
+		}
+
+		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+		if err != nil {
+			return fmt.Errorf("failed to create hosted zone: %w", err)
+		}
+		r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", *createResp.HostedZone.Id)
+		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", *createResp.HostedZone.Id)
+
+		resource.Status.HostedZoneId = *createResp.HostedZone.Id
+		if err := r.Status().Update(ctx, resource); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
 	}
 
 	return nil
@@ -625,14 +651,15 @@ func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {
 }
 
 // createMissingPrivateZoneTags will compare existing tags to the required set and apply if missing
-func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, zoneID string) error {
+func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, id string) error {
 	// Find existing tags
-	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, zoneID)
+	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to list zone's tags %w", err)
 	}
+
 	// Generate default tags to compare against
-	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(zoneID, r.clusterInfo.clusterTag)
+	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(id, r.clusterInfo.clusterTag)
 	if err != nil {
 		return fmt.Errorf("failed to generate hosted zone's default tags %w", err)
 	}
@@ -649,7 +676,6 @@ func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context
 				return fmt.Errorf("failed tag hosted zone with default tags %w", err)
 			}
 		}
-
 	}
 
 	return nil

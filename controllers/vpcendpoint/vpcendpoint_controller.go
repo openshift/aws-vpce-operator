@@ -20,7 +20,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -54,11 +53,6 @@ type clusterInfo struct {
 	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
 	// e.g. "kubernetes.io/cluster/${infraName}"
 	clusterTag string
-
-	// domainName is the domain name for the cluster's private hosted zone
-	// e.g. "${clusterName}.abcd.s1.devshift.org"
-	//domainName string
-
 	// infraName is the name shown in the cluster's infrastructures CR
 	// e.g. "${clusterName}-abcd"
 	infraName string
@@ -94,18 +88,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	if err := r.parseClusterInfo(ctx, vpce, true); err != nil {
-		var ae smithy.APIError
-		if errors.As(err, &ae) {
-			if ae.ErrorCode() == "UnauthorizedOperation" {
-				var oe *smithy.OperationError
-				if errors.As(err, &oe) {
-					awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(oe.Service()), oe.Operation())).Inc()
-				} else {
-					awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
-				}
-			}
-		}
-
+		awsUnauthorizedOperationMetricHandler(err)
 		return ctrl.Result{}, err
 	}
 
@@ -133,14 +116,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 
-					if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
-						var oe *smithy.OperationError
-						if errors.As(err, &oe) {
-							awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
-						} else {
-							awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
-						}
-					}
+					awsUnauthorizedOperationMetricHandler(err)
 				}
 
 				// Catch other errors and retry
@@ -164,32 +140,10 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			r.validateVPCEndpoint,
 			r.validateCustomDns,
 		}); err != nil {
-		var ae smithy.APIError
-		if errors.As(err, &ae) {
-			if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
-				var oe *smithy.OperationError
-				if errors.As(err, &oe) {
-					awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
-				} else {
-					awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
-				}
-			}
-		}
+		awsUnauthorizedOperationMetricHandler(err)
 
 		return ctrl.Result{}, err
 	}
-
-	// Ensure the ExternalName service is in the right state
-	//if err := r.validateExternalNameService(ctx, avo); err != nil {
-	//	return ctrl.Result{}, err
-	//}
-
-	// Validate presence of addtlHostedZoneName
-	// if avo.Spec.AddtlHostedZoneName != "" {
-	// 	if err := r.validatePrivateHostedZone(ctx, avo); err != nil {
-	// 		return ctrl.Result{}, err
-	// 	}
-	// }
 
 	// Check again in fifteen minutes
 	return ctrl.Result{RequeueAfter: time.Minute * 15}, nil

@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
-	"github.com/aws/smithy-go"
 )
 
 // privateSubnetTagKey is labelled by Hive on a non-BYOVPC cluster's subnets at install time
@@ -42,18 +41,6 @@ func (c *AWSClient) GetVPCId(ctx context.Context, subnetIds []string) (string, e
 
 	resp, err := c.ec2Client.DescribeSubnets(ctx, input)
 	if err != nil {
-		var oe *smithy.OperationError
-		if errors.As(err, &oe) {
-			fmt.Printf("failed to call service: %s, operation: %s, error: %v\n", oe.Service(), oe.Operation(), oe.Unwrap())
-		}
-
-		var ae smithy.APIError
-		if errors.As(err, &ae) {
-			if ae.ErrorCode() == "UnauthorizedOperation" {
-			}
-			fmt.Printf("code: %s, message: %s, fault: %s\n", ae.ErrorCode(), ae.ErrorMessage(), ae.ErrorFault().String())
-		}
-
 		return "", fmt.Errorf("failed to describe subnets: %w", err)
 	}
 
