@@ -266,21 +266,20 @@ spec:
                       53 Private Hosted Zone with a route to the created VPCE.
                     properties:
                       autoDiscoverPrivateHostedZone:
-                        default: true
                         description: AutoDiscover will use the existing ROSA cluster's
                           Route 53 Private Hosted Zone
                         type: boolean
                       domainName:
-                        description: DomainName specifies the domain name of a Route
-                          53 Private Hosted Zone to create
+                        description: 'DomainName specifies the domain name of a Route
+                          53 Private Hosted Zone to create TODO: Implement'
                         type: string
                       id:
-                        description: 'Id specifies the AWS ID of an existing Route
-                          53 Private Hosted Zone to use TODO: Implement'
+                        description: Id specifies the AWS ID of an existing Route
+                          53 Private Hosted Zone to use
                         type: string
                       record:
-                        description: 'Record is the configuration of a record within
-                          the selected Route 53 Private Hosted Zone TODO: Implement'
+                        description: Record is the configuration of a record within
+                          the selected Route 53 Private Hosted Zone
                         properties:
                           externalNameService:
                             description: ExternalNameService is the configuration
@@ -378,7 +377,6 @@ spec:
                   VPC as the ROSA cluster it's running on
                 properties:
                   autoDiscoverSubnets:
-                    default: true
                     description: AutoDiscoverSubnets will instruct the controller
                       to use the subnets associated with this ROSA cluster if true.
                     type: boolean
@@ -471,6 +469,10 @@ spec:
               hostedZoneId:
                 description: The AWS ID of the Route 53 Private Hosted Zone being
                   used
+                type: string
+              resourceRecordSet:
+                description: The FQDN of a Route 53 Hosted Zone record that has been
+                  created
                 type: string
               securityGroupId:
                 description: The AWS ID of the managed security group

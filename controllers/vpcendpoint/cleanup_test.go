@@ -46,7 +46,7 @@ func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
 					VPCEndpointId:   testutil.MockVpcEndpointId,
 					Conditions: []metav1.Condition{
 						{
-							Type:   avov1alpha2.AWSCustomDnsCondition,
+							Type:   avov1alpha2.ExternalNameServiceCondition,
 							Status: metav1.ConditionTrue,
 						},
 					},

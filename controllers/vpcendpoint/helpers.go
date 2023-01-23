@@ -20,6 +20,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -443,7 +445,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			RemoveSubnetIds: subnetsToRemove,
 			VpcEndpointId:   vpce.VpcEndpointId,
 		}); err != nil {
-			return err
+			return fmt.Errorf("failed to remove subnets: %v with error: %w", subnetsToRemove, err)
 		}
 	}
 
@@ -453,7 +455,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			AddSubnetIds:  subnetsToAdd,
 			VpcEndpointId: vpce.VpcEndpointId,
 		}); err != nil {
-			return err
+			return fmt.Errorf("failed to add subnets: %v with error: %w", subnetsToAdd, err)
 		}
 	}
 
@@ -522,6 +524,14 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 
 	for _, hz := range resp.HostedZoneSummaries {
 		if *hz.Name == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
+			if resource.Status.HostedZoneId != *hz.HostedZoneId {
+				resource.Status.HostedZoneId = *hz.HostedZoneId
+				if err := r.Status().Update(ctx, resource); err != nil {
+					r.log.V(0).Error(err, "failed to update status")
+					return err
+				}
+			}
+
 			return nil
 		}
 	}
@@ -572,38 +582,29 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 }
 
 // generateExternalNameService generates the expected ExternalName service for a VpcEndpoint CustomResource
-//func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha2.VpcEndpoint) (*corev1.Service, error) {
-//	if resource == nil {
-//		// Should never happen
-//		return nil, errors.New("cannot generate ExternalName service: custom resource is nil")
-//	}
-//
-//	if resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" ||
-//		resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name == "" {
-//		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: missing required hostname and externalName service name fields", resource.Namespace, resource.Name)
-//	}
-//
-//	if r.clusterInfo.domainName == "" {
-//		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: empty domainName", resource.Namespace, resource.Name)
-//	}
-//
-//	svc := &corev1.Service{
-//		ObjectMeta: metav1.ObjectMeta{
-//			Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
-//			Namespace: resource.Namespace,
-//		},
-//		Spec: corev1.ServiceSpec{
-//			Type:         corev1.ServiceTypeExternalName,
-//			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, r.clusterInfo.domainName),
-//		},
-//	}
-//
-//	if err := controllerutil.SetControllerReference(resource, svc, r.Scheme); err != nil {
-//		return nil, err
-//	}
-//
-//	return svc, nil
-//}
+func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha2.VpcEndpoint) (*corev1.Service, error) {
+	if resource.Status.ResourceRecordSet == "" {
+		// Should only happen when a Route53 Hosted Zone Record has not been created yet
+		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: .status.resourceRecordSet is empty", resource.Namespace, resource.Name)
+	}
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
+			Namespace: resource.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Type:         corev1.ServiceTypeExternalName,
+			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, resource.Status.ResourceRecordSet),
+		},
+	}
+
+	if err := controllerutil.SetControllerReference(resource, svc, r.Scheme); err != nil {
+		return nil, err
+	}
+
+	return svc, nil
+}
 
 // tagsContains returns true if the all the tags in tagsToCheck exist in tags
 func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {

@@ -26,8 +26,29 @@ import (
 	"time"
 )
 
+// GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone
+func (c *AWSClient) GetDefaultPrivateHostedZoneId(ctx context.Context, domainName, vpcId, region string) (*types.HostedZoneSummary, error) {
+	resp, err := c.ListHostedZonesByVPC(ctx, vpcId, region)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, hz := range resp.HostedZoneSummaries {
+		// The hosted zone name always has a trailing "."
+		if *hz.Name == fmt.Sprintf("%s.", domainName) {
+			return &hz, nil
+		}
+	}
+
+	return nil, fmt.Errorf("default private hosted zone: %s not found in vpc: %s", domainName, vpcId)
+}
+
+// GetHostedZone is a wrapper around Route53 GetHostedZone
+func (c *AWSClient) GetHostedZone(ctx context.Context, id string) (*route53.GetHostedZoneOutput, error) {
+	return c.route53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{Id: aws.String(id)})
+}
+
 // ListHostedZonesByVPC is a wrapper around route53:ListHostedZonesByVPC
-// TODO: What does this do
 func (c *AWSClient) ListHostedZonesByVPC(ctx context.Context, vpc, region string) (*route53.ListHostedZonesByVPCOutput, error) {
 	input := &route53.ListHostedZonesByVPCInput{
 		VPCId:     aws.String(vpc),

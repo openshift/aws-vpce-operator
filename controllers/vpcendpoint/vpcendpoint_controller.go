@@ -29,6 +29,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -132,10 +133,10 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 
-					if ae.ErrorCode() == "UnauthorizedOperation" {
+					if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
 						var oe *smithy.OperationError
 						if errors.As(err, &oe) {
-							awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(oe.Service()), oe.Operation())).Inc()
+							awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
 						} else {
 							awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
 						}
@@ -165,10 +166,10 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}); err != nil {
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
-			if ae.ErrorCode() == "UnauthorizedOperation" {
+			if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
 				var oe *smithy.OperationError
 				if errors.As(err, &oe) {
-					awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(oe.Service()), oe.Operation())).Inc()
+					awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
 				} else {
 					awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
 				}
@@ -190,15 +191,15 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// 	}
 	// }
 
-	// Check again in 30 sec
-	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
+	// Check again in fifteen minutes
+	return ctrl.Result{RequeueAfter: time.Minute * 15}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avov1alpha2.VpcEndpoint{}).
-		//Owns(&corev1.Service{}).
+		Owns(&corev1.Service{}).
 		WithOptions(controller.Options{
 			RateLimiter: util.DefaultAVORateLimiter(),
 		}).

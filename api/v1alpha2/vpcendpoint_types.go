@@ -49,7 +49,6 @@ type SecurityGroup struct {
 
 // Vpc represents the configuration for the AWS VPC to create the VPC Endpoint in
 type Vpc struct {
-	// +kubebuilder:default=true
 	// +kubebuilder:validation:Optional
 
 	// AutoDiscoverSubnets will instruct the controller to use the subnets associated with this ROSA cluster if true.
@@ -81,21 +80,19 @@ type Route53HostedZoneRecord struct {
 // Route53PrivateHostedZone is the configuration of an AWS Route 53 Private Hosted Zone to create a custom domain
 // the resolves to the regional endpoint of the created VPCE.
 type Route53PrivateHostedZone struct {
-	// +kubebuilder:default=true
 	// +kubebuilder:validation:Optional
 
 	// AutoDiscover will use the existing ROSA cluster's Route 53 Private Hosted Zone
 	AutoDiscover bool `json:"autoDiscoverPrivateHostedZone,omitempty"`
 
 	// DomainName specifies the domain name of a Route 53 Private Hosted Zone to create
+	// TODO: Implement
 	DomainName string `json:"domainName,omitempty"`
 
 	// Id specifies the AWS ID of an existing Route 53 Private Hosted Zone to use
-	// TODO: Implement
 	Id string `json:"id,omitempty"`
 
 	// Record is the configuration of a record within the selected Route 53 Private Hosted Zone
-	// TODO: Implement
 	Record Route53HostedZoneRecord `json:"record,omitempty"`
 }
 
@@ -146,9 +143,10 @@ type VpcEndpointSpec struct {
 }
 
 const (
-	AWSVpcEndpointCondition   = "AWSVpcEndpointReady"
-	AWSSecurityGroupCondition = "AWSSecurityGroupReady"
-	AWSCustomDnsCondition     = "AWSCustomDnsReady"
+	AWSVpcEndpointCondition      = "AWSVpcEndpointReady"
+	AWSSecurityGroupCondition    = "AWSSecurityGroupReady"
+	ExternalNameServiceCondition = "ExternalNameServiceReady"
+	AWSRoute53RecordCondition    = "AWSRoute53RecordReady"
 )
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -157,19 +155,23 @@ type VpcEndpointStatus struct {
 	Status string `json:"status,omitempty"`
 
 	// The AWS ID of the managed security group
-	// +optional
+	// +kubebuilder:validation:Optional
 	SecurityGroupId string `json:"securityGroupId,omitempty"`
 
 	// The AWS ID of the managed VPC Endpoint
-	// +optional
+	// +kubebuilder:validation:Optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`
 
 	// The AWS ID of the Route 53 Private Hosted Zone being used
-	// +optional
+	// +kubebuilder:validation:Optional
 	HostedZoneId string `json:"hostedZoneId,omitempty"`
 
+	// The FQDN of a Route 53 Hosted Zone record that has been created
+	// +kubebuilder:validation:Optional
+	ResourceRecordSet string `json:"resourceRecordSet,omitempty"`
+
 	// The status conditions of the AWS and K8s resources managed by this controller
-	// +optional
+	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions"`
 }
 

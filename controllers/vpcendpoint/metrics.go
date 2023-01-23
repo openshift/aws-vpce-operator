@@ -48,6 +48,5 @@ var (
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance)
-	metrics.Registry.MustRegister(awsUnauthorizedOperation)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation)
 }

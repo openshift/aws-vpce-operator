@@ -20,10 +20,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
+	"github.com/openshift/aws-vpce-operator/pkg/dnses"
+	corev1 "k8s.io/api/core/v1"
+	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 )
 
 type Validation func(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error
@@ -31,11 +39,6 @@ type Validation func(ctx context.Context, resource *avov1alpha2.VpcEndpoint) err
 func (r *VpcEndpointReconciler) validateResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint, validations []Validation) error {
 	for _, validation := range validations {
 		if err := validation(ctx, resource); err != nil {
-			return err
-		}
-
-		if err := r.Status().Update(ctx, resource); err != nil {
-			r.log.V(0).Error(err, "failed to update status")
 			return err
 		}
 	}
@@ -76,6 +79,10 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		Reason:  "Validated",
 		Message: "Validated",
 	})
+	if err := r.Status().Update(ctx, resource); err != nil {
+		r.log.V(0).Error(err, "failed to update status")
+		return err
+	}
 
 	return nil
 }
@@ -93,8 +100,13 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return err
 	}
 
-	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
-	resource.Status.Status = string(vpce.State)
+	if resource.Status.VPCEndpointId != *vpce.VpcEndpointId {
+		resource.Status.VPCEndpointId = *vpce.VpcEndpointId
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
+	}
 
 	// When this bug is fixed we can switch/case off of enums
 	// https://github.com/aws/aws-sdk/issues/116
@@ -108,16 +120,25 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
 
 		return nil
 	case "deleting", "pending":
 		// Nothing we can do at the moment, the VPC Endpoint needs to finish moving into a stable state
+		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(0)
 		r.log.V(0).Info("VPC Endpoint is transitioning state", "status", string(vpce.State))
 		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 			Type:   avov1alpha2.AWSVpcEndpointCondition,
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
 
 		return nil
 	case "available":
@@ -135,6 +156,10 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
 
 		return fmt.Errorf("vpc endpoint in a bad state: %s", vpce.State)
 	}
@@ -150,21 +175,30 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-		Type:   avov1alpha2.AWSVpcEndpointCondition,
-		Status: metav1.ConditionTrue,
-		Reason: string(vpce.State),
+		Type:    avov1alpha2.AWSVpcEndpointCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  string(vpce.State),
+		Message: fmt.Sprintf("VPC Endpoint status is: %s", string(vpce.State)),
 	})
+	if err := r.Status().Update(ctx, resource); err != nil {
+		r.log.V(0).Error(err, "failed to update status")
+		return err
+	}
 
 	return nil
 }
 
 func (r *VpcEndpointReconciler) validateCustomDns(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
-	if resource == nil {
-		// Should never happen
-		return errors.New("resource must be specified")
+	if err := r.validateResources(ctx, resource,
+		[]Validation{
+			r.validateR53PrivateHostedZone,
+			r.validateR53HostedZoneRecord,
+			r.validateExternalNameService,
+		}); err != nil {
+		return err
 	}
 
-	return r.validateR53PrivateHostedZone(ctx, resource)
+	return nil
 }
 
 // validateR53PrivateHostedZone ensures the configured CustomDns Private Hosted Zone exists
@@ -175,12 +209,44 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 	}
 
 	if resource.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
-		// No need to create a Private Hosted Zone
+		domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
+		if err != nil {
+			return err
+		}
+		r.log.V(1).Info("Found domain name:", "domainName", domainName)
+
+		r.log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", domainName)
+		hz, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, domainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+		if err != nil {
+			return err
+		}
+
+		if resource.Status.HostedZoneId != *hz.HostedZoneId {
+			resource.Status.HostedZoneId = *hz.HostedZoneId
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+		}
+
 		return nil
 	}
 
 	if resource.Spec.CustomDns.Route53PrivateHostedZone.Id != "" {
-		// TODO: Search for existing Route53 Private Hosted Zone
+		r.log.V(0).Info("Searching for Route 53 Hosted Zone", "id", resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
+		resp, err := r.awsClient.GetHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
+		if err != nil {
+			return err
+		}
+
+		if resource.Status.HostedZoneId != *resp.HostedZone.Id {
+			resource.Status.HostedZoneId = *resp.HostedZone.Id
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+		}
+
 		return nil
 	}
 
@@ -195,118 +261,139 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 }
 
 // validateR53HostedZoneRecord ensures a DNS record exists for the given VPC Endpoint
-//func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
-//	if resource == nil {
-//		// Should never happen
-//		return errors.New("resource must be specified")
-//	}
-//
-//	var domainName string
-//
-//	if resource.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
-//		domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
-//		if err != nil {
-//			return err
-//		}
-//	}
-//
-//	r.log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", r.clusterInfo.domainName)
-//	hostedZone, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.domainName)
-//	if err != nil {
-//		return err
-//	}
-//
-//	resourceRecord, err := r.generateRoute53Record(ctx, resource)
-//	if err != nil {
-//		r.log.V(0).Info("Skipping Route53 Record, VPCEndpoint is not in the available state")
-//		return nil
-//	}
-//
-//	input := &route53Types.ResourceRecordSet{
-//		Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name)),
-//		ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
-//		TTL:             aws.Int64(300),
-//		Type:            route53Types.RRTypeCname,
-//	}
-//
-//	if _, err := r.awsClient.UpsertResourceRecordSet(ctx, input, *hostedZone.Id); err != nil {
-//		return err
-//	}
-//	r.log.V(1).Info("Route53 Hosted Zone Record exists", "domainName", fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, *hostedZone.Name))
-//
-//	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-//		Type:    avov1alpha2.AWSRoute53RecordCondition,
-//		Status:  metav1.ConditionTrue,
-//		Reason:  "Created",
-//		Message: fmt.Sprintf("Created: %s.%s", resource.Spec.SubdomainName, *hostedZone.Name),
-//	})
-//
-//	return nil
-//}
+func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	if resource == nil {
+		// Should never happen
+		return errors.New("resource must be specified")
+	}
+
+	resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+	if err != nil {
+		return err
+	}
+
+	resourceRecord, err := r.generateRoute53Record(ctx, resource)
+	if err != nil {
+		r.log.V(0).Info("Skipping Route53 Record, VPCEndpoint is not in the available state")
+		return nil
+	}
+
+	input := &route53Types.ResourceRecordSet{
+		Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, strings.TrimRight(*resp.HostedZone.Name, "."))),
+		ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
+		TTL:             aws.Int64(300),
+		Type:            route53Types.RRTypeCname,
+	}
+
+	if _, err := r.awsClient.UpsertResourceRecordSet(ctx, input, *resp.HostedZone.Id); err != nil {
+		return err
+	}
+	r.log.V(0).Info("Route53 Hosted Zone Record exists", "domainName", *input.Name)
+
+	resource.Status.ResourceRecordSet = *input.Name
+	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+		Type:    avov1alpha2.AWSRoute53RecordCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "Created",
+		Message: fmt.Sprintf("Created: %s", *input.Name),
+	})
+	if err := r.Status().Update(ctx, resource); err != nil {
+		r.log.V(0).Error(err, "failed to update status")
+		return err
+	}
+
+	return nil
+}
 
 // validateExternalNameService checks if the expected ExternalName service exists, creating or updating it as needed
-//func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
-//	found := &corev1.Service{}
-//	expected, err := r.generateExternalNameService(resource)
-//	if err != nil {
-//		return err
-//	}
-//
-//	err = r.Get(ctx, types.NamespacedName{
-//		Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
-//		Namespace: resource.Namespace,
-//	}, found)
-//	if err != nil {
-//		if kerr.IsNotFound(err) {
-//			// Create the ExternalName service since it's missing
-//			r.log.V(0).Info("Creating ExternalName service", "service", expected)
-//			err = r.Create(ctx, expected)
-//			if err != nil {
-//				r.log.V(0).Error(err, "failed to create ExternalName service")
-//				return err
-//			}
-//
-//			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-//				Type:   avov1alpha2.AWSCustomDnsCondition,
-//				Status: metav1.ConditionTrue,
-//				Reason: "Created",
-//			})
-//
-//			// Requeue, but no error
-//			return fmt.Errorf("requeue to validate service")
-//		} else {
-//			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-//				Type:    avov1alpha2.AWSCustomDnsCondition,
-//				Status:  metav1.ConditionFalse,
-//				Reason:  "UnknownError",
-//				Message: fmt.Sprintf("Unkown error: %v", err),
-//			})
-//
-//			return err
-//		}
-//	}
-//
-//	// The only mutable field we care about is .spec.ExternalName, fix it if it got messed up
-//	if found.Spec.ExternalName != expected.Spec.ExternalName {
-//		found.Spec.ExternalName = expected.Spec.ExternalName
-//		r.log.V(0).Info("Updating ExternalName service", "service", found)
-//		if err := r.Update(ctx, found); err != nil {
-//			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-//				Type:    avov1alpha2.AWSCustomDnsCondition,
-//				Status:  metav1.ConditionFalse,
-//				Reason:  "UnknownError",
-//				Message: fmt.Sprintf("Unkown error: %v", err),
-//			})
-//
-//			return err
-//		}
-//
-//		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-//			Type:   avov1alpha2.AWSCustomDnsCondition,
-//			Status: metav1.ConditionTrue,
-//			Reason: "Reconciled",
-//		})
-//	}
-//
-//	return nil
-//}
+func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	if resource == nil {
+		// Should never happen
+		return errors.New("cannot generate ExternalName service: custom resource is nil")
+	}
+
+	if resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" ||
+		resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name == "" {
+		// Fields for generating an externalName service are not set
+		return nil
+	}
+
+	found := &corev1.Service{}
+	expected, err := r.generateExternalNameService(resource)
+	if err != nil {
+		return err
+	}
+
+	err = r.Get(ctx, types.NamespacedName{
+		Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
+		Namespace: resource.Namespace,
+	}, found)
+	if err != nil {
+		if kerr.IsNotFound(err) {
+			// Create the ExternalName service since it's missing
+			r.log.V(0).Info("Creating ExternalName service", "service", expected)
+			if err := r.Create(ctx, expected); err != nil {
+				r.log.V(0).Error(err, "failed to create ExternalName service")
+				return err
+			}
+
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:   avov1alpha2.ExternalNameServiceCondition,
+				Status: metav1.ConditionTrue,
+				Reason: "Created",
+			})
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+
+			// Requeue, but no error
+			return fmt.Errorf("requeue to validate service")
+		} else {
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha2.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+
+			return err
+		}
+	}
+
+	// The only mutable field we care about is .spec.ExternalName, fix it if it got messed up
+	if found.Spec.ExternalName != expected.Spec.ExternalName {
+		found.Spec.ExternalName = expected.Spec.ExternalName
+		r.log.V(0).Info("Updating ExternalName service", "service", found)
+		if err := r.Update(ctx, found); err != nil {
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha2.ExternalNameServiceCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "UnknownError",
+				Message: fmt.Sprintf("Unkown error: %v", err),
+			})
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
+
+			return err
+		}
+
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:   avov1alpha2.ExternalNameServiceCondition,
+			Status: metav1.ConditionTrue,
+			Reason: "Reconciled",
+		})
+		if err := r.Status().Update(ctx, resource); err != nil {
+			r.log.V(0).Error(err, "failed to update status")
+			return err
+		}
+	}
+
+	return nil
+}
