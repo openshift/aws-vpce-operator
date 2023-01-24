@@ -75,6 +75,8 @@ func main() {
 	opts := zap.Options{
 		Development: false,
 		TimeEncoder: zapcore.RFC3339TimeEncoder,
+		// Remove misleading controller-runtime stack traces https://github.com/kubernetes-sigs/kubebuilder/issues/1593
+		StacktraceLevel: zapcore.DPanicLevel,
 	}
 	opts.BindFlags(flag.CommandLine)
 	flag.Parse()
