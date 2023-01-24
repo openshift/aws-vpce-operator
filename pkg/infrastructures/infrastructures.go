@@ -18,6 +18,7 @@ package infrastructures
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -31,11 +32,11 @@ func GetAWSRegion(ctx context.Context, c client.Client) (string, error) {
 	infrastructures := new(configv1.Infrastructure)
 
 	if err := c.Get(ctx, client.ObjectKey{Name: defaultInfrastructuresName}, infrastructures); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get infrastructure %s: %w", defaultInfrastructuresName, err)
 	}
 
 	if infrastructures.Status.PlatformStatus.Type != "AWS" || infrastructures.Status.PlatformStatus.AWS == nil {
-		return "", fmt.Errorf("platform is not AWS")
+		return "", errors.New("platform is not AWS")
 	}
 
 	return infrastructures.Status.PlatformStatus.AWS.Region, nil
@@ -46,7 +47,7 @@ func GetInfrastructureName(ctx context.Context, c client.Client) (string, error)
 	infrastructures := new(configv1.Infrastructure)
 
 	if err := c.Get(ctx, client.ObjectKey{Name: defaultInfrastructuresName}, infrastructures); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get infrastructure %s: %w", defaultInfrastructuresName, err)
 	}
 
 	return infrastructures.Status.InfrastructureName, nil

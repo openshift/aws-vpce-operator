@@ -28,16 +28,16 @@ import (
 const (
 	OperatorTagKey           = "kubernetes.io/aws-vpce-operator"
 	OperatorTagValue         = "managed"
+	RedHatManagedTagKey      = "red-hat-managed"
+	RedHatManagedTagValue    = "true"
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
-	RedHatManagedKey         = "red-hat-managed"
-	RedHatManagedValue       = "true"
 )
 
 // GenerateAwsTags returns the tags that should be reconciled on every AWS resource
 // created by this operator
 func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {
 	if name == "" || clusterTagKey == "" {
-		return nil, errors.New("name and clusterTagKey must not be empty")
+		return nil, errors.New("failed to GenerateAwsTags: name and clusterTagKey must not be empty")
 	}
 
 	return []types.Tag{
@@ -46,16 +46,16 @@ func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {
 			Value: aws.String(OperatorTagValue),
 		},
 		{
+			Key:   aws.String(RedHatManagedTagKey),
+			Value: aws.String(RedHatManagedTagValue),
+		},
+		{
 			Key:   aws.String(clusterTagKey),
 			Value: aws.String("owned"),
 		},
 		{
 			Key:   aws.String("Name"),
 			Value: aws.String(name),
-		},
-		{
-			Key:   aws.String(RedHatManagedKey),
-			Value: aws.String(RedHatManagedValue),
 		},
 	}, nil
 }
@@ -79,7 +79,7 @@ func GenerateAwsTagsAsMap(name, clusterTagKey string) (map[string]string, error)
 // GetClusterTagKey returns the tag assigned to all AWS resources for the given cluster
 func GetClusterTagKey(infraName string) (string, error) {
 	if infraName == "" {
-		return "", fmt.Errorf("infraName must be specified")
+		return "", errors.New("failed to GetClusterTagKey: infraName must be specified")
 	}
 
 	return fmt.Sprintf("kubernetes.io/cluster/%s", infraName), nil
@@ -132,8 +132,8 @@ func GenerateR53Tags(clusterTagKey string) ([]route53Types.Tag, error) {
 			Value: aws.String("owned"),
 		},
 		{
-			Key:   aws.String(RedHatManagedKey),
-			Value: aws.String(RedHatManagedValue),
+			Key:   aws.String(RedHatManagedTagKey),
+			Value: aws.String(RedHatManagedTagValue),
 		},
 	}, nil
 }

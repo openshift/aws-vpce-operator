@@ -56,11 +56,12 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
             "ec2:DescribeVpcEndpoints",
             "ec2:ModifyVpcEndpoint",
             "route53:ChangeResourceRecordSets",
-            "route53:ListHostedZonesByName",
+            "route53:ListHostedZonesByVPC",
             "route53:ListResourceRecordSets",
             "route53:ListTagsForResource",
             "route53:GetHostedZone",
             "route53:CreateHostedZone",
+            "route53:DeleteHostedZone",
             "route53:ChangeTagsForResource"
           ],
           "Resource": "*"
@@ -75,30 +76,36 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
 
 ```yaml
 ---
-apiVersion: avo.openshift.io/v1alpha1
+apiVersion: avo.openshift.io/v1alpha2
 kind: VpcEndpoint
 metadata:
-  name: "demo"
+  name: demo
+  namespace: openshift-aws-vpce-operator
 spec:
-  externalNameService:
-    name: "exampleservice"
-    namespace: "examplenamespace"
+  serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-00000000000000000"
   securityGroup:
     ingressRules:
-      - fromPort: 9997
-        toPort: 9997
-        protocol: "tcp"
-  serviceName: "com.amazonaws.vpce.us-east-1.vpce-svc-00000000000000000"
-  subdomainName: "examplesubdomain"
-  addtlHostedZoneName: "supplemental.routing.tld" #Optional
+      - fromPort: 6443
+        toPort: 6443
+        protocol: tcp
+  customDns:
+    route53PrivateHostedZone:
+      autoDiscoverPrivateHostedZone: false
+      id: "Z10360602M0THU1Q366IN"
+      record:
+        hostname: "test"
+        externalNameService:
+          name: "test"
+  vpc:
+    autoDiscoverSubnets: false
+    subnetIds:
+      - "subnet-0f64d2ce8aea72990"
 ```
 
 * `.spec.serviceName` is the name of the VPC Endpoint Service to connect to
 * `.metadata.name` becomes the name of the VPC Endpoint
-* `.spec.subdomainName` generates a Route53 CNAME record in the cluster's Private Hosted Zone in the form of `${subdomainName}.${clusterBaseDomain}` pointing to the VPC Endpoint Regional DNS Name.
-* `.spec.externalNameService` defines the name and namespace the ExternalName service that will be created pointing to the Route53 record created above.
 * `.spec.securityGroup` defines security group ingress and egress rules that will be attached to the created VPC Endpoint
-* `.spec.addtlHostedZoneName` is an optional fully qualified domain name used for supplemental Private Hosted Zone(s) to accommodate records outside of the `${clusterBaseDomain}`
+* `.spec.customDns` defines additional custom DNS configurations that can be added to the VPC Endpoint, such as an Route 53 Private Hosted Zone and Record with an ExternalName Kubernetes Service
 
 ## VpcEndpointAcceptance
 

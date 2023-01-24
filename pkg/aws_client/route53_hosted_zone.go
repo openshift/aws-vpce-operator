@@ -23,25 +23,40 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
+	"time"
 )
 
 // GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone
-func (c *AWSClient) GetDefaultPrivateHostedZoneId(ctx context.Context, domainName string) (*types.HostedZone, error) {
-	input := &route53.ListHostedZonesByNameInput{
-		DNSName: aws.String(domainName),
-	}
-
-	// TODO: Unlikely, but would be nice to handle pagination
-	resp, err := c.route53Client.ListHostedZonesByName(ctx, input)
+func (c *AWSClient) GetDefaultPrivateHostedZoneId(ctx context.Context, domainName, vpcId, region string) (*types.HostedZoneSummary, error) {
+	resp, err := c.ListHostedZonesByVPC(ctx, vpcId, region)
 	if err != nil {
 		return nil, err
 	}
 
-	if len(resp.HostedZones) == 0 {
-		return nil, fmt.Errorf("no hosted zone found for domain %s", domainName)
+	for _, hz := range resp.HostedZoneSummaries {
+		// The hosted zone name always has a trailing "."
+		if *hz.Name == fmt.Sprintf("%s.", domainName) {
+			return &hz, nil
+		}
 	}
 
-	return &resp.HostedZones[0], nil
+	return nil, fmt.Errorf("default private hosted zone: %s not found in vpc: %s", domainName, vpcId)
+}
+
+// GetHostedZone is a wrapper around Route53 GetHostedZone
+func (c *AWSClient) GetHostedZone(ctx context.Context, id string) (*route53.GetHostedZoneOutput, error) {
+	return c.route53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{Id: aws.String(id)})
+}
+
+// ListHostedZonesByVPC is a wrapper around route53:ListHostedZonesByVPC
+func (c *AWSClient) ListHostedZonesByVPC(ctx context.Context, vpc, region string) (*route53.ListHostedZonesByVPCOutput, error) {
+	input := &route53.ListHostedZonesByVPCInput{
+		VPCId:     aws.String(vpc),
+		VPCRegion: types.VPCRegion(region),
+	}
+
+	// TODO: Unlikely, but would be nice to handle pagination
+	return c.route53Client.ListHostedZonesByVPC(ctx, input)
 }
 
 // ListResourceRecordSets returns a list of records for a given hosted zone ID
@@ -97,21 +112,32 @@ func (c *AWSClient) DeleteResourceRecordSet(ctx context.Context, rrs *types.Reso
 	return c.route53Client.ChangeResourceRecordSets(ctx, input)
 }
 
-// CreateNewHostedZone is an implementation of the client's CreateHostedZone
-// NOTE: To associate additional Amazon VPCs with the hosted zone, use AssociateVPCWithHostedZone after you create a hosted zone.
-func (c *AWSClient) CreateNewHostedZone(ctx context.Context, domain, vpcId, callerRef, region string) (*route53.CreateHostedZoneOutput, error) {
+// CreateHostedZone creates a Route 53 Private Hosted Zone with the specified domain, associated to the specified
+// vpcId + region.
+func (c *AWSClient) CreateHostedZone(ctx context.Context, domain, vpcId, region string) (*route53.CreateHostedZoneOutput, error) {
 	zoneInput := &route53.CreateHostedZoneInput{
-		CallerReference:  aws.String(callerRef),
-		Name:             aws.String(domain),
-		HostedZoneConfig: &types.HostedZoneConfig{Comment: aws.String("Created via AVO"), PrivateZone: true},
-		VPC:              &types.VPC{VPCId: aws.String(vpcId), VPCRegion: types.VPCRegion(region)},
+		CallerReference: aws.String(time.Now().String()),
+		Name:            aws.String(domain),
+		HostedZoneConfig: &types.HostedZoneConfig{
+			Comment:     aws.String("Managed by aws-vpce-operator"),
+			PrivateZone: true,
+		},
+		VPC: &types.VPC{VPCId: aws.String(vpcId), VPCRegion: types.VPCRegion(region)},
 	}
 	return c.route53Client.CreateHostedZone(ctx, zoneInput)
+}
+
+// DeleteHostedZone deletes a Route 53 Hosted Zone by ID
+func (c *AWSClient) DeleteHostedZone(ctx context.Context, id string) (*route53.DeleteHostedZoneOutput, error) {
+	return c.route53Client.DeleteHostedZone(ctx, &route53.DeleteHostedZoneInput{Id: aws.String(id)})
 }
 
 // GenerateDefaultTagsForHostedZoneInput generates the ChangeTagsForResourceInput using the default tags for the zoneId
 func (c *AWSClient) GenerateDefaultTagsForHostedZoneInput(zoneId, clusterTagKey string) (*route53.ChangeTagsForResourceInput, error) {
 	defaultTags, err := util.GenerateR53Tags(clusterTagKey)
+	if err != nil {
+		return nil, err
+	}
 
 	changeTagsInput := &route53.ChangeTagsForResourceInput{
 		ResourceId:    aws.String(zoneId),
@@ -119,7 +145,8 @@ func (c *AWSClient) GenerateDefaultTagsForHostedZoneInput(zoneId, clusterTagKey 
 		AddTags:       defaultTags,
 		RemoveTagKeys: nil,
 	}
-	return changeTagsInput, err
+
+	return changeTagsInput, nil
 }
 
 // FetchPrivateZoneTags takes context and a Route53 ZoneID and returns the output provided by ListTagsForResource for a hosted zone

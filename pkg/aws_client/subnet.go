@@ -18,6 +18,7 @@ package aws_client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,53 +29,58 @@ import (
 // privateSubnetTagKey is labelled by Hive on a non-BYOVPC cluster's subnets at install time
 const privateSubnetTagKey = "kubernetes.io/role/internal-elb"
 
-// GetVPCId returns the VPC ID which contains subnets with the specified tag key
-// Returns an error if there are no subnets with the specified tag key or
-// subnets with the specified tag key are not all in the same VPC
-func (c *AWSClient) GetVPCId(ctx context.Context, tagKey string) (string, error) {
-	subnets, err := c.GetRosaVpceSubnets(ctx, tagKey)
+// GetVPCId returns the VPC ID of the provided subnetIds. Returns an error if the subnets are not in the same VPC.
+func (c *AWSClient) GetVPCId(ctx context.Context, subnetIds []string) (string, error) {
+	if len(subnetIds) == 0 {
+		return "", errors.New("no subnets provided")
+	}
+
+	input := &ec2.DescribeSubnetsInput{
+		SubnetIds: subnetIds,
+	}
+
+	resp, err := c.ec2Client.DescribeSubnets(ctx, input)
 	if err != nil {
-		return "", fmt.Errorf("unable to DescribeSubnets: %w", err)
+		return "", fmt.Errorf("failed to describe subnets: %w", err)
 	}
 
-	if len(subnets.Subnets) == 0 {
-		return "", fmt.Errorf("no subnets with tag key: `%s`", tagKey)
+	if len(resp.Subnets) == 0 {
+		return "", fmt.Errorf("no subnets found with ids: %v", subnetIds)
 	}
 
-	vpcId := subnets.Subnets[0].VpcId
-	for _, subnet := range subnets.Subnets {
-		if *subnet.VpcId != *vpcId {
-			return "", fmt.Errorf("subnets found with tag key: `%s` are a part of mulitple VPCs", tagKey)
+	vpcId := *resp.Subnets[0].VpcId
+	for _, s := range resp.Subnets {
+		if *s.VpcId != vpcId {
+			return "", fmt.Errorf("subnets %v are a part of mulitple VPCs", subnetIds)
 		}
 	}
 
-	return *vpcId, nil
+	return vpcId, nil
 }
 
-// GetRosaVpceSubnets returns an AWS response of ROSA cluster subnets that are relevant to the VPC Endpoint.
+// AutodiscoverPrivateSubnets attempts to automatically return a slice of ROSA cluster private subnet ids.
 // A ROSA cluster's subnets are tagged with a tag key in AWS: "kubernetes.io/cluster/<cluster-name>".
-// Private subnets for non-BYOVPC clusters are differentiated by also having the `kubernetes.io/role/internal-elb` tag key.
-func (c *AWSClient) GetRosaVpceSubnets(ctx context.Context, clusterTag string) (*ec2.DescribeSubnetsOutput, error) {
+// Private subnets for non-BYOVPC clusters also have the `kubernetes.io/role/internal-elb` tag key.
+func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag string) ([]types.Subnet, error) {
 	// For non-BYOVPC clusters, resp will contain only the private subnets.
-	// Otherwise, resp will contain no subnets.
 	nonByovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag, privateSubnetTagKey)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(nonByovpc.Subnets) != 0 {
-		return nonByovpc, nil
+		return nonByovpc.Subnets, nil
 	}
 
-	// For BYOVPC clusters (which includes PrivateLink clusters), resp will contain only the private subnets.
-	// Otherwise, resp will contain the cluster's public and private subnets.
+	// For BYOVPC+PrivateLink clusters, resp will contain only the private subnets.
+	// TODO: Make this work for BYOVPC non-PrivateLink clusters
 	byovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(byovpc.Subnets) != 0 {
-		return byovpc, nil
+		return byovpc.Subnets, nil
 	}
 
 	return nil, fmt.Errorf("failed to find subnets with tag key: %s", clusterTag)

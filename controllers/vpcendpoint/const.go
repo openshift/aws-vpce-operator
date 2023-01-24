@@ -20,5 +20,5 @@ const (
 	// avoFinalizer is added to the VpcEndpoint object to prevent its deletion until all AWS resources
 	// have been cleaned up
 	avoFinalizer   = "vpcendpoint.avo.openshift.io/finalizer"
-	controllerName = "vpcendpoint"
+	ControllerName = "VpcEndpoint"
 )

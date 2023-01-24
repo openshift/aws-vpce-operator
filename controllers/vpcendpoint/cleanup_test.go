@@ -21,7 +21,7 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/testr"
-	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
@@ -32,21 +32,21 @@ import (
 func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
 	tests := []struct {
 		name      string
-		resource  *avov1alpha1.VpcEndpoint
+		resource  *avov1alpha2.VpcEndpoint
 		expectErr bool
 	}{
 		{
 			name: "all resources needing cleanup",
-			resource: &avov1alpha1.VpcEndpoint{
+			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock1",
 				},
-				Status: avov1alpha1.VpcEndpointStatus{
+				Status: avov1alpha2.VpcEndpointStatus{
 					SecurityGroupId: aws_client.MockSecurityGroupId,
 					VPCEndpointId:   testutil.MockVpcEndpointId,
 					Conditions: []metav1.Condition{
 						{
-							Type:   avov1alpha1.AWSRoute53RecordCondition,
+							Type:   avov1alpha2.ExternalNameServiceCondition,
 							Status: metav1.ConditionTrue,
 						},
 					},

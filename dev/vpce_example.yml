@@ -1,16 +1,30 @@
 ---
-apiVersion: avo.openshift.io/v1alpha1
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: openshift-aws-vpce-operator
+---
+apiVersion: avo.openshift.io/v1alpha2
 kind: VpcEndpoint
 metadata:
   name: demo
-  namespace: demo
+  namespace: openshift-aws-vpce-operator
 spec:
-  subdomainName: "splunk"
-  serviceName: "com.amazonaws.vpce.us-east-1.vpce-svc-00000000000000000"
+  serviceName: "com.amazonaws.vpce.us-east-2.vpce-svc-0dafc278c1b504df3"
   securityGroup:
     ingressRules:
-      - fromPort: 9997
-        toPort: 9997
+      - fromPort: 6443
+        toPort: 6443
         protocol: tcp
-  externalNameService:
-    name: examplesvcname
+  customDns:
+    route53PrivateHostedZone:
+      autoDiscoverPrivateHostedZone: false
+      domainName: "avo.com"
+      record:
+        hostname: "test"
+        externalNameService:
+          name: "test"
+  vpc:
+    autoDiscoverSubnets: false
+    subnetIds:
+      - "subnet-0f64d2ce8aea72990"

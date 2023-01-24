@@ -24,8 +24,9 @@ import (
 var (
 	vpcePendingAcceptance = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "aws_vpce_operator_vpce_pendingAcceptance",
-			Help: "Count of VPC Endpoints in a pendingAcceptance state, labeled by name and AWS ID",
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_pendingAcceptance_total",
+			Help:      "Count of VPC Endpoints in a pendingAcceptance state, labeled by name, namespace, and AWS ID",
 		},
 		[]string{
 			"name",
@@ -33,8 +34,19 @@ var (
 			"vpce_id",
 		},
 	)
+
+	awsUnauthorizedOperation = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "unauthorized_operation_total",
+			Help:      "Count of UnauthorizedOperation errors when making AWS API calls",
+		},
+		[]string{
+			"action",
+		},
+	)
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation)
 }

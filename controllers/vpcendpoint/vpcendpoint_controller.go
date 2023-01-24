@@ -24,12 +24,13 @@ import (
 
 	"github.com/aws/smithy-go"
 	"github.com/go-logr/logr"
-	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,7 +40,8 @@ import (
 // VpcEndpointReconciler reconciles a VpcEndpoint object
 type VpcEndpointReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 
 	log         logr.Logger
 	awsClient   *aws_client.AWSClient
@@ -51,9 +53,6 @@ type clusterInfo struct {
 	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
 	// e.g. "kubernetes.io/cluster/${infraName}"
 	clusterTag string
-	// domainName is the domain name for the cluster's private hosted zone
-	// e.g. "${clusterName}.abcd.s1.devshift.org"
-	domainName string
 	// infraName is the name shown in the cluster's infrastructures CR
 	// e.g. "${clusterName}-abcd"
 	infraName string
@@ -73,7 +72,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := util.DefaultAVOLogger(controllerName)
+	reqLogger, err := util.DefaultAVOLogger(ControllerName)
 	if err != nil {
 		// Shouldn't happen, but if it does, we can't log
 		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
@@ -81,32 +80,33 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	r.log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
-	if err := r.parseClusterInfo(ctx, true); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	avo := new(avov1alpha1.VpcEndpoint)
-	if err := r.Get(ctx, req.NamespacedName, avo); err != nil {
+	vpce := new(avov1alpha2.VpcEndpoint)
+	if err := r.Get(ctx, req.NamespacedName, vpce); err != nil {
 		// Ignore not-found errors, since they can't be fixed by an immediate
 		// requeue (we'll need to wait for a new notification).
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	if avo.ObjectMeta.DeletionTimestamp.IsZero() {
+	if err := r.parseClusterInfo(ctx, vpce, true); err != nil {
+		awsUnauthorizedOperationMetricHandler(err)
+		return ctrl.Result{}, err
+	}
+
+	if vpce.ObjectMeta.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// registering our finalizer.
-		if !controllerutil.ContainsFinalizer(avo, avoFinalizer) {
-			controllerutil.AddFinalizer(avo, avoFinalizer)
-			if err := r.Update(ctx, avo); err != nil {
+		if !controllerutil.ContainsFinalizer(vpce, avoFinalizer) {
+			controllerutil.AddFinalizer(vpce, avoFinalizer)
+			if err := r.Update(ctx, vpce); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
 	} else {
 		// The object is being deleted
-		if controllerutil.ContainsFinalizer(avo, avoFinalizer) {
+		if controllerutil.ContainsFinalizer(vpce, avoFinalizer) {
 			// our finalizer is present, so lets handle any external dependency
-			if err := r.cleanupAwsResources(ctx, avo); err != nil {
+			if err := r.cleanupAwsResources(ctx, vpce); err != nil {
 				var ae smithy.APIError
 				if errors.As(err, &ae) {
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
@@ -115,6 +115,8 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 						r.log.V(0).Info("AWS dependency violation, requeueing", "error", ae.ErrorMessage())
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
+
+					awsUnauthorizedOperationMetricHandler(err)
 				}
 
 				// Catch other errors and retry
@@ -122,8 +124,8 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			}
 
 			// remove our finalizer from the list and update it.
-			controllerutil.RemoveFinalizer(avo, avoFinalizer)
-			if err := r.Update(ctx, avo); err != nil {
+			controllerutil.RemoveFinalizer(vpce, avoFinalizer)
+			if err := r.Update(ctx, vpce); err != nil {
 				return ctrl.Result{}, err
 			}
 		}
@@ -132,35 +134,25 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, nil
 	}
 
-	if err := r.validateAWSResources(ctx, avo,
-		[]ValidateAWSResourceFunc{
+	if err := r.validateResources(ctx, vpce,
+		[]Validation{
 			r.validateSecurityGroup,
 			r.validateVPCEndpoint,
-			r.validateR53HostedZoneRecord,
+			r.validateCustomDns,
 		}); err != nil {
+		awsUnauthorizedOperationMetricHandler(err)
+
 		return ctrl.Result{}, err
 	}
 
-	// Ensure the ExternalName service is in the right state
-	if err := r.validateExternalNameService(ctx, avo); err != nil {
-		return ctrl.Result{}, err
-	}
-
-	// Validate presence of addtlHostedZoneName
-	if avo.Spec.AddtlHostedZoneName != "" {
-		if err := r.validatePrivateHostedZone(ctx, avo); err != nil {
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Check again in 30 sec
-	return ctrl.Result{RequeueAfter: time.Second * 30}, nil
+	// Check again in fifteen minutes
+	return ctrl.Result{RequeueAfter: time.Minute * 15}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&avov1alpha1.VpcEndpoint{}).
+		For(&avov1alpha2.VpcEndpoint{}).
 		Owns(&corev1.Service{}).
 		WithOptions(controller.Options{
 			RateLimiter: util.DefaultAVORateLimiter(),

@@ -19,47 +19,24 @@ package aws_client
 import (
 	"context"
 	"testing"
-
-	"github.com/openshift/aws-vpce-operator/pkg/testutil"
-	"github.com/stretchr/testify/assert"
 )
-
-func TestAWSClient_GetDefaultPrivateHostedZoneId(t *testing.T) {
-	tests := []struct {
-		domainName string
-		expectErr  bool
-	}{
-		{
-			domainName: testutil.MockDomainName,
-			expectErr:  false,
-		},
-	}
-
-	client := NewMockedAwsClient()
-
-	for _, test := range tests {
-		_, err := client.GetDefaultPrivateHostedZoneId(context.TODO(), test.domainName)
-		if test.expectErr {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-		}
-	}
-}
 
 func TestAWSClient_ListResourceRecordSets(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.ListResourceRecordSets(context.TODO(), MockHostedZoneId)
-	assert.NoError(t, err)
+	if _, err := client.ListResourceRecordSets(context.TODO(), MockHostedZoneId); err != nil {
+		t.Errorf("expected no err, got %s", err)
+	}
 }
 
 func TestAWSClient_UpsertDeleteResourceRecordSet(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.UpsertResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId)
-	assert.NoError(t, err)
+	if _, err := client.UpsertResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId); err != nil {
+		t.Errorf("expected no err, got %s", err)
+	}
 
-	_, err = client.DeleteResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId)
-	assert.NoError(t, err)
+	if _, err := client.DeleteResourceRecordSet(context.TODO(), mockResourceRecordSet, MockHostedZoneId); err != nil {
+		t.Errorf("expected no err, got %s", err)
+	}
 }

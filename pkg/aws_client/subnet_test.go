@@ -40,7 +40,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.clusterTag, func(t *testing.T) {
-			_, err := client.GetRosaVpceSubnets(context.TODO(), test.clusterTag)
+			_, err := client.AutodiscoverPrivateSubnets(context.TODO(), test.clusterTag)
 			if err != nil {
 				if !test.expectErr {
 					t.Errorf("expected no error, got %s", err)

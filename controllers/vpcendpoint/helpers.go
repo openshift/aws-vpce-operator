@@ -18,15 +18,19 @@ package vpcendpoint
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
-	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
+	"github.com/aws/smithy-go"
+
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
-	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -37,24 +41,10 @@ import (
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
 // and gets a new AWS session if refreshAWSSession is true.
 // Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
-func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWSSession bool) error {
+func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov1alpha2.VpcEndpoint, refreshAWSSession bool) error {
 	r.clusterInfo = new(clusterInfo)
 
-	region, err := infrastructures.GetAWSRegion(ctx, r.Client)
-	if err != nil {
-		return err
-	}
-	r.clusterInfo.region = region
-	r.log.V(1).Info("Parsed region from infrastructure", "region", region)
-
-	if refreshAWSSession {
-		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
-		if err != nil {
-			return err
-		}
-		r.awsClient = aws_client.NewAwsClient(cfg)
-	}
-
+	// TODO: For HyperShift, it would be better if the infra name was the hosted cluster's infra name
 	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
 	if err != nil {
 		return err
@@ -69,28 +59,88 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, refreshAWS
 	r.clusterInfo.clusterTag = clusterTag
 	r.log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
 
-	vpcId, err := r.awsClient.GetVPCId(ctx, r.clusterInfo.clusterTag)
-	if err != nil {
-		return err
-	}
-	r.clusterInfo.vpcId = vpcId
-	r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
+	if vpce.Spec.Region != "" {
+		if vpce.Spec.Vpc.AutoDiscoverSubnets {
+			return errors.New(".spec.vpc.autoDiscoverSubnets is not supported with .spec.region")
+		}
 
-	domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
-	if err != nil {
-		return err
+		if vpce.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
+			return errors.New(".spec.customDns.route53PrivateHostedZone.autoDiscover is not supported with .spec.region")
+		}
+
+		r.clusterInfo.region = vpce.Spec.Region
+		r.log.V(1).Info("Using specified region override", "region", vpce.Spec.Region)
+	} else {
+		region, err := infrastructures.GetAWSRegion(ctx, r.Client)
+		if err != nil {
+			return err
+		}
+		r.clusterInfo.region = region
+		r.log.V(1).Info("Parsed region from infrastructure", "region", region)
 	}
-	r.clusterInfo.domainName = domainName
-	r.log.V(1).Info("Found domain name:", "domainName", domainName)
+
+	if refreshAWSSession {
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(r.clusterInfo.region))
+		if err != nil {
+			return err
+		}
+		r.awsClient = aws_client.NewAwsClient(cfg)
+	}
+
+	if vpce.Spec.Vpc.AutoDiscoverSubnets {
+		resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+		if err != nil {
+			return fmt.Errorf("unable to autodiscover subnets: %w", err)
+		}
+
+		subnets := make([]string, len(resp))
+		for i := range resp {
+			subnets[i] = *resp[i].SubnetId
+		}
+
+		vpcId, err := r.awsClient.GetVPCId(ctx, subnets)
+		if err != nil {
+			return err
+		}
+		r.clusterInfo.vpcId = vpcId
+		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
+	} else {
+		vpcId, err := r.awsClient.GetVPCId(ctx, vpce.Spec.Vpc.SubnetIds)
+		if err != nil {
+			return err
+		}
+		r.clusterInfo.vpcId = vpcId
+		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
+	}
+
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
+	}
 
 	return nil
+}
+
+// awsUnauthorizedOperationMetricHandler determines if an error is an AWS UnauthorizedOperation or AccessDenied and
+// increments the aws_vpce_operator_unauthorized_operation_total metric accordingly
+func awsUnauthorizedOperationMetricHandler(err error) {
+	var ae smithy.APIError
+	if errors.As(err, &ae) {
+		if ae.ErrorCode() == "UnauthorizedOperation" || ae.ErrorCode() == "AccessDenied" {
+			var oe *smithy.OperationError
+			if errors.As(err, &oe) {
+				awsUnauthorizedOperation.WithLabelValues(fmt.Sprintf("%s:%s", strings.ToLower(strings.ReplaceAll(oe.Service(), " ", "")), oe.Operation())).Inc()
+			} else {
+				awsUnauthorizedOperation.WithLabelValues("Unknown").Inc()
+			}
+		}
+	}
 }
 
 // findOrCreateSecurityGroup queries AWS and returns the Security Group for the provided CR and updates its status.
 // It first tries to use the Security Group ID that may be in the resource's status and falls back on
 // searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a Security Group,
 // it gets created.
-func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, resource *avov1alpha1.VpcEndpoint) (*ec2Types.SecurityGroup, error) {
+func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, resource *avov1alpha2.VpcEndpoint) (*ec2Types.SecurityGroup, error) {
 	var sg *ec2Types.SecurityGroup
 
 	r.log.V(1).Info("Searching for security group by ID", "id", resource.Status.SecurityGroupId)
@@ -115,22 +165,22 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-
 			createResp, err := r.awsClient.CreateSecurityGroup(ctx, sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, err
 			}
 
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created security group: %s", *createResp.GroupId)
 			r.log.V(0).Info("Created security group", "id", *createResp.GroupId)
 
 			// Unfortunately CreateSecurityGroup doesn't return an *ec2.SecurityGroup so just return an error to
 			// put this back in the work queue after recording the security group id
 			resource.Status.SecurityGroupId = *createResp.GroupId
 			if err := r.Status().Update(ctx, resource); err != nil {
-				return nil, fmt.Errorf("failed to update status")
+				return nil, errors.New("failed to update status")
 			}
 
-			return nil, fmt.Errorf("initial security group creation, reconciling again to configure")
+			return nil, errors.New("initial security group creation, reconciling again to configure")
 		} else {
 			sg = &resp.SecurityGroups[0]
 		}
@@ -139,13 +189,13 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	}
 
 	if sg == nil {
-		return nil, fmt.Errorf("unexpectedly got a nil security group response from AWS")
+		return nil, errors.New("unexpectedly got a nil security group response from AWS")
 	}
 
 	r.log.V(1).Info("Found security group", "id", *resp.SecurityGroups[0].GroupId)
 	resource.Status.SecurityGroupId = *sg.GroupId
 	if err := r.Status().Update(ctx, resource); err != nil {
-		return nil, fmt.Errorf("failed to update status")
+		return nil, errors.New("failed to update status")
 	}
 
 	return sg, nil
@@ -153,7 +203,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 
 // createMissingSecurityGroupTags ensures the expected AWS tags exist on a VpcEndpoint CR's Security Group.
 // It will not delete any extra tags and only create missing ones.
-func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha1.VpcEndpoint) error {
+func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha2.VpcEndpoint) error {
 	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
 	if err != nil {
 		return fmt.Errorf("failed to generate security group name: %v", err)
@@ -177,6 +227,8 @@ func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Conte
 		}); err != nil {
 			return fmt.Errorf("failed to create tags: %w", err)
 		}
+
+		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Updated", "Updated security group tags: %s", *sg.GroupId)
 	}
 
 	return nil
@@ -185,7 +237,7 @@ func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Conte
 // generateMissingSecurityGroupRules ensures that the cluster's worker and master security groups are allowed ingresses
 // to the VPC Endpoint security group as well as and other configured rules from the CR.
 // It will not remove an extra security group rules and only create missing ones.
-func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha1.VpcEndpoint) (
+func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha2.VpcEndpoint) (
 	*ec2.AuthorizeSecurityGroupIngressInput, *ec2.AuthorizeSecurityGroupEgressInput, error) {
 	if sg == nil || resource == nil {
 		return nil, nil, fmt.Errorf("security group and resource must not be nil")
@@ -323,7 +375,7 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 // It first tries to use the VPC Endpoint ID that may be in the resource's status and falls back on
 // searching for the VPC Endpoint by tags in case the status is lost. If it still cannot find a VPC Endpoint,
 // it gets created.
-func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, resource *avov1alpha1.VpcEndpoint) (*ec2Types.VpcEndpoint, error) {
+func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, resource *avov1alpha2.VpcEndpoint) (*ec2Types.VpcEndpoint, error) {
 	var vpce *ec2Types.VpcEndpoint
 
 	r.log.V(1).Info("Searching for VPC Endpoint by ID", "id", resource.Status.VPCEndpointId)
@@ -351,11 +403,12 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 
 			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
-				return nil, fmt.Errorf("failed to create vpc endpoint: %v", err)
+				return nil, fmt.Errorf("failed to create vpc endpoint: %w", err)
 			}
 
 			vpce = creationResp.VpcEndpoint
-			r.log.V(0).Info("Created vpc endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
+			r.log.V(0).Info("Created VPC endpoint:", "vpcEndpoint", *vpce.VpcEndpointId)
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created VPC endpoint: %s", *vpce.VpcEndpointId)
 		} else {
 			vpce = &resp.VpcEndpoints[0]
 		}
@@ -365,7 +418,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	}
 
 	if vpce == nil {
-		return nil, fmt.Errorf("unexpectedly got a nil vpce response from AWS")
+		return nil, errors.New("unexpectedly got a nil vpce response from AWS")
 	}
 
 	resource.Status.VPCEndpointId = *vpce.VpcEndpointId
@@ -378,10 +431,28 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 }
 
 // ensureVpcEndpointSubnets ensures that the subnets attached to the VPC Endpoint are the cluster's private subnets
-func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint) error {
-	subnetsToAdd, subnetsToRemove, err := r.diffVpcEndpointSubnets(ctx, vpce)
-	if err != nil {
-		return err
+func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
+	var (
+		subnetsToAdd, subnetsToRemove []string
+	)
+
+	if resource.Spec.Vpc.AutoDiscoverSubnets {
+		if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
+			return fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
+		}
+
+		subnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+		if err != nil {
+			return err
+		}
+
+		privateSubnetIds := make([]string, len(subnets))
+		for i := range subnets {
+			privateSubnetIds[i] = *subnets[i].SubnetId
+		}
+		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
+	} else {
+		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, resource.Spec.Vpc.SubnetIds)
 	}
 
 	// Removing subnets first before adding to avoid
@@ -392,7 +463,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			RemoveSubnetIds: subnetsToRemove,
 			VpcEndpointId:   vpce.VpcEndpointId,
 		}); err != nil {
-			return err
+			return fmt.Errorf("failed to remove subnets: %v with error: %w", subnetsToRemove, err)
 		}
 	}
 
@@ -402,38 +473,16 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			AddSubnetIds:  subnetsToAdd,
 			VpcEndpointId: vpce.VpcEndpointId,
 		}); err != nil {
-			return err
+			return fmt.Errorf("failed to add subnets: %v with error: %w", subnetsToAdd, err)
 		}
 	}
 
 	return nil
 }
 
-// diffVpcEndpointSubnets searches for the cluster's private subnets and compares them to the subnets associated with
-// the VPC Endpoint, returning subnets that need to be added to the VPC Endpoint and subnets that need to be removed
-// from the VPC Endpoint.
-func (r *VpcEndpointReconciler) diffVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint) ([]string, []string, error) {
-	if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
-		return nil, nil, fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
-	}
-
-	subnetsResp, err := r.awsClient.GetRosaVpceSubnets(ctx, r.clusterInfo.clusterTag)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	privateSubnetIds := make([]string, len(subnetsResp.Subnets))
-	for i := range subnetsResp.Subnets {
-		privateSubnetIds[i] = *subnetsResp.Subnets[i].SubnetId
-	}
-
-	subnetsToAdd, subnetsToRemove := util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
-	return subnetsToAdd, subnetsToRemove, nil
-}
-
 // ensureVpcEndpointSecurityGroups ensures that the security group associated with the VPC Endpoint
 // is only the expected one.
-func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha1.VpcEndpoint) error {
+func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
 	sgToAdd, sgToRemove, err := r.diffVpcEndpointSecurityGroups(vpce, resource)
 	if err != nil {
 		return err
@@ -465,7 +514,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Cont
 // diffVpcEndpointSecurityGroups compares the security groups associated with the VPC Endpoint with
 // the security group ID recorded in the resource's status, returning security groups that need to be added
 // and security groups that need to be removed from the VPC Endpoint.
-func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.VpcEndpoint, resource *avov1alpha1.VpcEndpoint) ([]string, []string, error) {
+func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) ([]string, []string, error) {
 	vpceSgIds := make([]string, len(vpce.Groups))
 	for i := range vpce.Groups {
 		vpceSgIds[i] = *vpce.Groups[i].GroupId
@@ -479,8 +528,57 @@ func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.Vpc
 	return sgToAdd, sgToRemove, nil
 }
 
+// findOrCreatePrivateHostedZone ensures the existence of a Route53 Private Hosted Zone given a custom domain name
+func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	if resource == nil {
+		// Should never happen
+		return errors.New("resource must be specified")
+	}
+
+	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+		r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", r.clusterInfo.vpcId, "region", r.clusterInfo.region)
+		// TODO: Unlikely, but would be nice to handle pagination
+		resp, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.vpcId, r.clusterInfo.region)
+		if err != nil {
+			return err
+		}
+
+		if len(resp.HostedZoneSummaries) == 0 {
+			return fmt.Errorf("no hosted zone found associated to VPC: %s in region: %s", r.clusterInfo.vpcId, r.clusterInfo.region)
+		}
+
+		for _, hz := range resp.HostedZoneSummaries {
+			if strings.TrimRight(*hz.Name, ".") == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
+				if resource.Status.HostedZoneId != *hz.HostedZoneId {
+					resource.Status.HostedZoneId = *hz.HostedZoneId
+					if err := r.Status().Update(ctx, resource); err != nil {
+						r.log.V(0).Error(err, "failed to update status")
+						return err
+					}
+				}
+
+				return nil
+			}
+		}
+
+		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+		if err != nil {
+			return fmt.Errorf("failed to create hosted zone: %w", err)
+		}
+		r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", *createResp.HostedZone.Id)
+		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", *createResp.HostedZone.Id)
+
+		resource.Status.HostedZoneId = *createResp.HostedZone.Id
+		if err := r.Status().Update(ctx, resource); err != nil {
+			return fmt.Errorf("failed to update status: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // generateRoute53Record generates the expected Route53 Record for a provided VpcEndpoint CR
-func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resource *avov1alpha1.VpcEndpoint) (*route53Types.ResourceRecord, error) {
+func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resource *avov1alpha2.VpcEndpoint) (*route53Types.ResourceRecord, error) {
 	if resource.Status.VPCEndpointId == "" {
 		return nil, fmt.Errorf("VPCEndpointID status is missing")
 	}
@@ -510,28 +608,20 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 }
 
 // generateExternalNameService generates the expected ExternalName service for a VpcEndpoint CustomResource
-func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha1.VpcEndpoint) (*corev1.Service, error) {
-	if resource == nil {
-		// Should never happen
-		return nil, fmt.Errorf("resource must be specified")
-	}
-
-	if resource.Spec.SubdomainName == "" {
-		return nil, fmt.Errorf("subdomainName is a required field")
-	}
-
-	if r.clusterInfo.domainName == "" {
-		return nil, fmt.Errorf("empty domainName")
+func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha2.VpcEndpoint) (*corev1.Service, error) {
+	if resource.Status.ResourceRecordSet == "" {
+		// Should only happen when a Route53 Hosted Zone Record has not been created yet
+		return nil, fmt.Errorf("cannot generate ExternalName service for %s/%s: .status.resourceRecordSet is empty", resource.Namespace, resource.Name)
 	}
 
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      resource.Spec.ExternalNameService.Name,
+			Name:      resource.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name,
 			Namespace: resource.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Type:         corev1.ServiceTypeExternalName,
-			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.SubdomainName, r.clusterInfo.domainName),
+			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, resource.Status.ResourceRecordSet),
 		},
 	}
 
@@ -561,14 +651,15 @@ func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {
 }
 
 // createMissingPrivateZoneTags will compare existing tags to the required set and apply if missing
-func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, zoneID string) error {
+func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, id string) error {
 	// Find existing tags
-	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, zoneID)
+	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to list zone's tags %w", err)
 	}
+
 	// Generate default tags to compare against
-	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(zoneID, r.clusterInfo.clusterTag)
+	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(id, r.clusterInfo.clusterTag)
 	if err != nil {
 		return fmt.Errorf("failed to generate hosted zone's default tags %w", err)
 	}
@@ -585,7 +676,6 @@ func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context
 				return fmt.Errorf("failed tag hosted zone with default tags %w", err)
 			}
 		}
-
 	}
 
 	return nil
