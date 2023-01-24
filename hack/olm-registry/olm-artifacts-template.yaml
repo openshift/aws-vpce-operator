@@ -62,47 +62,34 @@ objects:
           - effect: Allow
             resource: '*'
             action:
-            # Extract vpc-id by searching for subnets by tag-key
+            # VPCEndpoint
+            - ec2:CreateTags
+            - ec2:DeleteTags
+            - ec2:DescribeTags
             - ec2:DescribeSubnets
-            # Create and manage security group in specific VPC
             - ec2:CreateSecurityGroup
             - ec2:DeleteSecurityGroup
             - ec2:DescribeSecurityGroups
-            # Create and manage security group rules
             - ec2:AuthorizeSecurityGroupIngress
             - ec2:AuthorizeSecurityGroupEgress
             - ec2:DescribeSecurityGroupRules
-            # Create and manage a VPC endpoint
+            - ec2:DescribeVpcs
             - ec2:CreateVpcEndpoint
             - ec2:DeleteVpcEndpoints
             - ec2:DescribeVpcEndpoints
             - ec2:ModifyVpcEndpoint
-            # Create and manage a Route53 Record
             - route53:ChangeResourceRecordSets
-            - route53:ListHostedZonesByName
+            - route53:ListHostedZonesByVPC
             - route53:ListResourceRecordSets
-            # Manage tags and filter based on tags
-            - ec2:CreateTags
-            - ec2:DeleteTags
-            - ec2:DescribeTags
+            - route53:ListTagsForResource
+            - route53:GetHostedZone
+            - route53:CreateHostedZone
+            - route53:DeleteHostedZone
+            - route53:ChangeTagsForResource
             # VPCEndpointAcceptance
             - sts:AssumeRole
             - ec2:DescribeVpcEndpointConnections
             - ec2:AcceptVpcEndpointConnections
-    - kind: RoleBinding
-      apiVersion: rbac.authorization.k8s.io/v1
-      metadata:
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      subjects:
-      - kind: ServiceAccount
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      roleRef:
-        kind: Role
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-        apiGroup: rbac.authorization.k8s.io
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
@@ -197,47 +184,34 @@ objects:
           - effect: Allow
             resource: '*'
             action:
-            # Extract vpc-id by searching for subnets by tag-key
-            - ec2:DescribeSubnets
-            # Create and manage security group in specific VPC
-            - ec2:CreateSecurityGroup
-            - ec2:DeleteSecurityGroup
-            - ec2:DescribeSecurityGroups
-            # Create and manage security group rules
-            - ec2:AuthorizeSecurityGroupIngress
-            - ec2:AuthorizeSecurityGroupEgress
-            - ec2:DescribeSecurityGroupRules
-            # Create and manage a VPC endpoint
-            - ec2:CreateVpcEndpoint
-            - ec2:DeleteVpcEndpoints
-            - ec2:DescribeVpcEndpoints
-            - ec2:ModifyVpcEndpoint
-            # Create and manage a Route53 Record
-            - route53:ChangeResourceRecordSets
-            - route53:ListHostedZonesByName
-            - route53:ListResourceRecordSets
-            # Manage tags and filter based on tags
-            - ec2:CreateTags
-            - ec2:DeleteTags
-            - ec2:DescribeTags
-            # VPCEndpointAcceptance
-            - sts:AssumeRole
-            - ec2:DescribeVpcEndpointConnections
-            - ec2:AcceptVpcEndpointConnections
-    - kind: RoleBinding
-      apiVersion: rbac.authorization.k8s.io/v1
-      metadata:
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      subjects:
-      - kind: ServiceAccount
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      roleRef:
-        kind: Role
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-        apiGroup: rbac.authorization.k8s.io
+              # VPCEndpoint
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DescribeTags
+              - ec2:DescribeSubnets
+              - ec2:CreateSecurityGroup
+              - ec2:DeleteSecurityGroup
+              - ec2:DescribeSecurityGroups
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:AuthorizeSecurityGroupEgress
+              - ec2:DescribeSecurityGroupRules
+              - ec2:DescribeVpcs
+              - ec2:CreateVpcEndpoint
+              - ec2:DeleteVpcEndpoints
+              - ec2:DescribeVpcEndpoints
+              - ec2:ModifyVpcEndpoint
+              - route53:ChangeResourceRecordSets
+              - route53:ListHostedZonesByVPC
+              - route53:ListResourceRecordSets
+              - route53:ListTagsForResource
+              - route53:GetHostedZone
+              - route53:CreateHostedZone
+              - route53:DeleteHostedZone
+              - route53:ChangeTagsForResource
+              # VPCEndpointAcceptance
+              - sts:AssumeRole
+              - ec2:DescribeVpcEndpointConnections
+              - ec2:AcceptVpcEndpointConnections
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
@@ -332,47 +306,34 @@ objects:
           - effect: Allow
             resource: '*'
             action:
-            # Extract vpc-id by searching for subnets by tag-key
-            - ec2:DescribeSubnets
-            # Create and manage security group in specific VPC
-            - ec2:CreateSecurityGroup
-            - ec2:DeleteSecurityGroup
-            - ec2:DescribeSecurityGroups
-            # Create and manage security group rules
-            - ec2:AuthorizeSecurityGroupIngress
-            - ec2:AuthorizeSecurityGroupEgress
-            - ec2:DescribeSecurityGroupRules
-            # Create and manage a VPC endpoint
-            - ec2:CreateVpcEndpoint
-            - ec2:DeleteVpcEndpoints
-            - ec2:DescribeVpcEndpoints
-            - ec2:ModifyVpcEndpoint
-            # Create and manage a Route53 Record
-            - route53:ChangeResourceRecordSets
-            - route53:ListHostedZonesByName
-            - route53:ListResourceRecordSets
-            # Manage tags and filter based on tags
-            - ec2:CreateTags
-            - ec2:DeleteTags
-            - ec2:DescribeTags
-            # VPCEndpointAcceptance
-            - sts:AssumeRole
-            - ec2:DescribeVpcEndpointConnections
-            - ec2:AcceptVpcEndpointConnections
-    - kind: RoleBinding
-      apiVersion: rbac.authorization.k8s.io/v1
-      metadata:
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      subjects:
-      - kind: ServiceAccount
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-      roleRef:
-        kind: Role
-        name: aws-vpce-operator
-        namespace: openshift-${REPO_NAME}
-        apiGroup: rbac.authorization.k8s.io
+              # VPCEndpoint
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DescribeTags
+              - ec2:DescribeSubnets
+              - ec2:CreateSecurityGroup
+              - ec2:DeleteSecurityGroup
+              - ec2:DescribeSecurityGroups
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:AuthorizeSecurityGroupEgress
+              - ec2:DescribeSecurityGroupRules
+              - ec2:DescribeVpcs
+              - ec2:CreateVpcEndpoint
+              - ec2:DeleteVpcEndpoints
+              - ec2:DescribeVpcEndpoints
+              - ec2:ModifyVpcEndpoint
+              - route53:ChangeResourceRecordSets
+              - route53:ListHostedZonesByVPC
+              - route53:ListResourceRecordSets
+              - route53:ListTagsForResource
+              - route53:GetHostedZone
+              - route53:CreateHostedZone
+              - route53:DeleteHostedZone
+              - route53:ChangeTagsForResource
+              # VPCEndpointAcceptance
+              - sts:AssumeRole
+              - ec2:DescribeVpcEndpointConnections
+              - ec2:AcceptVpcEndpointConnections
     - apiVersion: operators.coreos.com/v1alpha1
       kind: CatalogSource
       metadata:
