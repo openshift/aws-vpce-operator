@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -121,7 +122,19 @@ func (c *AWSClient) CreateSecurityGroup(ctx context.Context, name, vpcId, tagKey
 		},
 		VpcId: &vpcId,
 	}
-	return c.ec2Client.CreateSecurityGroup(ctx, input)
+
+	sg, err := c.ec2Client.CreateSecurityGroup(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wait up to one minute for the security group to be created.
+	waiter := ec2.NewSecurityGroupExistsWaiter(c.ec2Client)
+	if err := waiter.Wait(ctx, &ec2.DescribeSecurityGroupsInput{GroupIds: []string{*sg.GroupId}}, 1*time.Minute); err != nil {
+		return nil, err
+	}
+
+	return sg, nil
 }
 
 // DeleteSecurityGroup deletes a security group with the specified ID
@@ -129,5 +142,19 @@ func (c *AWSClient) DeleteSecurityGroup(ctx context.Context, groupId string) (*e
 	input := &ec2.DeleteSecurityGroupInput{
 		GroupId: aws.String(groupId),
 	}
-	return c.ec2Client.DeleteSecurityGroup(ctx, input)
+
+	resp, err := c.ec2Client.DeleteSecurityGroup(ctx, input)
+	if err != nil {
+		var ae smithy.APIError
+		if errors.As(err, &ae) {
+			// For some reason, if the security group is no longer found, then it's ok to continue
+			if ae.ErrorCode() == "InvalidGroup.NotFound" {
+				return resp, nil
+			}
+		}
+
+		return resp, err
+	}
+
+	return resp, nil
 }
