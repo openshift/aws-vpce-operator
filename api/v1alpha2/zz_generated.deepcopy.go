@@ -6,7 +6,8 @@
 package v1alpha2
 
 import (
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 )
 
@@ -196,6 +197,11 @@ func (in *VpcEndpointList) DeepCopyObject() runtime.Object {
 func (in *VpcEndpointSpec) DeepCopyInto(out *VpcEndpointSpec) {
 	*out = *in
 	in.SecurityGroup.DeepCopyInto(&out.SecurityGroup)
+	if in.AWSCredentialOverrideRef != nil {
+		in, out := &in.AWSCredentialOverrideRef, &out.AWSCredentialOverrideRef
+		*out = new(v1.SecretReference)
+		**out = **in
+	}
 	in.Vpc.DeepCopyInto(&out.Vpc)
 	out.CustomDns = in.CustomDns
 }
@@ -215,7 +221,7 @@ func (in *VpcEndpointStatus) DeepCopyInto(out *VpcEndpointStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]v1.Condition, len(*in))
+		*out = make([]metav1.Condition, len(*in))
 		for i := range *in {
 			(*in)[i].DeepCopyInto(&(*out)[i])
 		}

@@ -32,6 +32,7 @@ import (
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
+	"github.com/openshift/aws-vpce-operator/pkg/secrets"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -79,12 +80,22 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		r.log.V(1).Info("Parsed region from infrastructure", "region", region)
 	}
 
-	if refreshAWSSession {
-		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(r.clusterInfo.region))
+	if vpce.Spec.AWSCredentialOverrideRef != nil {
+		// Use the provided override credentials for this specific vpcendpoint
+		cfg, err := secrets.ParseAWSCredentialOverride(ctx, r.Client, r.clusterInfo.region, vpce.Spec.AWSCredentialOverrideRef)
 		if err != nil {
 			return err
 		}
 		r.awsClient = aws_client.NewAwsClient(cfg)
+	} else {
+		// Load the default AWS credentials that are available to the controller
+		if refreshAWSSession {
+			cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(r.clusterInfo.region))
+			if err != nil {
+				return err
+			}
+			r.awsClient = aws_client.NewAwsClient(cfg)
+		}
 	}
 
 	if vpce.Spec.Vpc.AutoDiscoverSubnets {
@@ -115,6 +126,10 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
 		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
+	}
+
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name != "" {
+		return errors.New("cannot create an ExternalName service without a Route53 Hosted Zone record")
 	}
 
 	return nil

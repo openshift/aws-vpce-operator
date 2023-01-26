@@ -256,6 +256,21 @@ spec:
                 description: 'AssumeRoleArn will allow AVO to use sts:AssumeRole to
                   create VPC Endpoints in separate AWS Accounts TODO: Implement'
                 type: string
+              awsCredentialOverrideRef:
+                description: AWSCredentialOverride is a Kubernetes secret containing
+                  AWS credentials for the operator to use for reconciling this specific
+                  vpcendpoint Custom Resource
+                properties:
+                  name:
+                    description: name is unique within a namespace to reference a
+                      secret resource.
+                    type: string
+                  namespace:
+                    description: namespace defines the space within which the secret
+                      name must be unique.
+                    type: string
+                type: object
+                x-kubernetes-map-type: atomic
               customDns:
                 description: CustomDns will define configurations for all other custom
                   DNS setups, such as a separate Route 53 Private Hosted Zone or an
@@ -270,8 +285,8 @@ spec:
                           Route 53 Private Hosted Zone
                         type: boolean
                       domainName:
-                        description: 'DomainName specifies the domain name of a Route
-                          53 Private Hosted Zone to create TODO: Implement'
+                        description: DomainName specifies the domain name of a Route
+                          53 Private Hosted Zone to create
                         type: string
                       id:
                         description: Id specifies the AWS ID of an existing Route

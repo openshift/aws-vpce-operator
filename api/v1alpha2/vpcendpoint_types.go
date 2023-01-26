@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha2
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -86,7 +87,6 @@ type Route53PrivateHostedZone struct {
 	AutoDiscover bool `json:"autoDiscoverPrivateHostedZone,omitempty"`
 
 	// DomainName specifies the domain name of a Route 53 Private Hosted Zone to create
-	// TODO: Implement
 	DomainName string `json:"domainName,omitempty"`
 
 	// Id specifies the AWS ID of an existing Route 53 Private Hosted Zone to use
@@ -115,6 +115,12 @@ type VpcEndpointSpec struct {
 	// AssumeRoleArn will allow AVO to use sts:AssumeRole to create VPC Endpoints in separate AWS Accounts
 	// TODO: Implement
 	AssumeRoleArn string `json:"assumeRoleArn,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
+	// AWSCredentialOverride is a Kubernetes secret containing AWS credentials for the operator to use for reconciling
+	// this specific vpcendpoint Custom Resource
+	AWSCredentialOverrideRef *corev1.SecretReference `json:"awsCredentialOverrideRef,omitempty"`
 
 	// +kubebuilder:validation:Optional
 
