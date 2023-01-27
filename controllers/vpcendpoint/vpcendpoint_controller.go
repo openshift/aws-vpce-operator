@@ -40,8 +40,9 @@ import (
 // VpcEndpointReconciler reconciles a VpcEndpoint object
 type VpcEndpointReconciler struct {
 	client.Client
-	Scheme   *runtime.Scheme
-	Recorder record.EventRecorder
+	APIReader client.Reader
+	Scheme    *runtime.Scheme
+	Recorder  record.EventRecorder
 
 	log         logr.Logger
 	awsClient   *aws_client.AWSClient
@@ -151,6 +152,8 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpcEndpointReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.APIReader = mgr.GetAPIReader()
+
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avov1alpha2.VpcEndpoint{}).
 		Owns(&corev1.Service{}).

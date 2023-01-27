@@ -37,12 +37,14 @@ const (
 
 // ParseAWSCredentialOverride takes in an AWS region and a secret reference and attempts to assemble an aws.Config
 // Currently only supports parsing AWS IAM User credentials
-func ParseAWSCredentialOverride(ctx context.Context, c client.Client, region string, ref *corev1.SecretReference) (aws.Config, error) {
+func ParseAWSCredentialOverride(ctx context.Context, c client.Reader, region string, ref *corev1.SecretReference) (aws.Config, error) {
 	if ref == nil {
 		return aws.Config{}, errors.New("AWS Credential Override secret reference must not be nil")
 	}
 
 	secret := new(corev1.Secret)
+	// We use an APIReader instead of reading from the cache here so that the controller can minimize
+	// the K8s RBAC needed to only get secrets where desired
 	if err := c.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, secret); err != nil {
 		return aws.Config{}, err
 	}
