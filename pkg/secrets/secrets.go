@@ -18,7 +18,6 @@ package secrets
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -49,18 +48,8 @@ func ParseAWSCredentialOverride(ctx context.Context, c client.Reader, region str
 		return aws.Config{}, err
 	}
 
-	if b64AccessKeyId, ok := secret.Data[defaultAWSAccessKeyId]; ok {
-		if b64SecretAccessKey, ok := secret.Data[defaultAWSSecretAccessKey]; ok {
-			accessKeyId, err := base64.StdEncoding.DecodeString(string(b64AccessKeyId))
-			if err != nil {
-				return aws.Config{}, err
-			}
-
-			secretAccessKey, err := base64.StdEncoding.DecodeString(string(b64SecretAccessKey))
-			if err != nil {
-				return aws.Config{}, err
-			}
-
+	if accessKeyId, ok := secret.Data[defaultAWSAccessKeyId]; ok {
+		if secretAccessKey, ok := secret.Data[defaultAWSSecretAccessKey]; ok {
 			return config.LoadDefaultConfig(ctx,
 				config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(string(accessKeyId), string(secretAccessKey), "")),
 				config.WithRegion(region),
