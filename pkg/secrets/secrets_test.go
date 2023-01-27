@@ -18,7 +18,6 @@ package secrets
 
 import (
 	"context"
-	"encoding/base64"
 	"testing"
 
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
@@ -32,7 +31,6 @@ const (
 )
 
 func TestParseAWSCredentialOverride(t *testing.T) {
-
 	tests := []struct {
 		secret    *corev1.Secret
 		expectErr bool
@@ -44,8 +42,8 @@ func TestParseAWSCredentialOverride(t *testing.T) {
 					Namespace: "override-ns",
 				},
 				Data: map[string][]byte{
-					defaultAWSAccessKeyId:     []byte(base64.StdEncoding.EncodeToString([]byte(mockAWSAccessKeyId))),
-					defaultAWSSecretAccessKey: []byte(base64.StdEncoding.EncodeToString([]byte(mockAWSSecretAccessKey))),
+					defaultAWSAccessKeyId:     []byte(mockAWSAccessKeyId),
+					defaultAWSSecretAccessKey: []byte(mockAWSSecretAccessKey),
 				},
 			},
 			expectErr: false,
