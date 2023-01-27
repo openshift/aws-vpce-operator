@@ -82,7 +82,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 	if vpce.Spec.AWSCredentialOverrideRef != nil {
 		// Use the provided override credentials for this specific vpcendpoint
-		cfg, err := secrets.ParseAWSCredentialOverride(ctx, r.Client, r.clusterInfo.region, vpce.Spec.AWSCredentialOverrideRef)
+		cfg, err := secrets.ParseAWSCredentialOverride(ctx, r.APIReader, r.clusterInfo.region, vpce.Spec.AWSCredentialOverrideRef)
 		if err != nil {
 			return err
 		}
