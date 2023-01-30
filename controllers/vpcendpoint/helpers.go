@@ -558,11 +558,8 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 			return err
 		}
 
-		if len(resp.HostedZoneSummaries) == 0 {
-			return fmt.Errorf("no hosted zone found associated to VPC: %s in region: %s", r.clusterInfo.vpcId, r.clusterInfo.region)
-		}
-
 		for _, hz := range resp.HostedZoneSummaries {
+			// If we find a matching hosted zone, update status
 			if strings.TrimRight(*hz.Name, ".") == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
 				if resource.Status.HostedZoneId != *hz.HostedZoneId {
 					resource.Status.HostedZoneId = *hz.HostedZoneId
@@ -576,6 +573,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 			}
 		}
 
+		// Otherwise, create one
 		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
 		if err != nil {
 			return fmt.Errorf("failed to create hosted zone: %w", err)
