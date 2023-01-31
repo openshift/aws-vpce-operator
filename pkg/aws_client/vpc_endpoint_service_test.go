@@ -19,7 +19,62 @@ package aws_client
 import (
 	"context"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
+
+func TestAWSClient_GetVpcEndpointServiceAZs(t *testing.T) {
+	tests := []struct {
+		name        string
+		serviceName string
+		resp        *ec2.DescribeVpcEndpointServicesOutput
+		expectErr   bool
+	}{
+		{
+			name:      "serviceName not specified",
+			expectErr: true,
+		},
+		{
+			name:        "service not found",
+			serviceName: "mock",
+			resp: &ec2.DescribeVpcEndpointServicesOutput{
+				ServiceDetails: []types.ServiceDetail{},
+			},
+			expectErr: true,
+		},
+		{
+			name:        "service found",
+			serviceName: "mock",
+			resp: &ec2.DescribeVpcEndpointServicesOutput{
+				ServiceDetails: []types.ServiceDetail{
+					{
+						AvailabilityZones: []string{"us-east-1a"},
+						ServiceName:       aws.String("mock"),
+					},
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := AWSClient{ec2Client: mockAvoEC2API{describeVpcEndpointServicesResp: test.resp}}
+			_, err := client.GetVpcEndpointServiceAZs(context.TODO(), test.serviceName)
+			if err != nil {
+				if !test.expectErr {
+					t.Errorf("expected no err, got %v", err)
+				}
+			} else {
+				if test.expectErr {
+					t.Error("expected err, got nil")
+				}
+			}
+		})
+	}
+}
 
 func TestVpcEndpointAcceptanceAWSClient_AcceptVpcEndpointConnections(t *testing.T) {
 	tests := []struct {

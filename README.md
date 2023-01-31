@@ -41,8 +41,6 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
           "Effect": "Allow",
           "Action": [
             "ec2:CreateTags",
-            "ec2:DeleteTags",
-            "ec2:DescribeTags",
             "ec2:DescribeSubnets",
             "ec2:CreateSecurityGroup",
             "ec2:DeleteSecurityGroup",
@@ -55,6 +53,7 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
             "ec2:DeleteVpcEndpoints",
             "ec2:DescribeVpcEndpoints",
             "ec2:ModifyVpcEndpoint",
+            "ec2:DescribeVpcEndpointServices",
             "route53:ChangeResourceRecordSets",
             "route53:ListHostedZonesByVPC",
             "route53:ListResourceRecordSets",
