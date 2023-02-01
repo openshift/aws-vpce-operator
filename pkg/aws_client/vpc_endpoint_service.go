@@ -18,11 +18,35 @@ package aws_client
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 )
+
+// GetVpcEndpointServiceAZs returns a slice of strings indicating which AZs the specified VPC Endpoint Service supports
+func (c *AWSClient) GetVpcEndpointServiceAZs(ctx context.Context, serviceName string) ([]string, error) {
+	if serviceName == "" {
+		return nil, errors.New("GetVpcEndpointServiceAZs: serviceName must be specified")
+	}
+
+	input := &ec2.DescribeVpcEndpointServicesInput{
+		ServiceNames: []string{serviceName},
+	}
+
+	resp, err := c.ec2Client.DescribeVpcEndpointServices(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.ServiceDetails) != 1 {
+		return nil, fmt.Errorf("expected one VPC Endpoint Service with name %s, got %d", serviceName, len(resp.ServiceDetails))
+	}
+
+	return resp.ServiceDetails[0].AvailabilityZones, nil
+}
 
 // GetVpcEndpointConnectionsPendingAcceptance returns information about a VPC endpoint with a given id.
 func (c *VpcEndpointAcceptanceAWSClient) GetVpcEndpointConnectionsPendingAcceptance(ctx context.Context, id string) (*ec2.DescribeVpcEndpointConnectionsOutput, error) {

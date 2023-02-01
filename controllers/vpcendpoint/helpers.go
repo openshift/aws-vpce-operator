@@ -445,7 +445,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	return vpce, nil
 }
 
-// ensureVpcEndpointSubnets ensures that the subnets attached to the VPC Endpoint are the cluster's private subnets
+// ensureVpcEndpointSubnets ensures that the subnets attached to the VPC Endpoint are the expected subnet ids
 func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
 	var (
 		subnetsToAdd, subnetsToRemove []string
@@ -456,17 +456,31 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			return fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
 		}
 
-		subnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+		privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
 		if err != nil {
 			return err
 		}
 
-		privateSubnetIds := make([]string, len(subnets))
-		for i := range subnets {
-			privateSubnetIds[i] = *subnets[i].SubnetId
+		// When auto-discovering the cluster's private subnet ids, only subnets supported by the VPC Endpoint
+		// Service should be attached
+		allowedAZs, err := r.awsClient.GetVpcEndpointServiceAZs(ctx, resource.Spec.ServiceName)
+		if err != nil {
+			return err
 		}
-		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, privateSubnetIds)
+
+		var expectedSubnetIds []string
+		for _, subnet := range privateSubnets {
+			for _, az := range allowedAZs {
+				if *subnet.AvailabilityZone == az {
+					expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+					break
+				}
+			}
+		}
+
+		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, expectedSubnetIds)
 	} else {
+		// When subnet ids are specified, use exactly those subnets
 		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, resource.Spec.Vpc.SubnetIds)
 	}
 

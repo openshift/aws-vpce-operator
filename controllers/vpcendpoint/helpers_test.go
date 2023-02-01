@@ -368,6 +368,50 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 	}
 }
 
+func TestVpcEndpointReconciler_ensureVpcEndpointSubnets(t *testing.T) {
+	tests := []struct {
+		name      string
+		vpce      *ec2Types.VpcEndpoint
+		resource  *avov1alpha2.VpcEndpoint
+		expectErr bool
+	}{
+		{
+			name: "nothing to do",
+			vpce: &ec2Types.VpcEndpoint{
+				SubnetIds: nil,
+			},
+			resource: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					Vpc: avov1alpha2.Vpc{
+						AutoDiscoverSubnets: false,
+						SubnetIds:           nil,
+					},
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := VpcEndpointReconciler{
+				log: testr.New(t),
+			}
+
+			err := r.ensureVpcEndpointSubnets(context.TODO(), test.vpce, test.resource)
+			if err != nil {
+				if !test.expectErr {
+					t.Errorf("expected no err, got %v", err)
+				}
+			} else {
+				if test.expectErr {
+					t.Error("expected err, got nil")
+				}
+			}
+		})
+	}
+}
+
 func TestVpcEndpointReconciler_diffVpcEndpointSecurityGroups(t *testing.T) {
 	tests := []struct {
 		name                string
