@@ -460,6 +460,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 		if err != nil {
 			return err
 		}
+		r.log.V(1).Info("Discovered private subnet(s):", "subnets", privateSubnets)
 
 		// When auto-discovering the cluster's private subnet ids, only subnets supported by the VPC Endpoint
 		// Service should be attached
@@ -478,6 +479,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			}
 		}
 
+		r.log.V(1).Info("Private subnet(s) in availability zones supported by the VPC Endpoint Service:", "subnets", expectedSubnetIds, "serviceName", resource.Spec.ServiceName)
 		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, expectedSubnetIds)
 	} else {
 		// When subnet ids are specified, use exactly those subnets
