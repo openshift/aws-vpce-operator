@@ -48,7 +48,6 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
             "ec2:AuthorizeSecurityGroupIngress",
             "ec2:AuthorizeSecurityGroupEgress",
             "ec2:DescribeSecurityGroupRules",
-            "ec2:DescribeVpcs",
             "ec2:CreateVpcEndpoint",
             "ec2:DeleteVpcEndpoints",
             "ec2:DescribeVpcEndpoints",
