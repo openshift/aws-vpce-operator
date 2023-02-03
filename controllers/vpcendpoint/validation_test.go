@@ -31,6 +31,91 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+func TestValidateVpcEndpointCR(t *testing.T) {
+	tests := []struct {
+		name      string
+		vpce      *avov1alpha2.VpcEndpoint
+		expectErr bool
+	}{
+		{
+			name: "Override region + Autodiscovery",
+			vpce: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					Region: "us-east-1",
+					Vpc: avov1alpha2.Vpc{
+						AutoDiscoverSubnets: true,
+					},
+					CustomDns: avov1alpha2.CustomDns{
+						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+							AutoDiscover: true,
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "VPC Load Balancing + Subnet IDs",
+			vpce: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					Vpc: avov1alpha2.Vpc{
+						AutoDiscoverSubnets: true,
+						SubnetIds:           []string{"subnet-a", "subnet-b", "subnet-c"},
+						Ids:                 []string{"vpc-a", "vpc-b", "vpc-c"},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "Specifying Route53 HZ ID + Route53 HZ Domain Name",
+			vpce: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					CustomDns: avov1alpha2.CustomDns{
+						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+							DomainName: "example.com",
+							Id:         "ABCDEFG",
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
+			name: "Valid example 1",
+			vpce: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					Vpc: avov1alpha2.Vpc{
+						AutoDiscoverSubnets: true,
+						Ids:                 []string{"vpc-a", "vpc-b", "vpc-c"},
+					},
+					CustomDns: avov1alpha2.CustomDns{
+						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+							Id: "ABCDEFG",
+						},
+					},
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := validateVpcEndpointCR(test.vpce)
+			if err != nil {
+				if !test.expectErr {
+					t.Errorf("expected no error, got %v", err)
+				}
+			} else {
+				if test.expectErr {
+					t.Error("expected error, got nil")
+				}
+			}
+		})
+	}
+}
+
 func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
 	tests := []struct {
 		name      string

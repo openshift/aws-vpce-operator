@@ -43,6 +43,10 @@ import (
 // and gets a new AWS session if refreshAWSSession is true.
 // Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
 func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov1alpha2.VpcEndpoint, refreshAWSSession bool) error {
+	if err := validateVpcEndpointCR(vpce); err != nil {
+		return err
+	}
+
 	r.clusterInfo = new(clusterInfo)
 
 	// TODO: For HyperShift, it would be better if the infra name was the hosted cluster's infra name
@@ -61,14 +65,6 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 	r.log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
 
 	if vpce.Spec.Region != "" {
-		if vpce.Spec.Vpc.AutoDiscoverSubnets {
-			return errors.New(".spec.vpc.autoDiscoverSubnets is not supported with .spec.region")
-		}
-
-		if vpce.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
-			return errors.New(".spec.customDns.route53PrivateHostedZone.autoDiscover is not supported with .spec.region")
-		}
-
 		r.clusterInfo.region = vpce.Spec.Region
 		r.log.V(1).Info("Using specified region override", "region", vpce.Spec.Region)
 	} else {
@@ -98,7 +94,14 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		}
 	}
 
-	if vpce.Spec.Vpc.AutoDiscoverSubnets {
+	if len(vpce.Spec.Vpc.Ids) > 0 {
+		vpcId, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, vpce.Spec.Vpc.Ids...)
+		if err != nil {
+			return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
+		}
+		r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
+		r.clusterInfo.vpcId = vpcId
+	} else if vpce.Spec.Vpc.AutoDiscoverSubnets {
 		resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
 		if err != nil {
 			return fmt.Errorf("unable to autodiscover subnets: %w", err)
@@ -122,14 +125,6 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		}
 		r.clusterInfo.vpcId = vpcId
 		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
-	}
-
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
-		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
-	}
-
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name != "" {
-		return errors.New("cannot create an ExternalName service without a Route53 Hosted Zone record")
 	}
 
 	return nil
@@ -452,15 +447,27 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 	)
 
 	if resource.Spec.Vpc.AutoDiscoverSubnets {
-		if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
-			return fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
-		}
+		var discoveredSubnets []ec2Types.Subnet
+		if len(resource.Spec.Vpc.Ids) > 0 {
+			// Do not expect private subnets to have the cluster id when load balancing vpc ids
+			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, "")
+			if err != nil {
+				return err
+			}
+			r.log.V(1).Info("Discovered private subnet(s):", "subnets", privateSubnets)
+			discoveredSubnets = privateSubnets
+		} else {
+			if r.clusterInfo == nil || r.clusterInfo.clusterTag == "" {
+				return fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
+			}
 
-		privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
-		if err != nil {
-			return err
+			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+			if err != nil {
+				return err
+			}
+			r.log.V(1).Info("Discovered private subnet(s):", "subnets", privateSubnets)
+			discoveredSubnets = privateSubnets
 		}
-		r.log.V(1).Info("Discovered private subnet(s):", "subnets", privateSubnets)
 
 		// When auto-discovering the cluster's private subnet ids, only subnets supported by the VPC Endpoint
 		// Service should be attached
@@ -470,7 +477,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 		}
 
 		var expectedSubnetIds []string
-		for _, subnet := range privateSubnets {
+		for _, subnet := range discoveredSubnets {
 			for _, az := range allowedAZs {
 				if *subnet.AvailabilityZone == az {
 					expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)

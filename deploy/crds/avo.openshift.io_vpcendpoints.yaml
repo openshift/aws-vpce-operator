@@ -395,6 +395,16 @@ spec:
                     description: AutoDiscoverSubnets will instruct the controller
                       to use the subnets associated with this ROSA cluster if true.
                     type: boolean
+                  ids:
+                    description: Ids is a list of VPC ids that aws-vpce-operator can
+                      choose from to load balance in a "least used" fashion to evenly
+                      spread quota usage across provided VPCs. All provided VPCs must
+                      be in the same region as the specified VPC Endpoint Service
+                      (.spec.serviceName) and must use subnet auto-discovery (.spec.vpc.autoDiscoverSubnets
+                      true) based on the "kubernetes.io/role/internal-elb" tag key
+                    items:
+                      type: string
+                    type: array
                   subnetIds:
                     description: 'SubnetIds is a list of subnet ids to associate with
                       the VPC Endpoint, which must all be in the same VPC. If more
