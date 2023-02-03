@@ -59,6 +59,14 @@ type Vpc struct {
 	// If more than one is specified, each subnet must be in a different Availability Zone.
 	// Ref: https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html
 	SubnetIds []string `json:"subnetIds,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
+	// Ids is a list of VPC ids that aws-vpce-operator can choose from to load balance in a "least used"
+	// fashion to evenly spread quota usage across provided VPCs. All provided VPCs must be in the
+	// same region as the specified VPC Endpoint Service (.spec.serviceName) and must use subnet auto-discovery
+	// (.spec.vpc.autoDiscoverSubnets true) based on the "kubernetes.io/role/internal-elb" tag key
+	Ids []string `json:"ids,omitempty"`
 }
 
 // ExternalNameService is the configuration of a Kubernetes ExternalName Service pointing to a CustomDns

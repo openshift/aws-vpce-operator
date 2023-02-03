@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -27,6 +28,49 @@ import (
 	"github.com/aws/smithy-go"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
+
+// SelectVPCForVPCEndpoint uses a "least connection" strategy to place a VPC Endpoint in the provided VPC ID with the
+// fewest existing VPC Endpoints in it to balance out quota usage.
+// https://docs.aws.amazon.com/vpc/latest/userguide/amazon-vpc-limits.html#vpc-limits-endpoints
+func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) (string, error) {
+	if len(ids) == 0 {
+		return "", errors.New("must specify vpc id when counting VPC Endpoints per VPC")
+	}
+
+	input := &ec2.DescribeVpcEndpointsInput{
+		Filters: []types.Filter{
+			{
+				Name:   aws.String("vpc-id"),
+				Values: ids,
+			},
+		},
+	}
+
+	minVpcId := ""
+	minVpceConsumed := math.MaxInt
+	vpcePerVpc := map[string]int{}
+
+	paginator := ec2.NewDescribeVpcEndpointsPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		resp, err := paginator.NextPage(ctx)
+		if err != nil {
+			return "", err
+		}
+
+		for _, vpce := range resp.VpcEndpoints {
+			vpcePerVpc[*vpce.VpcId]++
+		}
+	}
+
+	for vpcId, vpceCount := range vpcePerVpc {
+		if vpceCount < minVpceConsumed {
+			minVpceConsumed = vpceCount
+		}
+		minVpcId = vpcId
+	}
+
+	return minVpcId, nil
+}
 
 // DescribeSingleVPCEndpointById returns information about a VPC endpoint with a given id.
 func (c *AWSClient) DescribeSingleVPCEndpointById(ctx context.Context, id string) (*ec2.DescribeVpcEndpointsOutput, error) {
