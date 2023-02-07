@@ -13,7 +13,7 @@ boilerplate-update:
 
 .PHONY: run
 run:
-	go run ./main.go
+	go run ./main.go $(ARGS)
 
 ifndef ignore-not-found
   ignore-not-found = false
@@ -37,4 +37,4 @@ osde2e:
 
 .PHONY: harness-build-push
 harness-build-push:
-	@${DIR}/osde2e/harness-build-push.sh 
+	@${DIR}/osde2e/harness-build-push.sh

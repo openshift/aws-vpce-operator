@@ -109,6 +109,9 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
     ```bash
     # We currently have no webhooks anyway, so ENABLE_WEBHOOKS=false is optional
     make run ENABLE_WEBHOOKS=false
+   
+    # Running with debug logs enabled
+    make run ARGS="--zap-log-level=debug" ENABLE_WEBHOOKS=false
     ```
 
 ## Running in a ROSA STS cluster
