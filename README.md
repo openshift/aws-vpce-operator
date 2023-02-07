@@ -51,6 +51,7 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
             "ec2:CreateVpcEndpoint",
             "ec2:DeleteVpcEndpoints",
             "ec2:DescribeVpcEndpoints",
+            "ec2:DescribeVpcs",
             "ec2:ModifyVpcEndpoint",
             "ec2:DescribeVpcEndpointServices",
             "route53:ChangeResourceRecordSets",
