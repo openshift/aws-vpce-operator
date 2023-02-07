@@ -19,7 +19,6 @@ package vpcendpoint
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -35,6 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // VpcEndpointReconciler reconciles a VpcEndpoint object
@@ -73,13 +73,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := util.DefaultAVOLogger(ControllerName)
-	if err != nil {
-		// Shouldn't happen, but if it does, we can't log
-		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
-	}
-
-	r.log = reqLogger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.log = ctrllog.FromContext(ctx).WithName("controller").WithName(ControllerName)
 
 	vpce := new(avov1alpha2.VpcEndpoint)
 	if err := r.Get(ctx, req.NamespacedName, vpce); err != nil {

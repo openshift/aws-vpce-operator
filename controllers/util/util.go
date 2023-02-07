@@ -22,29 +22,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
 	"k8s.io/client-go/util/workqueue"
 )
-
-// DefaultAVOLogger returns a zap.Logger using RFC3339 timestamps for the vpcendpoint controller
-func DefaultAVOLogger(controllerName string) (logr.Logger, error) {
-	config := zap.NewProductionConfig()
-	config.EncoderConfig.EncodeTime = zapcore.TimeEncoderOfLayout(time.RFC3339)
-	// TODO: Make this configurable
-	// config.Level = zap.NewAtomicLevelAt(zapcore.DebugLevel)
-
-	zapBase, err := config.Build()
-	if err != nil {
-		return logr.Logger{}, err
-	}
-
-	logger := zapr.NewLogger(zapBase)
-	return logger.WithName(controllerName), nil
-}
 
 // DefaultAVORateLimiter returns a rate limiter that reconciles more slowly than the default.
 // The default is 5ms --> 1000s, but resources are created much more slowly in AWS than in

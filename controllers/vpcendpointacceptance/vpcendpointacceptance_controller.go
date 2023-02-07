@@ -18,7 +18,6 @@ package vpcendpointacceptance
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -36,6 +35,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 // VpcEndpointAcceptanceReconciler reconciles a VpcEndpointAcceptance object
@@ -53,13 +53,7 @@ type VpcEndpointAcceptanceReconciler struct {
 //+kubebuilder:rbac:groups=aws.managed.openshift.io,resources=account,verbs=get;list
 
 func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	reqLogger, err := util.DefaultAVOLogger(controllerName)
-	if err != nil {
-		// Shouldn't happen, but if it does, we can't log
-		return ctrl.Result{}, fmt.Errorf("unable to log: %w", err)
-	}
-
-	r.log = reqLogger.WithValues("Request.Name", req.Name)
+	r.log = ctrllog.FromContext(ctx).WithName("controller").WithName(controllerName)
 
 	vpceAcceptance := new(avov1alpha1.VpcEndpointAcceptance)
 	if err := r.Get(ctx, req.NamespacedName, vpceAcceptance); err != nil {
