@@ -94,7 +94,8 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		}
 	}
 
-	if vpce.Status.VPCId != "" {
+	// If .status.vpcId is empty, we need to populate it
+	if vpce.Status.VPCId == "" {
 		var vpcId string
 
 		if len(vpce.Spec.Vpc.Ids) > 0 {
