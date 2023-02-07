@@ -255,7 +255,7 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 		r.log.V(1).Info("Found domain name:", "domainName", domainName)
 
 		r.log.V(1).Info("Searching for Route53 Hosted Zone by domain name", "domainName", domainName)
-		hz, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, domainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+		hz, err := r.awsClient.GetDefaultPrivateHostedZoneId(ctx, domainName, resource.Status.VPCId, r.clusterInfo.region)
 		if err != nil {
 			return err
 		}

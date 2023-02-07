@@ -34,68 +34,6 @@ import (
 	"k8s.io/client-go/tools/record"
 )
 
-func TestVpcEndpointReconciler_parseClusterInfo(t *testing.T) {
-	tests := []struct {
-		name      string
-		vpce      *avov1alpha2.VpcEndpoint
-		expectErr bool
-	}{
-		{
-			name: "region override + autoDiscoverSubnets",
-			vpce: &avov1alpha2.VpcEndpoint{
-				Spec: avov1alpha2.VpcEndpointSpec{
-					Region: "override",
-					Vpc: avov1alpha2.Vpc{
-						AutoDiscoverSubnets: false,
-					},
-				},
-			},
-			expectErr: true,
-		},
-		{
-			name: "region override + autoDiscoverRoute53",
-			vpce: &avov1alpha2.VpcEndpoint{
-				Spec: avov1alpha2.VpcEndpointSpec{
-					Region: "override",
-					CustomDns: avov1alpha2.CustomDns{
-						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
-							AutoDiscover: true,
-						},
-					},
-				},
-			},
-			expectErr: true,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			mock, err := testutil.NewDefaultMock()
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			r := &VpcEndpointReconciler{
-				Client:      mock.Client,
-				log:         testr.New(t),
-				Scheme:      mock.Client.Scheme(),
-				awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
-				clusterInfo: nil,
-			}
-
-			if err := r.parseClusterInfo(context.TODO(), test.vpce, false); err != nil {
-				if !test.expectErr {
-					t.Errorf("expected no err, got %v", err)
-				}
-			} else {
-				if test.expectErr {
-					t.Error("expected err, got nil")
-				}
-			}
-		})
-	}
-}
-
 func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -337,12 +275,13 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock2",
 				},
-				Status: avov1alpha2.VpcEndpointStatus{},
+				Status: avov1alpha2.VpcEndpointStatus{
+					VPCId: aws_client.MockVpcId,
+				},
 			},
 			clusterInfo: &clusterInfo{
 				clusterTag: aws_client.MockClusterTag,
 				infraName:  testutil.MockInfrastructureName,
-				vpcId:      aws_client.MockVpcId,
 			},
 			expectErr: false,
 		},

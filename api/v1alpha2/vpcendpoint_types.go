@@ -172,6 +172,10 @@ type VpcEndpointStatus struct {
 	// +kubebuilder:validation:Optional
 	SecurityGroupId string `json:"securityGroupId,omitempty"`
 
+	// The AWS ID of the VPC to create resources in
+	// +kubebuilder:validation:Optional
+	VPCId string `json:"vpcId,omitempty"`
+
 	// The AWS ID of the managed VPC Endpoint
 	// +kubebuilder:validation:Optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`

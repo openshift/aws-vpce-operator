@@ -508,6 +508,9 @@ spec:
               vpcEndpointId:
                 description: The AWS ID of the managed VPC Endpoint
                 type: string
+              vpcId:
+                description: The AWS ID of the VPC to create resources in
+                type: string
             type: object
         type: object
     served: true

@@ -94,37 +94,46 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		}
 	}
 
-	if len(vpce.Spec.Vpc.Ids) > 0 {
-		vpcId, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, vpce.Spec.Vpc.Ids...)
-		if err != nil {
-			return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
-		}
-		r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
-		r.clusterInfo.vpcId = vpcId
-	} else if vpce.Spec.Vpc.AutoDiscoverSubnets {
-		resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
-		if err != nil {
-			return fmt.Errorf("unable to autodiscover subnets: %w", err)
+	if vpce.Status.VPCId != "" {
+		var vpcId string
+
+		if len(vpce.Spec.Vpc.Ids) > 0 {
+			v, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, vpce.Spec.Vpc.Ids...)
+			if err != nil {
+				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
+			}
+			vpcId = v
+			r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
+		} else if vpce.Spec.Vpc.AutoDiscoverSubnets {
+			resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+			if err != nil {
+				return fmt.Errorf("unable to autodiscover subnets: %w", err)
+			}
+
+			subnets := make([]string, len(resp))
+			for i := range resp {
+				subnets[i] = *resp[i].SubnetId
+			}
+
+			v, err := r.awsClient.GetVPCId(ctx, subnets)
+			if err != nil {
+				return err
+			}
+			vpcId = v
+			r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
+		} else {
+			v, err := r.awsClient.GetVPCId(ctx, vpce.Spec.Vpc.SubnetIds)
+			if err != nil {
+				return err
+			}
+			vpcId = v
+			r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
 		}
 
-		subnets := make([]string, len(resp))
-		for i := range resp {
-			subnets[i] = *resp[i].SubnetId
+		vpce.Status.VPCId = vpcId
+		if err := r.Status().Update(ctx, vpce); err != nil {
+			return errors.New("failed to update status")
 		}
-
-		vpcId, err := r.awsClient.GetVPCId(ctx, subnets)
-		if err != nil {
-			return err
-		}
-		r.clusterInfo.vpcId = vpcId
-		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
-	} else {
-		vpcId, err := r.awsClient.GetVPCId(ctx, vpce.Spec.Vpc.SubnetIds)
-		if err != nil {
-			return err
-		}
-		r.clusterInfo.vpcId = vpcId
-		r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
 	}
 
 	return nil
@@ -175,7 +184,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 
 		// If there are still no security groups found, it needs to be created
 		if resp == nil || len(resp.SecurityGroups) == 0 {
-			createResp, err := r.awsClient.CreateSecurityGroup(ctx, sgName, r.clusterInfo.vpcId, r.clusterInfo.clusterTag)
+			createResp, err := r.awsClient.CreateSecurityGroup(ctx, sgName, resource.Status.VPCId, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, err
 			}
@@ -411,7 +420,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
 
-			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, r.clusterInfo.vpcId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
+			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, resource.Status.VPCId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create vpc endpoint: %w", err)
 			}
@@ -574,9 +583,9 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 	}
 
 	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
-		r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", r.clusterInfo.vpcId, "region", r.clusterInfo.region)
+		r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", resource.Status.VPCId, "region", r.clusterInfo.region)
 		// TODO: Unlikely, but would be nice to handle pagination
-		resp, err := r.awsClient.ListHostedZonesByVPC(ctx, r.clusterInfo.vpcId, r.clusterInfo.region)
+		resp, err := r.awsClient.ListHostedZonesByVPC(ctx, resource.Status.VPCId, r.clusterInfo.region)
 		if err != nil {
 			return err
 		}
@@ -597,7 +606,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		}
 
 		// Otherwise, create one
-		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, r.clusterInfo.vpcId, r.clusterInfo.region)
+		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, resource.Status.VPCId, r.clusterInfo.region)
 		if err != nil {
 			return fmt.Errorf("failed to create hosted zone: %w", err)
 		}

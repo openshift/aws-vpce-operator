@@ -59,8 +59,6 @@ type clusterInfo struct {
 	infraName string
 	// region is the AWS region for the cluster
 	region string
-	// vpcId is the AWS VPC ID the cluster resides in
-	vpcId string
 }
 
 //+kubebuilder:rbac:groups=avo.openshift.io,resources=vpcendpoints,verbs=get;list;watch;create;update;patch;delete
