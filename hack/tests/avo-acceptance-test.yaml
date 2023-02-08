@@ -1,0 +1,45 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  name: saas-avo-test
+objects:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: ${SERVICE_ACCOUNT}
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: ${JOBID}-saas-avo-test-${IMAGE_TAG}
+  spec:
+    backoffLimit: 5
+    template:
+      spec:
+        restartPolicy: Never
+        serviceAccountName: ${SERVICE_ACCOUNT}
+        containers:
+          - image: ${IMAGE}:${IMAGE_TAG}
+            imagePullPolicy: Always
+            name: saas-avo-test
+            command:
+              - sh
+              - -c
+              - |
+                echo "Cluster Name: $(oc config view -o jsonpath='{.contexts[].context.cluster}'"
+                echo "Node Hostname: $(hostname)"
+                echo "Node IP: $(hostname -i)"
+                exit 0              
+parameters:
+- name: JOBID
+  generate: expression
+  from: "[0-9a-z]{7}"
+- name: IMAGE
+  value: openshift/origin-tools
+- name: IMAGE_TAG
+  value: ''
+  required: true
+- name: SERVICE_ACCOUNT
+  value: "saas-avo-test"
+  deplayName: saas-avo-test service account
+  description: name of the service account to use when deploying the pod
