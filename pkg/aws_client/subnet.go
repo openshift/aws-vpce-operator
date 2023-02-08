@@ -88,11 +88,15 @@ func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag s
 
 // DescribeSubnetsByTagKey returns a list of subnets that have all the specified tag key(s).
 func (c *AWSClient) DescribeSubnetsByTagKey(ctx context.Context, tagKey ...string) (*ec2.DescribeSubnetsOutput, error) {
-	filters := make([]types.Filter, len(tagKey))
-	for i := range tagKey {
-		filters[i] = types.Filter{
-			Name:   aws.String("tag-key"),
-			Values: []string{tagKey[i]},
+	filters := []types.Filter{}
+	for _, t := range tagKey {
+		// If a tag-key is empty, don't filter by it as it will exclude all subnets i.e. treat it as bad input.
+		if t != "" {
+			filters = append(filters, types.Filter{
+				Name: aws.String("tag-key"),
+				// Values are OR-ed
+				Values: []string{t},
+			})
 		}
 	}
 
