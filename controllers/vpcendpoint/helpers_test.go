@@ -18,7 +18,6 @@ package vpcendpoint
 
 import (
 	"context"
-	"fmt"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -27,7 +26,6 @@ import (
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
-	"github.com/openshift/aws-vpce-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -88,87 +86,6 @@ func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 
 			if test.expectErr {
 				t.Errorf("expected no err, but got %v", err)
-			}
-		})
-	}
-}
-
-func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
-	tests := []struct {
-		name        string
-		sg          *ec2Types.SecurityGroup
-		clusterInfo *clusterInfo
-		resource    *avov1alpha2.VpcEndpoint
-		expectErr   bool
-	}{
-		{
-			name: "perfect match",
-			sg: &ec2Types.SecurityGroup{
-				GroupId: aws.String(aws_client.MockSecurityGroupId),
-				Tags: []ec2Types.Tag{
-					{
-						Key:   aws.String(util.OperatorTagKey),
-						Value: aws.String(util.OperatorTagValue),
-					},
-					{
-						Key:   aws.String(aws_client.MockClusterTag),
-						Value: aws.String("owned"),
-					},
-					{
-						Key:   aws.String("Name"),
-						Value: aws.String(fmt.Sprintf("%s-%s-sg", testutil.MockInfrastructureName, "mock1")),
-					},
-				},
-			},
-			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
-			},
-			resource: &avov1alpha2.VpcEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mock1",
-				},
-			},
-		},
-		{
-			name: "missing tags",
-			sg: &ec2Types.SecurityGroup{
-				GroupId: aws.String(aws_client.MockSecurityGroupId),
-				Tags: []ec2Types.Tag{
-					{
-						Key:   aws.String(util.OperatorTagKey),
-						Value: aws.String(util.OperatorTagValue),
-					},
-				},
-			},
-			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
-			},
-			resource: &avov1alpha2.VpcEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mock2",
-				},
-			},
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			r := &VpcEndpointReconciler{
-				Client:      testutil.NewTestMock(t, test.resource).Client,
-				Scheme:      testutil.NewTestMock(t).Client.Scheme(),
-				log:         testr.New(t),
-				awsClient:   aws_client.NewMockedAwsClient(),
-				clusterInfo: test.clusterInfo,
-				Recorder:    record.NewFakeRecorder(1),
-			}
-
-			err := r.createMissingSecurityGroupTags(context.TODO(), test.sg, test.resource)
-			if test.expectErr {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
 			}
 		})
 	}

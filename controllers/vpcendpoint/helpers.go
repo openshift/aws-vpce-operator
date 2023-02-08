@@ -221,39 +221,6 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	return sg, nil
 }
 
-// createMissingSecurityGroupTags ensures the expected AWS tags exist on a VpcEndpoint CR's Security Group.
-// It will not delete any extra tags and only create missing ones.
-func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha2.VpcEndpoint) error {
-	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
-	if err != nil {
-		return fmt.Errorf("failed to generate security group name: %v", err)
-	}
-
-	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
-	if err != nil {
-		return err
-	}
-
-	// Fix tags if any are missing
-	if !tagsContains(sg.Tags, defaultTagsMap) {
-		r.log.V(1).Info("Adding missing security group tags")
-		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
-		if err != nil {
-			return fmt.Errorf("failed to generate expected tags: %v", err)
-		}
-		if _, err := r.awsClient.CreateTags(ctx, &ec2.CreateTagsInput{
-			Resources: []string{*sg.GroupId},
-			Tags:      defaultTags,
-		}); err != nil {
-			return fmt.Errorf("failed to create tags: %w", err)
-		}
-
-		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Updated", "Updated security group tags: %s", *sg.GroupId)
-	}
-
-	return nil
-}
-
 // generateMissingSecurityGroupRules ensures that the cluster's worker and master security groups are allowed ingresses
 // to the VPC Endpoint security group as well as and other configured rules from the CR.
 // It will not remove an extra security group rules and only create missing ones.

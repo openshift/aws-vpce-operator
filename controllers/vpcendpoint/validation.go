@@ -98,10 +98,6 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
-	if err := r.createMissingSecurityGroupTags(ctx, sg, resource); err != nil {
-		return err
-	}
-
 	ingressInput, egressInput, err := r.generateMissingSecurityGroupRules(ctx, sg, resource)
 	if err != nil {
 		return err
