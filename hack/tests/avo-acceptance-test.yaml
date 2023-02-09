@@ -37,7 +37,7 @@ parameters:
 - name: IMAGE
   value: openshift/origin-tools
 - name: IMAGE_TAG
-  value: ''
+  value: 'latest'
   required: true
 - name: SERVICE_ACCOUNT
   value: "saas-avo-test"
