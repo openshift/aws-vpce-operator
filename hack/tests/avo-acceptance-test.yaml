@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: Template
 metadata:
-  name: saas-avo-test
+  name: ${JOB_NAME}
 objects:
 - apiVersion: v1
   kind: ServiceAccount
@@ -11,7 +11,7 @@ objects:
 - apiVersion: batch/v1
   kind: Job
   metadata:
-    name: ${JOBID}-saas-avo-test-${IMAGE_TAG}
+    name: ${JOB_NAME}-${IMAGE_TAG}-${JOB_ID}
   spec:
     backoffLimit: 5
     template:
@@ -19,9 +19,9 @@ objects:
         restartPolicy: Never
         serviceAccountName: ${SERVICE_ACCOUNT}
         containers:
-          - image: ${IMAGE}
+          - image: ${TEST_IMAGE}
             imagePullPolicy: Always
-            name: saas-avo-test
+            name: ${JOB_NAME}
             command:
               - sh
               - -c
@@ -31,12 +31,18 @@ objects:
                 echo "Node IP: $(hostname -i)"
                 exit 0              
 parameters:
-- name: JOBID
+- name: JOB_NAME
+  value: 'saas-avo-test'
+  required: true
+- name: JOB_ID
   generate: expression
   from: "[0-9a-z]{7}"
-- name: IMAGE
+- name: IMAGE_TAG
+  value: ''
+  required: true
+- name: TEST_IMAGE
   value: quay.io/openshift/origin-tools
 - name: SERVICE_ACCOUNT
   value: "saas-avo-test"
-  deplayName: saas-avo-test service account
+  displayName: saas-avo-test service account
   description: name of the service account to use when deploying the pod
