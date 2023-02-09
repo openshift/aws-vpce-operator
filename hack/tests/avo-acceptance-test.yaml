@@ -19,7 +19,7 @@ objects:
         restartPolicy: Never
         serviceAccountName: ${SERVICE_ACCOUNT}
         containers:
-          - image: ${IMAGE}:${IMAGE_TAG}
+          - image: ${IMAGE}
             imagePullPolicy: Always
             name: saas-avo-test
             command:
@@ -35,10 +35,7 @@ parameters:
   generate: expression
   from: "[0-9a-z]{7}"
 - name: IMAGE
-  value: openshift/origin-tools
-- name: IMAGE_TAG
-  value: 'latest'
-  required: true
+  value: quay.io/openshift/origin-tools
 - name: SERVICE_ACCOUNT
   value: "saas-avo-test"
   deplayName: saas-avo-test service account
