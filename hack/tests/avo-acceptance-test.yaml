@@ -29,7 +29,7 @@ objects:
                 echo "Cluster Name: $(oc config view -o jsonpath='{.contexts[].context.cluster}'"
                 echo "Node Hostname: $(hostname)"
                 echo "Node IP: $(hostname -i)"
-                exit 0              
+                exit 0
 parameters:
 - name: JOB_NAME
   value: 'saas-avo-test'
