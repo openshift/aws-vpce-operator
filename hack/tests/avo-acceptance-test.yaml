@@ -15,6 +15,14 @@ objects:
     name: ${SERVICE_ACCOUNT}
   rules:
   - apiGroups:
+    - ""
+    resources:
+    - namespaces
+    - secrets
+    verbs:
+    - get
+    - list
+  - apiGroups:
     - hive.openshift.io
     resources:
     - clusterdeployments
@@ -39,7 +47,7 @@ objects:
     name: ${JOB_NAME}-${IMAGE_TAG}-${JOB_ID}
     namespace: ${NAMESPACE}
   spec:
-    backoffLimit: 5
+    backoffLimit: 1
     template:
       spec:
         restartPolicy: Never
@@ -53,16 +61,71 @@ objects:
           - -c
           - |
             set -x
-            set -e
             set -o nounset
             set -o pipefail
             TEMPDIR=$(mktemp -d)
+​
+            non_updated_cluster=()
+            # TODO: determine this directly from ClusterSync and SelectorSyncSet deployment
+            sleep ${SLEEP_TIME}
+​
+            # Check management clusters
             oc get clusterdeployments -l ext-hypershift.openshift.io/cluster-type=management-cluster --all-namespaces -o json > ${TEMPDIR}/mcs.json
-            echo "MGT CLUSTERS:"
+            echo "Verifying CSVs in MGT CLUSTERS..."
             cat ${TEMPDIR}/mcs.json | jq .items[].metadata.name
+            jq -c .items[] ${TEMPDIR}/mcs.json | while read CD; do
+                CD_NAME=$(echo "${CD}" | jq -r .metadata.name)
+                CD_NAMESPACE=$(echo "${CD}" | jq -r .metadata.namespace)
+                oc get secret -n ${CD_NAMESPACE} -l "hive.openshift.io/secret-type=kubeconfig" -o jsonpath='{.items[0].data.kubeconfig}' | base64 -d > ${TEMPDIR}/${CD_NAME}.config
+                oc get nodes --kubeconfig ${TEMPDIR}/${CD_NAME}.config
+                if [ "$?" != "0" ]; then
+                  echo "Failed to connect to ${CD_NAME} cluster. Continuing..."
+                  continue
+                fi
+                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].status.phase)
+                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].spec.version)
+                CSV_SHORT_SHA=$(echo ${CSV_VERSION} | awk -F'-' '{print $2}')
+                if [ "${CSV_SHORT_SHA}" == "${IMAGE_TAG}" ] && [ "${CSV_PHASE}" == "Succeeded" ]; then
+                  echo "Cluster $CD_NAME passed CSV check!"
+                else
+                  non_updated_cluster+=(MGT Cluster: ${CD_NAME})
+                fi
+            done
+​
+            # Check service clusters
             oc get clusterdeployments -l ext-hypershift.openshift.io/cluster-type=service-cluster --all-namespaces -o json > ${TEMPDIR}/scs.json
-            echo "SVC CLUSTERS:"
-            cat ${TEMPDIR}/scs.json | jq .items[].metadata.name
+            echo "Verifying CSVs in SVC CLUSTERS:"
+            cat ${TEMPDIR}/mcs.json | jq .items[].metadata.name
+            jq -c .items[] ${TEMPDIR}/scs.json | while read CD; do
+                CD_NAME=$(echo "${CD}" | jq -r .metadata.name)
+                CD_NAMESPACE=$(echo "${CD}" | jq -r .metadata.namespace)
+                oc get secret -n ${CD_NAMESPACE} -l "hive.openshift.io/secret-type=kubeconfig" -o jsonpath='{.items[0].data.kubeconfig}' | base64 -d > ${TEMPDIR}/${CD_NAME}.config
+                oc get nodes --kubeconfig ${TEMPDIR}/${CD_NAME}.config
+                if [ "$?" != "0" ]; then
+                  echo "Failed to connect to ${CD_NAME} cluster. Continuing..."
+                  continue
+                fi
+                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].status.phase)
+                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].spec.version)
+                CSV_SHORT_SHA=$(echo ${CSV_VERSION} | awk -F'-' '{print $2}')
+                if [ "${CSV_SHORT_SHA}" == "${IMAGE_TAG}" ] && [ "${CSV_PHASE}" == "Succeeded" ]; then
+                  echo "Cluster $CD_NAME passed CSV check!"
+                else
+                  non_updated_cluster+=(SVC Cluster: ${CD_NAME})
+                fi
+            done
+​
+            # Final check of map
+            if [ ${#non_updated_cluster[@]} -eq 0 ]; then
+                echo "TEST PASSED! All clusters have the correct operator version and succeeded!"
+                exit 0
+            else
+                echo "TEST FAILED! The following clusters do not have the correct image tag:"
+                for cluster in "${non_updated_cluster[@]}"; do
+                    echo $cluster
+                done
+                exit 1
+            fi
 parameters:
 - name: JOB_NAME
   value: 'saas-avo-test'
@@ -82,3 +145,7 @@ parameters:
   value: "saas-avo-test"
   displayName: saas-avo-test service account
   description: name of the service account to use when deploying the pod
+- name: SLEEP_TIME
+  value: "120"
+  displayName: Sleep time
+  description: Time to wait before checking the CSVs
