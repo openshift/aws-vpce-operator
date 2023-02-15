@@ -64,11 +64,11 @@ objects:
             set -o nounset
             set -o pipefail
             TEMPDIR=$(mktemp -d)
-​
+
             non_updated_cluster=()
             # TODO: determine this directly from ClusterSync and SelectorSyncSet deployment
             sleep ${SLEEP_TIME}
-​
+
             # Check management clusters
             oc get clusterdeployments -l ext-hypershift.openshift.io/cluster-type=management-cluster --all-namespaces -o json > ${TEMPDIR}/mcs.json
             echo "Verifying CSVs in MGT CLUSTERS..."
@@ -91,7 +91,7 @@ objects:
                   non_updated_cluster+=(MGT Cluster: ${CD_NAME})
                 fi
             done
-​
+
             # Check service clusters
             oc get clusterdeployments -l ext-hypershift.openshift.io/cluster-type=service-cluster --all-namespaces -o json > ${TEMPDIR}/scs.json
             echo "Verifying CSVs in SVC CLUSTERS:"
@@ -114,7 +114,7 @@ objects:
                   non_updated_cluster+=(SVC Cluster: ${CD_NAME})
                 fi
             done
-​
+
             # Final check of map
             if [ ${#non_updated_cluster[@]} -eq 0 ]; then
                 echo "TEST PASSED! All clusters have the correct operator version and succeeded!"
