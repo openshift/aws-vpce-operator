@@ -47,7 +47,7 @@ objects:
     name: ${JOB_NAME}-${IMAGE_TAG}-${JOB_ID}
     namespace: ${NAMESPACE}
   spec:
-    backoffLimit: 1
+    backoffLimit: 5
     template:
       spec:
         restartPolicy: Never
