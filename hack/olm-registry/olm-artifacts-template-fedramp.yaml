@@ -1,0 +1,119 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: fr-high-template
+
+parameters:
+- name: REGISTRY_IMG
+  required: true
+- name: CHANNEL
+  required: true
+- name: IMAGE_TAG
+  required: true
+- name: IMAGE_DIGEST
+  required: true
+- name: REPO_NAME
+  value: aws-vpce-operator
+  required: true
+- name: DISPLAY_NAME
+  value: AWS VPCE Operator
+  required: true
+
+objects:
+- apiVersion: v1
+  kind: Namespace
+  metadata:
+    name: openshift-aws-vpce-operator
+    labels:
+      openshift.io/cluster-monitoring: 'true'
+- apiVersion: cloudcredential.openshift.io/v1
+  kind: CredentialsRequest
+  metadata:
+    name: avo-aws-iam-user-creds
+    namespace: openshift-${REPO_NAME}
+  spec:
+    secretRef:
+       name: avo-aws-iam-user-creds
+       namespace: openshift-${REPO_NAME}
+    providerSpec:
+      apiVersion: cloudcredential.openshift.io/v1
+      kind: AWSProviderSpec
+      statementEntries:
+      - effect: Allow
+        resource: '*'
+        action:
+        # VPCEndpoint Controller
+        - ec2:CreateTags
+        - ec2:DescribeSubnets
+        - ec2:CreateSecurityGroup
+        - ec2:DeleteSecurityGroup
+        - ec2:DescribeSecurityGroups
+        - ec2:AuthorizeSecurityGroupIngress
+        - ec2:AuthorizeSecurityGroupEgress
+        - ec2:DescribeSecurityGroupRules
+        - ec2:CreateVpcEndpoint
+        - ec2:DeleteVpcEndpoints
+        - ec2:DescribeVpcEndpoints
+        - ec2:DescribeVpcs
+        - ec2:ModifyVpcEndpoint
+        - ec2:DescribeVpcEndpointServices
+        - route53:ChangeResourceRecordSets
+        - route53:ListHostedZonesByVPC
+        - route53:ListResourceRecordSets
+        - route53:ListTagsForResource
+        - route53:GetHostedZone
+        - route53:CreateHostedZone
+        - route53:DeleteHostedZone
+        - route53:ChangeTagsForResource
+        # VPCEndpointAcceptance Controller
+        - sts:AssumeRole
+        - ec2:DescribeVpcEndpointConnections
+        - ec2:AcceptVpcEndpointConnections
+- apiVersion: operators.coreos.com/v1alpha1
+  kind: CatalogSource
+  metadata:
+    labels:
+      opsrc-datastore: 'true'
+      opsrc-provider: redhat
+    name: ${REPO_NAME}-registry
+    namespace: openshift-${REPO_NAME}
+    spec:
+      image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/infra
+                operator: Exists
+            weight: 1
+      tolerations:
+      - operator: Exists
+        key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+      displayName: ${REPO_NAME}
+      icon:
+        base64data: ''
+        mediatype: ''
+      publisher: Red Hat
+      sourceType: grpc
+- apiVersion: operators.coreos.com/v1
+  kind: OperatorGroup
+  metadata:
+    name: ${REPO_NAME}
+    namespace: openshift-${REPO_NAME}
+    annotations:
+      olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
+    spec:
+      targetNamespaces:
+      - openshift-${REPO_NAME}
+- apiVersion: operators.coreos.com/v1alpha1
+  kind: Subscription
+  metadata:
+    name: ${REPO_NAME}
+    namespace: openshift-${REPO_NAME}
+  spec:
+    channel: ${CHANNEL}
+    name: ${REPO_NAME}
+    source: ${REPO_NAME}-registry
+    sourceNamespace: openshift-${REPO_NAME}
