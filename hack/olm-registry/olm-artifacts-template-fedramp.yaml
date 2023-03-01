@@ -20,12 +20,6 @@ parameters:
   required: true
 
 objects:
-- apiVersion: v1
-  kind: Namespace
-  metadata:
-    name: openshift-aws-vpce-operator
-    labels:
-      openshift.io/cluster-monitoring: 'true'
 - apiVersion: cloudcredential.openshift.io/v1
   kind: CredentialsRequest
   metadata:
