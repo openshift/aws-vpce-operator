@@ -69,26 +69,26 @@ objects:
       opsrc-provider: redhat
     name: ${REPO_NAME}-registry
     namespace: openshift-${REPO_NAME}
-    spec:
-      image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
-      affinity:
-        nodeAffinity:
-          preferredDuringSchedulingIgnoredDuringExecution:
-          - preference:
-              matchExpressions:
-              - key: node-role.kubernetes.io/infra
-                operator: Exists
-            weight: 1
-      tolerations:
-      - operator: Exists
-        key: node-role.kubernetes.io/infra
-        effect: NoSchedule
-      displayName: ${REPO_NAME}
-      icon:
-        base64data: ''
-        mediatype: ''
-      publisher: Red Hat
-      sourceType: grpc
+  spec:
+    image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - preference:
+            matchExpressions:
+            - key: node-role.kubernetes.io/infra
+              operator: Exists
+          weight: 1
+    tolerations:
+    - operator: Exists
+      key: node-role.kubernetes.io/infra
+      effect: NoSchedule
+    displayName: ${REPO_NAME}
+    icon:
+      base64data: ''
+      mediatype: ''
+    publisher: Red Hat
+    sourceType: grpc
 - apiVersion: operators.coreos.com/v1
   kind: OperatorGroup
   metadata:
@@ -96,9 +96,9 @@ objects:
     namespace: openshift-${REPO_NAME}
     annotations:
       olm.operatorframework.io/exclude-global-namespace-resolution: 'true'
-    spec:
-      targetNamespaces:
-      - openshift-${REPO_NAME}
+  spec:
+    targetNamespaces:
+    - openshift-${REPO_NAME}
 - apiVersion: operators.coreos.com/v1alpha1
   kind: Subscription
   metadata:
