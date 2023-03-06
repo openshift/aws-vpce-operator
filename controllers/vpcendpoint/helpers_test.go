@@ -30,6 +30,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	"github.com/stretchr/testify/assert"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 )
@@ -455,87 +456,87 @@ func TestVpcEndpointReconciler_generateRoute53Record(t *testing.T) {
 	}
 }
 
-//func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
-//	var trueBool = true
-//
-//	tests := []struct {
-//		name       string
-//		resource   *avov1alpha2.VpcEndpoint
-//		domainName string
-//		expected   *corev1.Service
-//		expectErr  bool
-//	}{
-//		{
-//			name: "Minimal working example",
-//			resource: &avov1alpha2.VpcEndpoint{
-//				ObjectMeta: metav1.ObjectMeta{
-//					Name:      "demo-vpce",
-//					Namespace: "demo-ns",
-//				},
-//				Spec: avov1alpha2.VpcEndpointSpec{
-//					CustomDns: avov1alpha2.CustomDns{
-//						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
-//							AutoDiscover: false,
-//							Record: avov1alpha2.Route53HostedZoneRecord{
-//								Hostname: "hostname",
-//								ExternalNameService: avov1alpha2.ExternalNameService{
-//									Name: "demo",
-//								},
-//							},
-//						},
-//					},
-//				},
-//			},
-//			domainName: "my.cluster.com",
-//			expected: &corev1.Service{
-//				ObjectMeta: metav1.ObjectMeta{
-//					Name:      "demo",
-//					Namespace: "demo-ns",
-//					OwnerReferences: []metav1.OwnerReference{
-//						{
-//							APIVersion:         "avo.openshift.io/v1alpha2",
-//							Kind:               "VpcEndpoint",
-//							Name:               "demo-vpce",
-//							Controller:         &trueBool,
-//							BlockOwnerDeletion: &trueBool,
-//						},
-//					},
-//				},
-//				Spec: corev1.ServiceSpec{
-//					Type:         corev1.ServiceTypeExternalName,
-//					ExternalName: "hostname.my.cluster.com",
-//				},
-//			},
-//			expectErr: false,
-//		},
-//	}
-//
-//	mock, err := testutil.NewDefaultMock()
-//	if err != nil {
-//		t.Fatal(err)
-//	}
-//
-//	for _, test := range tests {
-//		t.Run(test.name, func(t *testing.T) {
-//			r := &VpcEndpointReconciler{
-//				Client: mock.Client,
-//				log:    testr.New(t),
-//				Scheme: mock.Client.Scheme(),
-//				clusterInfo: &clusterInfo{
-//					domainName: test.domainName,
-//				},
-//			}
-//
-//			actual, err := r.generateExternalNameService(test.resource)
-//			if test.expectErr {
-//				assert.Error(t, err)
-//			} else {
-//				assert.NoError(t, err)
-//				assert.Equal(t, test.expected, actual)
-//			}
-//		})
-//	}
-//}
+func TestVpcEndpointReconciler_generateExternalNameService(t *testing.T) {
+	var trueBool = true
+
+	tests := []struct {
+		name       string
+		resource   *avov1alpha2.VpcEndpoint
+		domainName string
+		expected   *corev1.Service
+		expectErr  bool
+	}{
+		{
+			name: "Minimal working example",
+			resource: &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo-vpce",
+					Namespace: "demo-ns",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					CustomDns: avov1alpha2.CustomDns{
+						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+							AutoDiscover: false,
+							Record: avov1alpha2.Route53HostedZoneRecord{
+								Hostname: "hostname",
+								ExternalNameService: avov1alpha2.ExternalNameService{
+									Name: "demo",
+								},
+							},
+						},
+					},
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					ResourceRecordSet: "hostname.my.cluster.com",
+				},
+			},
+			domainName: "my.cluster.com",
+			expected: &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "demo",
+					Namespace: "demo-ns",
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion:         "avo.openshift.io/v1alpha2",
+							Kind:               "VpcEndpoint",
+							Name:               "demo-vpce",
+							Controller:         &trueBool,
+							BlockOwnerDeletion: &trueBool,
+						},
+					},
+				},
+				Spec: corev1.ServiceSpec{
+					Type:         corev1.ServiceTypeExternalName,
+					ExternalName: "hostname.my.cluster.com",
+				},
+			},
+			expectErr: false,
+		},
+	}
+
+	mock, err := testutil.NewDefaultMock()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			r := &VpcEndpointReconciler{
+				Client: mock.Client,
+				log:    testr.New(t),
+				Scheme: mock.Client.Scheme(),
+			}
+
+			actual, err := r.generateExternalNameService(test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, test.expected, actual)
+			}
+		})
+	}
+}
 
 func TestTagsContains(t *testing.T) {
 	tests := []struct {

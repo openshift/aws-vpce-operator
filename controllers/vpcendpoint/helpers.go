@@ -666,8 +666,10 @@ func (r *VpcEndpointReconciler) generateExternalNameService(resource *avov1alpha
 			Namespace: resource.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
-			Type:         corev1.ServiceTypeExternalName,
-			ExternalName: fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, resource.Status.ResourceRecordSet),
+			Type: corev1.ServiceTypeExternalName,
+			// resource.Status.ResourceRecordSet is generated in validateR53HostedZoneRecord() and in the format of
+			// ${.spec.customDns.route53PrivateHostedZone.Record.Hostname}.${domain name}
+			ExternalName: resource.Status.ResourceRecordSet,
 		},
 	}
 
