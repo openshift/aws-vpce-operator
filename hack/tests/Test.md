@@ -1,1 +1,0 @@
-This file is being used to Test the progressive Delivery Workload
