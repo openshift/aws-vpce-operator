@@ -82,8 +82,8 @@ objects:
                   echo "Failed to connect to ${CD_NAME} cluster. Continuing..."
                   continue
                 fi
-                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].status.phase)
-                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].spec.version)
+                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-${OPERATOR_NAME} -l operators.coreos.com/${OPERATOR_NAME}.openshift-${OPERATOR_NAME}="" -o json | jq -r .items[0].status.phase)
+                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-${OPERATOR_NAME} -l operators.coreos.com/${OPERATOR_NAME}.openshift-${OPERATOR_NAME}="" -o json | jq -r .items[0].spec.version)
                 CSV_SHORT_SHA=$(echo ${CSV_VERSION} | awk -F'-' '{print $2}')
                 if [ "${CSV_SHORT_SHA}" == "${IMAGE_TAG}" ] && [ "${CSV_PHASE}" == "Succeeded" ]; then
                   echo "Cluster $CD_NAME passed CSV check!"
@@ -105,8 +105,8 @@ objects:
                   echo "Failed to connect to ${CD_NAME} cluster. Continuing..."
                   continue
                 fi
-                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].status.phase)
-                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-aws-vpce-operator -l operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator="" -o json | jq -r .items[0].spec.version)
+                CSV_PHASE=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-${OPERATOR_NAME} -l operators.coreos.com/${OPERATOR_NAME}.openshift-${OPERATOR_NAME}="" -o json | jq -r .items[0].status.phase)
+                CSV_VERSION=$(oc get csv --kubeconfig ${TEMPDIR}/${CD_NAME}.config -n openshift-${OPERATOR_NAME} -l operators.coreos.com/${OPERATOR_NAME}.openshift-${OPERATOR_NAME}="" -o json | jq -r .items[0].spec.version)
                 CSV_SHORT_SHA=$(echo ${CSV_VERSION} | awk -F'-' '{print $2}')
                 if [ "${CSV_SHORT_SHA}" == "${IMAGE_TAG}" ] && [ "${CSV_PHASE}" == "Succeeded" ]; then
                   echo "Cluster $CD_NAME passed CSV check!"
@@ -127,6 +127,9 @@ objects:
                 exit 1
             fi
 parameters:
+- name: OPERATOR_NAME
+  value: 'aws-vpce-operator'
+  required: true
 - name: JOB_NAME
   value: 'saas-avo-test'
   required: true
