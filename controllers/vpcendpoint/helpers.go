@@ -321,6 +321,12 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
 				FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
 				ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+				IpRanges: []ec2Types.IpRange{
+					{
+						// TODO: Make IP range configurable
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
 			})
 		}
 	}
@@ -357,6 +363,12 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
 				FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
 				ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+				IpRanges: []ec2Types.IpRange{
+					{
+						// TODO: Make IP range configurable
+						CidrIp: aws.String("0.0.0.0/0"),
+					},
+				},
 			})
 		}
 	}
