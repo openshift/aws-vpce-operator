@@ -278,6 +278,10 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 		sourceSgIds[i] = sourceSgResp.SecurityGroups[i].GroupId
 	}
 
+	if len(sourceSgIds) == 0 {
+		r.log.V(1).Info("Unable to find source security groups")
+	}
+
 	// Ensure ingress/egress rules
 	var (
 		ingressRules []ec2Types.IpPermission
@@ -285,59 +289,75 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 	)
 
 	for i := range resource.Spec.SecurityGroup.IngressRules {
-		for _, sourceSgId := range sourceSgIds {
-			create := true
-			for _, rule := range rulesResp.SecurityGroupRules {
-				// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
-				if *rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
-					*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
-					*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort &&
-					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
-					create = false
-					break
+		if len(sourceSgIds) > 0 {
+			for _, sourceSgId := range sourceSgIds {
+				create := true
+				for _, rule := range rulesResp.SecurityGroupRules {
+					// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
+					if *rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
+						*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
+						*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort &&
+						*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
+						create = false
+						break
+					}
+				}
+
+				if create {
+					ingressRules = append(ingressRules, ec2Types.IpPermission{
+						IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
+						FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
+						ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+						UserIdGroupPairs: []ec2Types.UserIdGroupPair{
+							{
+								GroupId: sourceSgId,
+							},
+						},
+					})
 				}
 			}
-
-			if create {
-				ingressRules = append(ingressRules, ec2Types.IpPermission{
-					IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
-					FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
-					ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
-					UserIdGroupPairs: []ec2Types.UserIdGroupPair{
-						{
-							GroupId: sourceSgId,
-						},
-					},
-				})
-			}
+		} else {
+			ingressRules = append(ingressRules, ec2Types.IpPermission{
+				IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
+				FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
+				ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+			})
 		}
 	}
 
 	for i := range resource.Spec.SecurityGroup.EgressRules {
-		for _, sourceSgId := range sourceSgIds {
-			create := true
-			for _, rule := range rulesResp.SecurityGroupRules {
-				if *rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
-					*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
-					*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort &&
-					*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
-					create = false
-					break
+		if len(sourceSgIds) > 0 {
+			for _, sourceSgId := range sourceSgIds {
+				create := true
+				for _, rule := range rulesResp.SecurityGroupRules {
+					if *rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
+						*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
+						*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort &&
+						*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
+						create = false
+						break
+					}
+				}
+
+				if create {
+					egressRules = append(egressRules, ec2Types.IpPermission{
+						IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
+						FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
+						ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+						UserIdGroupPairs: []ec2Types.UserIdGroupPair{
+							{
+								GroupId: sourceSgId,
+							},
+						},
+					})
 				}
 			}
-
-			if create {
-				egressRules = append(egressRules, ec2Types.IpPermission{
-					IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
-					FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
-					ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
-					UserIdGroupPairs: []ec2Types.UserIdGroupPair{
-						{
-							GroupId: sourceSgId,
-						},
-					},
-				})
-			}
+		} else {
+			egressRules = append(egressRules, ec2Types.IpPermission{
+				IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
+				FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
+				ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+			})
 		}
 	}
 
