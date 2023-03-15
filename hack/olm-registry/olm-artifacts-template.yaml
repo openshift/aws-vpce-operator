@@ -37,23 +37,10 @@ objects:
     name: aws-vpce-operator
   spec:
     clusterDeploymentSelector:
-      matchExpressions:
-        - key: api.openshift.com/managed
-          operator: In
-          values:
-            - "true"
-        - key: api.openshift.com/fedramp
-          operator: In
-          values:
-            - "true"
-        - key: api.openshift.com/private-link
-          operator: In
-          values:
-            - "true"
-        - key: ext-managed.openshift.io/hive-shard
-          operator: NotIn
-          values:
-            - "true"
+      matchLabels:
+        api.openshift.com/managed: 'true'
+        api.openshift.com/fedramp: 'true'
+        api.openshift.com/private-link: 'true'
     resourceApplyMode: Sync
     resources:
     - kind: Namespace
