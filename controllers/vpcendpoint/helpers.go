@@ -294,7 +294,8 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				create := true
 				for _, rule := range rulesResp.SecurityGroupRules {
 					// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
-					if *rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
+					if !*rule.IsEgress &&
+						*rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
 						*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
 						*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort &&
 						*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
@@ -317,17 +318,31 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				}
 			}
 		} else {
-			ingressRules = append(ingressRules, ec2Types.IpPermission{
-				IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
-				FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
-				ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
-				IpRanges: []ec2Types.IpRange{
-					{
-						// TODO: Make IP range configurable
-						CidrIp: aws.String("0.0.0.0/0"),
+			create := true
+			// Go through all existing rules to make sure rule does not exist
+			for _, rule := range rulesResp.SecurityGroupRules {
+				if !*rule.IsEgress &&
+					*rule.IpProtocol == resource.Spec.SecurityGroup.IngressRules[i].Protocol &&
+					*rule.FromPort == resource.Spec.SecurityGroup.IngressRules[i].FromPort &&
+					*rule.ToPort == resource.Spec.SecurityGroup.IngressRules[i].ToPort {
+					create = false
+					break
+				}
+			}
+
+			if create {
+				ingressRules = append(ingressRules, ec2Types.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
+					FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
+					ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+					IpRanges: []ec2Types.IpRange{
+						{
+							// TODO: Make IP range configurable
+							CidrIp: aws.String("0.0.0.0/0"),
+						},
 					},
-				},
-			})
+				})
+			}
 		}
 	}
 
@@ -336,7 +351,8 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 			for _, sourceSgId := range sourceSgIds {
 				create := true
 				for _, rule := range rulesResp.SecurityGroupRules {
-					if *rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
+					if *rule.IsEgress &&
+						*rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
 						*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
 						*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort &&
 						*rule.ReferencedGroupInfo.GroupId == *sourceSgId {
@@ -359,17 +375,31 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				}
 			}
 		} else {
-			egressRules = append(egressRules, ec2Types.IpPermission{
-				IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
-				FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
-				ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
-				IpRanges: []ec2Types.IpRange{
-					{
-						// TODO: Make IP range configurable
-						CidrIp: aws.String("0.0.0.0/0"),
+			create := true
+			// Go through all existing rules to make sure rule does not exist
+			for _, rule := range rulesResp.SecurityGroupRules {
+				if *rule.IsEgress &&
+					*rule.IpProtocol == resource.Spec.SecurityGroup.EgressRules[i].Protocol &&
+					*rule.FromPort == resource.Spec.SecurityGroup.EgressRules[i].FromPort &&
+					*rule.ToPort == resource.Spec.SecurityGroup.EgressRules[i].ToPort {
+					create = false
+					break
+				}
+			}
+
+			if create {
+				egressRules = append(egressRules, ec2Types.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
+					FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
+					ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+					IpRanges: []ec2Types.IpRange{
+						{
+							// TODO: Make IP range configurable
+							CidrIp: aws.String("0.0.0.0/0"),
+						},
 					},
-				},
-			})
+				})
+			}
 		}
 	}
 
