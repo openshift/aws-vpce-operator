@@ -533,7 +533,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 
 	if resource.Spec.Vpc.AutoDiscoverSubnets {
 		var discoveredSubnets []ec2Types.Subnet
-		if len(resource.Spec.Vpc.Ids) > 0 {
+		if len(resource.Spec.Vpc.Ids) > 0 || len(resource.Spec.Vpc.Tags) > 0 {
 			// Do not expect private subnets to have the cluster id when load balancing vpc ids
 			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, "")
 			if err != nil {
