@@ -45,6 +45,11 @@ func (m mockAvoEC2API) DescribeSubnets(ctx context.Context, params *ec2.Describe
 	panic("implement me")
 }
 
+func (m mockAvoEC2API) DescribeVpcs(ctx context.Context, params *ec2.DescribeVpcsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcsOutput, error) {
+	//TODO implement me
+	panic("implement me")
+}
+
 func (m mockAvoEC2API) CreateTags(ctx context.Context, params *ec2.CreateTagsInput, optFns ...func(*ec2.Options)) (*ec2.CreateTagsOutput, error) {
 	//TODO implement me
 	panic("implement me")

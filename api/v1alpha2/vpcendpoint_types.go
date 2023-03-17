@@ -35,7 +35,7 @@ type SecurityGroupRule struct {
 	Protocol string `json:"protocol,omitempty"`
 }
 
-// SecurityGroup is represents the configuration of a security group associated with the VPC Endpoint created by this CR
+// SecurityGroup represents the configuration of a security group associated with the VPC Endpoint created by this CR
 type SecurityGroup struct {
 	// IngressRules is a list of security group ingress rules.
 	// They will be allowed for the master and worker security groups.
@@ -48,12 +48,25 @@ type SecurityGroup struct {
 	EgressRules []SecurityGroupRule `json:"egressRules,omitempty"`
 }
 
+// Tag represents a key-value pair to filter AWS resources by
+type Tag struct {
+	// Key of an AWS tag
+	Key string `json:"key"`
+
+	// Value of an AWS tag
+	Value string `json:"value"`
+}
+
 // Vpc represents the configuration for the AWS VPC to create the VPC Endpoint in
 type Vpc struct {
 	// +kubebuilder:validation:Optional
 
-	// AutoDiscoverSubnets will instruct the controller to use the subnets associated with this ROSA cluster if true.
+	// AutoDiscoverSubnets will instruct the controller to use the subnets associated with this ROSA cluster if true
+	// using the tag-key: "kubernetes.io/cluster/${infraName}". If .spec.vpc.ids or spec.vpc.tags is specified, the
+	// tag-key "kubernetes.io/role/internal-elb" will be used instead.
 	AutoDiscoverSubnets bool `json:"autoDiscoverSubnets,omitempty"`
+
+	// +kubebuilder:validation:Optional
 
 	// SubnetIds is a list of subnet ids to associate with the VPC Endpoint, which must all be in the same VPC.
 	// If more than one is specified, each subnet must be in a different Availability Zone.
@@ -67,6 +80,12 @@ type Vpc struct {
 	// same region as the specified VPC Endpoint Service (.spec.serviceName) and must use subnet auto-discovery
 	// (.spec.vpc.autoDiscoverSubnets true) based on the "kubernetes.io/role/internal-elb" tag key
 	Ids []string `json:"ids,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
+	// Tags is a list of AWS tag key-value pairs to find VPCs with. This is mutually exclusive with
+	// .spec.vpc.ids and can only be specified with .spec.vpc.autoDiscoverSubnets = true.
+	Tags []Tag `json:"tags,omitempty"`
 }
 
 // ExternalNameService is the configuration of a Kubernetes ExternalName Service pointing to a CustomDns

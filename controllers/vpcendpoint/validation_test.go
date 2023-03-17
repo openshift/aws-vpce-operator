@@ -82,6 +82,23 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			expectErr: true,
 		},
 		{
+			name: "Specifying VPC Tags without subnet autodiscovery",
+			vpce: &avov1alpha2.VpcEndpoint{
+				Spec: avov1alpha2.VpcEndpointSpec{
+					Vpc: avov1alpha2.Vpc{
+						AutoDiscoverSubnets: false,
+						Tags: []avov1alpha2.Tag{
+							{
+								Key:   "key",
+								Value: "value",
+							},
+						},
+					},
+				},
+			},
+			expectErr: true,
+		},
+		{
 			name: "Valid example 1",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{

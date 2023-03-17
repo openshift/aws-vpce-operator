@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/smithy-go"
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 )
 
@@ -70,6 +71,39 @@ func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) 
 	}
 
 	return minVpcId, nil
+}
+
+// FilterVpcIdsByTags tags in a list of tags and returns a list of AWS VPC Ids that have all of the provided tags
+func (c *AWSClient) FilterVpcIdsByTags(ctx context.Context, tags []avov1alpha2.Tag) ([]string, error) {
+	if len(tags) == 0 {
+		return nil, errors.New("must specify tags when filtering VPCs by tags")
+	}
+
+	filters := make([]types.Filter, len(tags))
+	for i, tag := range tags {
+		filters[i] = types.Filter{
+			Name:   aws.String(fmt.Sprintf("tag:%s", tag.Key)),
+			Values: []string{tag.Value},
+		}
+	}
+
+	resp, err := c.ec2Client.DescribeVpcs(ctx, &ec2.DescribeVpcsInput{
+		Filters: filters,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(resp.Vpcs) == 0 {
+		return nil, fmt.Errorf("no VPCs found when filtering by tags: %v", tags)
+	}
+
+	ids := make([]string, len(resp.Vpcs))
+	for i, vpc := range resp.Vpcs {
+		ids[i] = *vpc.VpcId
+	}
+
+	return ids, nil
 }
 
 // DescribeSingleVPCEndpointById returns information about a VPC endpoint with a given id.
