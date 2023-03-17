@@ -98,14 +98,27 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 	if vpce.Status.VPCId == "" {
 		var vpcId string
 
-		if len(vpce.Spec.Vpc.Ids) > 0 {
+		switch {
+		case len(vpce.Spec.Vpc.Tags) > 0:
+			ids, err := r.awsClient.FilterVpcIdsByTags(ctx, vpce.Spec.Vpc.Tags)
+			if err != nil {
+				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
+			}
+
+			v, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, ids...)
+			if err != nil {
+				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
+			}
+			vpcId = v
+			r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
+		case len(vpce.Spec.Vpc.Ids) > 0:
 			v, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, vpce.Spec.Vpc.Ids...)
 			if err != nil {
 				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
 			}
 			vpcId = v
 			r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
-		} else if vpce.Spec.Vpc.AutoDiscoverSubnets {
+		case vpce.Spec.Vpc.AutoDiscoverSubnets:
 			resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
 			if err != nil {
 				return fmt.Errorf("unable to autodiscover subnets: %w", err)
@@ -122,7 +135,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			}
 			vpcId = v
 			r.log.V(1).Info("Found vpc id:", "vpcId", vpcId)
-		} else {
+		default:
 			v, err := r.awsClient.GetVPCId(ctx, vpce.Spec.Vpc.SubnetIds)
 			if err != nil {
 				return err

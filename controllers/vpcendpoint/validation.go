@@ -73,6 +73,12 @@ func validateVpcEndpointCR(vpce *avov1alpha2.VpcEndpoint) error {
 		}
 	}
 
+	if len(vpce.Spec.Vpc.Tags) > 0 {
+		if !vpce.Spec.Vpc.AutoDiscoverSubnets {
+			return errors.New(".spec.vpc.autoDiscoverSubnets must be true when specifying tags to search for VPCs")
+		}
+	}
+
 	// Custom DNS validations
 	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
 		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
