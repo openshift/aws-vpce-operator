@@ -70,6 +70,10 @@ func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) 
 		minVpcId = vpcId
 	}
 
+	if minVpcId == "" {
+		return "", errors.New("unexpectedly did not select a VPC for the VPC Endpoint")
+	}
+
 	return minVpcId, nil
 }
 

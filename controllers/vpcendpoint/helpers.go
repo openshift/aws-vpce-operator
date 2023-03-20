@@ -105,12 +105,13 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
 			}
 
+			r.log.V(1).Info("Found candidate VPCs by tag", "ids", ids)
 			v, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, ids...)
 			if err != nil {
 				return fmt.Errorf("failed to select a VPC to place a VPC Endpoint in: %w", err)
 			}
 			vpcId = v
-			r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
+			r.log.V(1).Info("Selecting vpc id by tags", "vpcId", vpcId)
 		case len(vpce.Spec.Vpc.Ids) > 0:
 			v, err := r.awsClient.SelectVPCForVPCEndpoint(ctx, vpce.Spec.Vpc.Ids...)
 			if err != nil {
