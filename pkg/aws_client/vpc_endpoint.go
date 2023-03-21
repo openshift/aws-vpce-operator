@@ -47,7 +47,7 @@ func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) 
 		},
 	}
 
-	minVpcId := ids[0]
+	minVpcId := ""
 	minVpceConsumed := math.MaxInt
 	vpcePerVpc := map[string]int{}
 	for _, id := range ids {
@@ -69,8 +69,8 @@ func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) 
 	for vpcId, vpceCount := range vpcePerVpc {
 		if vpceCount < minVpceConsumed {
 			minVpceConsumed = vpceCount
+			minVpcId = vpcId
 		}
-		minVpcId = vpcId
 	}
 
 	if minVpcId == "" {
