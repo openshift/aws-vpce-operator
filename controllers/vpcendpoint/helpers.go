@@ -309,7 +309,7 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 			for _, rule := range rulesResp.SecurityGroupRules {
 				if avoAndAwsSecurityGroupRuleCandidate(false, resource.Spec.SecurityGroup.IngressRules[i], rule) {
 					// If we find a rule with the correct protocol, fromPort, and toPort, check CidrIP
-					if resource.Spec.SecurityGroup.IngressRules[i].CidrIp == *rule.CidrIpv4 {
+					if rule.CidrIpv4 != nil && resource.Spec.SecurityGroup.IngressRules[i].CidrIp == *rule.CidrIpv4 {
 						create = false
 						break
 					}
@@ -364,7 +364,7 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 			for _, rule := range rulesResp.SecurityGroupRules {
 				if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.IngressRules[i], rule) {
 					// If we find a rule with the correct protocol, fromPort, and toPort, check CidrIP
-					if resource.Spec.SecurityGroup.IngressRules[i].CidrIp == *rule.CidrIpv4 {
+					if rule.CidrIpv4 != nil && resource.Spec.SecurityGroup.IngressRules[i].CidrIp == *rule.CidrIpv4 {
 						create = false
 						break
 					}
