@@ -7,6 +7,7 @@ import (
 )
 
 type mockAvoEC2API struct {
+	describeVpcEndpointResp         *ec2.DescribeVpcEndpointsOutput
 	describeVpcEndpointServicesResp *ec2.DescribeVpcEndpointServicesOutput
 }
 
@@ -66,8 +67,7 @@ func (m mockAvoEC2API) DeleteVpcEndpoints(ctx context.Context, params *ec2.Delet
 }
 
 func (m mockAvoEC2API) DescribeVpcEndpoints(ctx context.Context, params *ec2.DescribeVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointsOutput, error) {
-	//TODO implement me
-	panic("implement me")
+	return m.describeVpcEndpointResp, nil
 }
 
 func (m mockAvoEC2API) ModifyVpcEndpoint(ctx context.Context, params *ec2.ModifyVpcEndpointInput, optFns ...func(*ec2.Options)) (*ec2.ModifyVpcEndpointOutput, error) {

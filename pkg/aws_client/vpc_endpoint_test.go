@@ -20,10 +20,61 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 	"github.com/stretchr/testify/assert"
 )
+
+func TestAWSClient_SelectVPCForVPCEndpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		ids        []string
+		resp       *ec2.DescribeVpcEndpointsOutput
+		expectedId string
+		expectErr  bool
+	}{
+		{
+			name:      "No ids",
+			expectErr: true,
+		},
+		{
+			name:       "No VPC Endpoints",
+			ids:        []string{"vpc-01"},
+			resp:       &ec2.DescribeVpcEndpointsOutput{},
+			expectedId: "vpc-01",
+			expectErr:  false,
+		},
+		{
+			name: "vpc-02 is more empty",
+			ids:  []string{"vpc-01", "vpc-02"},
+			resp: &ec2.DescribeVpcEndpointsOutput{
+				VpcEndpoints: []types.VpcEndpoint{
+					{VpcId: aws.String("vpc-01")},
+					{VpcId: aws.String("vpc-01")},
+					{VpcId: aws.String("vpc-01")},
+					{VpcId: aws.String("vpc-02")},
+				},
+			},
+			expectedId: "vpc-02",
+			expectErr:  false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := AWSClient{ec2Client: mockAvoEC2API{describeVpcEndpointResp: test.resp}}
+			actualId, err := client.SelectVPCForVPCEndpoint(context.TODO(), test.ids...)
+			if err != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equalf(t, test.expectedId, actualId, "expected %s, got %s", test.expectedId, actualId)
+			}
+		})
+	}
+}
 
 func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 	client := NewMockedAwsClient()
