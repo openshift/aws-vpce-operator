@@ -205,9 +205,21 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 								FromPort: 0,
 								ToPort:   0,
 								Protocol: "tcp",
+								CidrIp:   "0.0.0.0/0",
+							},
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
 							},
 						},
 						IngressRules: []avov1alpha2.SecurityGroupRule{
+							{
+								FromPort: 0,
+								ToPort:   0,
+								Protocol: "tcp",
+								CidrIp:   "0.0.0.0/0",
+							},
 							{
 								FromPort: 0,
 								ToPort:   0,
@@ -220,25 +232,26 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 			sg: &ec2Types.SecurityGroup{
 				GroupId: aws.String(aws_client.MockSecurityGroupId),
 			},
-			expectedNumEgress:  1,
-			expectedNumIngress: 1,
+			expectedNumEgress:  2,
+			expectedNumIngress: 2,
 			expectErr:          false,
 		},
 	}
 
 	for _, test := range tests {
-		client := testutil.NewTestMock(t).Client
-		if test.resource != nil {
-			client = testutil.NewTestMock(t, test.resource).Client
-		}
-		r := &VpcEndpointReconciler{
-			Client:      client,
-			Scheme:      client.Scheme(),
-			log:         testr.New(t),
-			awsClient:   aws_client.NewMockedAwsClient(),
-			clusterInfo: test.clusterInfo,
-		}
 		t.Run(test.name, func(t *testing.T) {
+			client := testutil.NewTestMock(t).Client
+			if test.resource != nil {
+				client = testutil.NewTestMock(t, test.resource).Client
+			}
+			r := &VpcEndpointReconciler{
+				Client:      client,
+				Scheme:      client.Scheme(),
+				log:         testr.New(t),
+				awsClient:   aws_client.NewMockedAwsClient(),
+				clusterInfo: test.clusterInfo,
+			}
+
 			ingress, egress, err := r.generateMissingSecurityGroupRules(context.TODO(), test.sg, test.resource)
 			if test.expectErr {
 				assert.Error(t, err)
@@ -247,6 +260,56 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 				assert.Equalf(t, test.expectedNumIngress, len(ingress.IpPermissions), "expected %d ingress rules, got %d", test.expectedNumIngress, len(ingress.IpPermissions))
 				assert.Equalf(t, test.expectedNumEgress, len(egress.IpPermissions), "expected %d egress rules, got %d", test.expectedNumEgress, len(egress.IpPermissions))
 			}
+		})
+	}
+}
+
+func TestAvoAndAwsSecurityGroupRuleCandidate(t *testing.T) {
+	tests := []struct {
+		name     string
+		isEgress bool
+		avoRule  avov1alpha2.SecurityGroupRule
+		awsRule  ec2Types.SecurityGroupRule
+		expected bool
+	}{
+		{
+			name:     "equal",
+			isEgress: true,
+			avoRule: avov1alpha2.SecurityGroupRule{
+				FromPort: 0,
+				ToPort:   0,
+				Protocol: "tcp",
+			},
+			awsRule: ec2Types.SecurityGroupRule{
+				FromPort:   aws.Int32(0),
+				IpProtocol: aws.String("tcp"),
+				IsEgress:   aws.Bool(true),
+				ToPort:     aws.Int32(0),
+			},
+			expected: true,
+		},
+		{
+			name:     "different egress",
+			isEgress: false,
+			avoRule: avov1alpha2.SecurityGroupRule{
+				FromPort: 0,
+				ToPort:   0,
+				Protocol: "tcp",
+			},
+			awsRule: ec2Types.SecurityGroupRule{
+				FromPort:   aws.Int32(0),
+				IpProtocol: aws.String("tcp"),
+				IsEgress:   aws.Bool(true),
+				ToPort:     aws.Int32(0),
+			},
+			expected: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			actual := avoAndAwsSecurityGroupRuleCandidate(test.isEgress, test.avoRule, test.awsRule)
+			assert.Equal(t, test.expected, actual)
 		})
 	}
 }

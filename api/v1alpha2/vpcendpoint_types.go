@@ -23,6 +23,12 @@ import (
 
 // SecurityGroupRule is based on required inputs for `aws authorize-security-group-ingress/egress`
 type SecurityGroupRule struct {
+	// +kubebuilder:validation:Format=cidr
+
+	// CidrIp is the IPv4 address range, in CIDR format, to allow.
+	// If not specified, the cluster's master and worker security group are allowed instead.
+	CidrIp string `json:"cidrIp,omitempty"`
+
 	// FromPort and ToPort are the start and end of the port range to allow.
 	// In the case of a single port, set both to the same value.
 	FromPort int32 `json:"fromPort,omitempty"`
