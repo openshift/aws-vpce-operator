@@ -47,9 +47,12 @@ func (c *AWSClient) SelectVPCForVPCEndpoint(ctx context.Context, ids ...string) 
 		},
 	}
 
-	minVpcId := ""
+	minVpcId := ids[0]
 	minVpceConsumed := math.MaxInt
 	vpcePerVpc := map[string]int{}
+	for _, id := range ids {
+		vpcePerVpc[id] = 0
+	}
 
 	paginator := ec2.NewDescribeVpcEndpointsPaginator(c.ec2Client, input)
 	for paginator.HasMorePages() {
