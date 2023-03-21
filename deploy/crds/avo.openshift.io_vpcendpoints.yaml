@@ -338,6 +338,12 @@ spec:
                       description: SecurityGroupRule is based on required inputs for
                         `aws authorize-security-group-ingress/egress`
                       properties:
+                        cidrIp:
+                          description: CidrIp is the IPv4 address range, in CIDR format,
+                            to allow. If not specified, the cluster's master and worker
+                            security group are allowed instead.
+                          format: cidr
+                          type: string
                         fromPort:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow. In the case of a single port,
@@ -364,6 +370,12 @@ spec:
                       description: SecurityGroupRule is based on required inputs for
                         `aws authorize-security-group-ingress/egress`
                       properties:
+                        cidrIp:
+                          description: CidrIp is the IPv4 address range, in CIDR format,
+                            to allow. If not specified, the cluster's master and worker
+                            security group are allowed instead.
+                          format: cidr
+                          type: string
                         fromPort:
                           description: FromPort and ToPort are the start and end of
                             the port range to allow. In the case of a single port,
