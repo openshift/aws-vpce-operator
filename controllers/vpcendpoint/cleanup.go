@@ -35,36 +35,46 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 			return err
 		}
 
-		resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
-		if err != nil {
+		// Ensure .status.hostedZoneId is populated
+		if err := r.validateR53PrivateHostedZone(ctx, resource); err != nil {
 			return err
 		}
 
-		if resp.HostedZone != nil {
-			r.log.V(0).Info("Deleting Route53 Hosted Zone Record")
-			input := &route53Types.ResourceRecordSet{
-				Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, *resp.HostedZone.Name)),
-				ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
-				TTL:             aws.Int64(300),
-				Type:            route53Types.RRTypeCname,
-			}
-
-			if _, err := r.awsClient.DeleteResourceRecordSet(ctx, input, *resp.HostedZone.Id); err != nil {
+		// HostedZoneId and resourceRecord are required if we want to clean up a ResourceRecordSet
+		if resource.Status.HostedZoneId != "" && resourceRecord != nil {
+			resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+			if err != nil {
 				return err
 			}
-		}
 
-		resource.Status.ResourceRecordSet = ""
-		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
-			Type:    avov1alpha2.AWSRoute53RecordCondition,
-			Status:  metav1.ConditionFalse,
-			Reason:  "Deleted",
-			Message: "Deleted Route53 Hosted Zone Record",
-		})
+			if resp.HostedZone != nil {
+				// To delete a resource record set, you must specify all the same values that you specified when you created it.
+				// https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html
+				r.log.V(0).Info("Deleting Route53 Hosted Zone Record")
+				input := &route53Types.ResourceRecordSet{
+					Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, *resp.HostedZone.Name)),
+					ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
+					TTL:             aws.Int64(300),
+					Type:            route53Types.RRTypeCname,
+				}
 
-		if err := r.Status().Update(ctx, resource); err != nil {
-			r.log.V(0).Error(err, "failed to update status")
-			return err
+				if _, err := r.awsClient.DeleteResourceRecordSet(ctx, input, *resp.HostedZone.Id); err != nil {
+					return err
+				}
+			}
+
+			resource.Status.ResourceRecordSet = ""
+			meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+				Type:    avov1alpha2.AWSRoute53RecordCondition,
+				Status:  metav1.ConditionFalse,
+				Reason:  "Deleted",
+				Message: "Deleted Route53 Hosted Zone Record",
+			})
+
+			if err := r.Status().Update(ctx, resource); err != nil {
+				r.log.V(0).Error(err, "failed to update status")
+				return err
+			}
 		}
 	}
 
