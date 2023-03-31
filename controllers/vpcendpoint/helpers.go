@@ -740,6 +740,11 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 	}
 
 	if len(vpceResp.VpcEndpoints[0].DnsEntries) == 0 {
+		if !resource.ObjectMeta.DeletionTimestamp.IsZero() {
+			// When we're deleting the VPC Endpoint, handle the edge case where it doesn't have any subnets attached anymore
+			return nil, nil
+		}
+
 		return nil, fmt.Errorf("VPCEndpoint has no DNS entries")
 	}
 
