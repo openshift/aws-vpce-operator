@@ -41,7 +41,7 @@ objects:
         api.openshift.com/managed: 'true'
         api.openshift.com/fedramp: 'true'
         api.openshift.com/private-link: 'true'
-    resourceApplyMode: Sync
+    resourceApplyMode: Upsert
     resources:
     - kind: Namespace
       apiVersion: v1
