@@ -17,7 +17,7 @@ const (
 )
 
 // Test entrypoint. osde2e runs this as a test suite on test pod.
-func AwsVpceOperator(t *testing.T) {
+func TestAwsVpceOperator(t *testing.T) {
 	RegisterFailHandler(Fail)
 
 	suiteConfig, reporterConfig := GinkgoConfiguration()

@@ -8,4 +8,3 @@ RUN  CGO_ENABLED=0 GOFLAGS="-mod=mod" go test ./osde2e -v -c --tags=integration 
 FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 COPY --from=builder ./harness.test harness.test
 ENTRYPOINT [ "/harness.test" ]
-
