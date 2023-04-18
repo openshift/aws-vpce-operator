@@ -42,6 +42,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpoint"
 	"github.com/openshift/aws-vpce-operator/controllers/vpcendpointacceptance"
+	"github.com/openshift/aws-vpce-operator/controllers/vpcendpointtemplate"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -55,6 +56,9 @@ func init() {
 
 	// Add config.openshift.io/v1
 	utilruntime.Must(configv1.Install(scheme))
+
+	//Add hypershift.openshift.io for the hostedcontrolplanes CR
+	utilruntime.Must(hyperv1beta1.AddToScheme(scheme))
 
 	// Add aws.managed.openshift.io/v1alpha1 for the AccountList CR
 	utilruntime.Must(aaov1alpha1.AddToScheme(scheme))
@@ -140,6 +144,13 @@ func main() {
 			setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointAcceptance")
 			os.Exit(1)
 		}
+	}
+	if err = (&vpcendpointtemplate.VpcEndpointTemplateReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointTemplate")
+		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
 
