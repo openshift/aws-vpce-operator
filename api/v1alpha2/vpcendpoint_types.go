@@ -135,10 +135,28 @@ type CustomDns struct {
 	Route53PrivateHostedZone Route53PrivateHostedZone `json:"route53PrivateHostedZone,omitempty"`
 }
 
+type ServiceName struct {
+	Name      string             `json:"name,omitempty"`
+	ValueFrom *ServiceNameSource `json:"valueFrom,omitempty"`
+}
+
+// ServiceNameSource represents the source of a VPC Endpoint Service Name
+// Similar to: https://github.com/kubernetes/api/blob/7a87286591e433a1d034a768032b5fd4abb072b3/core/v1/types.go#L2100-L2110
+type ServiceNameSource struct {
+	AwsEndpointServiceRef *AwsEndpointSelector `json:"awsEndpointServiceRef,omitempty"`
+}
+
+type AwsEndpointSelector struct {
+	Name string `json:"name"`
+}
+
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
 	// ServiceName is the name of the VPC Endpoint Service to connect to
-	ServiceName string `json:"serviceName"`
+	ServiceName string `json:"serviceName,omitempty"`
+
+	// ServiceNameRef refers to a group and resource that contains the name of the VPC Endpoint Service
+	ServiceNameRef *ServiceName `json:"serviceNameRef,omitempty"`
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
 	SecurityGroup SecurityGroup `json:"securityGroup"`
@@ -204,6 +222,10 @@ type VpcEndpointStatus struct {
 	// The AWS ID of the managed VPC Endpoint
 	// +kubebuilder:validation:Optional
 	VPCEndpointId string `json:"vpcEndpointId,omitempty"`
+
+	// The name of the VPC Endpoint Service the VPC Endpoint connects to
+	// +kubebuilder:validation:Optional
+	VPCEndpointServiceName string `json:"vpcEndpointServiceName,omitempty"`
 
 	// The AWS ID of the Route 53 Private Hosted Zone being used
 	// +kubebuilder:validation:Optional

@@ -41,6 +41,9 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			name: "Override region + Autodiscovery",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{
+					ServiceNameRef: &avov1alpha2.ServiceName{
+						Name: "test",
+					},
 					Region: "us-east-1",
 					Vpc: avov1alpha2.Vpc{
 						AutoDiscoverSubnets: true,
@@ -58,6 +61,7 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			name: "VPC Load Balancing + Subnet IDs",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{
+					ServiceName: "test",
 					Vpc: avov1alpha2.Vpc{
 						AutoDiscoverSubnets: true,
 						SubnetIds:           []string{"subnet-a", "subnet-b", "subnet-c"},
@@ -71,6 +75,7 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			name: "Specifying Route53 HZ ID + Route53 HZ Domain Name",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{
+					ServiceName: "test",
 					CustomDns: avov1alpha2.CustomDns{
 						Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
 							DomainName: "example.com",
@@ -85,6 +90,7 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			name: "Specifying VPC Tags without subnet autodiscovery",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{
+					ServiceName: "test",
 					Vpc: avov1alpha2.Vpc{
 						AutoDiscoverSubnets: false,
 						Tags: []avov1alpha2.Tag{
@@ -102,6 +108,7 @@ func TestValidateVpcEndpointCR(t *testing.T) {
 			name: "Valid example 1",
 			vpce: &avov1alpha2.VpcEndpoint{
 				Spec: avov1alpha2.VpcEndpointSpec{
+					ServiceName: "test",
 					Vpc: avov1alpha2.Vpc{
 						AutoDiscoverSubnets: true,
 						Ids:                 []string{"vpc-a", "vpc-b", "vpc-c"},

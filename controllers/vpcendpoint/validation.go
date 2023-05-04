@@ -51,6 +51,16 @@ func (r *VpcEndpointReconciler) validateResources(ctx context.Context, resource 
 func validateVpcEndpointCR(vpce *avov1alpha2.VpcEndpoint) error {
 	// TODO: Ideally this should be a validating webhook
 
+	if vpce.Spec.ServiceName == "" {
+		if vpce.Spec.ServiceNameRef.Name == "" {
+			if vpce.Spec.ServiceNameRef.ValueFrom == nil ||
+				vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef == nil ||
+				vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef.Name == "" {
+				return errors.New("one of .spec.serviceName, .spec.serviceNameRef.Name, or .spec.serviceNameRef.awsEndpointServiceRef.Name must be specified")
+			}
+		}
+	}
+
 	// Cannot override region with autodiscovery of subnets or Route 53 Private Hosted Zone
 	if vpce.Spec.Region != "" {
 		if vpce.Spec.Vpc.AutoDiscoverSubnets {

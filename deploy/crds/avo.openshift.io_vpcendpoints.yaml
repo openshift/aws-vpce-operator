@@ -144,8 +144,8 @@ spec:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
                     use as an array at the field path .status.conditions.  For example,
-                    \n type FooStatus struct{ // Represents the observations of a
-                    foo's current state. // Known .status.conditions.type are: \"Available\",
+                    type FooStatus struct{ // Represents the observations of a foo's
+                    current state. // Known .status.conditions.type are: \"Available\",
                     \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
                     // +listType=map // +listMapKey=type Conditions []metav1.Condition
                     `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"
@@ -399,6 +399,25 @@ spec:
                 description: ServiceName is the name of the VPC Endpoint Service to
                   connect to
                 type: string
+              serviceNameRef:
+                description: ServiceNameRef refers to a group and resource that contains
+                  the name of the VPC Endpoint Service
+                properties:
+                  name:
+                    type: string
+                  valueFrom:
+                    description: 'ServiceNameSource represents the source of a VPC
+                      Endpoint Service Name Similar to: https://github.com/kubernetes/api/blob/7a87286591e433a1d034a768032b5fd4abb072b3/core/v1/types.go#L2100-L2110'
+                    properties:
+                      awsEndpointServiceRef:
+                        properties:
+                          name:
+                            type: string
+                        required:
+                        - name
+                        type: object
+                    type: object
+                type: object
               vpc:
                 description: Vpc will allow AVO to use a specific VPC or use the same
                   VPC as the ROSA cluster it's running on
@@ -450,7 +469,6 @@ spec:
                 type: object
             required:
             - securityGroup
-            - serviceName
             type: object
           status:
             description: VpcEndpointStatus defines the observed state of VpcEndpoint
@@ -462,8 +480,8 @@ spec:
                   description: "Condition contains details for one aspect of the current
                     state of this API Resource. --- This struct is intended for direct
                     use as an array at the field path .status.conditions.  For example,
-                    \n type FooStatus struct{ // Represents the observations of a
-                    foo's current state. // Known .status.conditions.type are: \"Available\",
+                    type FooStatus struct{ // Represents the observations of a foo's
+                    current state. // Known .status.conditions.type are: \"Available\",
                     \"Progressing\", and \"Degraded\" // +patchMergeKey=type // +patchStrategy=merge
                     // +listType=map // +listMapKey=type Conditions []metav1.Condition
                     `json:\"conditions,omitempty\" patchStrategy:\"merge\" patchMergeKey:\"type\"
@@ -541,6 +559,10 @@ spec:
                 type: string
               vpcEndpointId:
                 description: The AWS ID of the managed VPC Endpoint
+                type: string
+              vpcEndpointServiceName:
+                description: The name of the VPC Endpoint Service the VPC Endpoint
+                  connects to
                 type: string
               vpcId:
                 description: The AWS ID of the VPC to create resources in

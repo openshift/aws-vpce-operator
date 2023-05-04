@@ -34,8 +34,10 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/secrets"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
+	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -63,6 +65,10 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 	}
 	r.clusterInfo.clusterTag = clusterTag
 	r.log.V(1).Info("Found cluster tag:", "clusterTag", clusterTag)
+
+	if err := r.getVpcEndpointServiceName(ctx, vpce); err != nil {
+		return err
+	}
 
 	if vpce.Spec.Region != "" {
 		r.clusterInfo.region = vpce.Spec.Region
@@ -147,7 +153,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 		vpce.Status.VPCId = vpcId
 		if err := r.Status().Update(ctx, vpce); err != nil {
-			return errors.New("failed to update status")
+			return fmt.Errorf("failed to update status: %v", err)
 		}
 	}
 
@@ -168,6 +174,36 @@ func awsUnauthorizedOperationMetricHandler(err error) {
 			}
 		}
 	}
+}
+
+// getVpcEndpointServiceName determines the VPC Endpoint Service name from an avov1alpha2 VpcEndpoint
+func (r *VpcEndpointReconciler) getVpcEndpointServiceName(ctx context.Context, vpce *avov1alpha2.VpcEndpoint) error {
+	var vpceServiceName string
+	if vpce.Spec.ServiceName != "" {
+		vpceServiceName = vpce.Spec.ServiceName
+	} else if vpce.Spec.ServiceNameRef.Name != "" {
+		vpceServiceName = vpce.Spec.ServiceNameRef.Name
+	} else if vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef.Name != "" {
+		awsEndpointService := new(hyperv1beta1.AWSEndpointService)
+		if err := r.Get(ctx, client.ObjectKey{
+			Namespace: vpce.Namespace,
+			Name:      vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef.Name,
+		}, awsEndpointService); err != nil {
+			return err
+		}
+		vpceServiceName = awsEndpointService.Status.EndpointServiceName
+	}
+
+	if vpceServiceName == "" {
+		return errors.New("empty VPC Endpoint Service name")
+	}
+
+	vpce.Status.VPCEndpointServiceName = vpceServiceName
+	if err := r.Status().Update(ctx, vpce); err != nil {
+		return fmt.Errorf("failed to update status: %v", err)
+	}
+
+	return nil
 }
 
 // findOrCreateSecurityGroup queries AWS and returns the Security Group for the provided CR and updates its status.
@@ -516,7 +552,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
 
-			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, resource.Status.VPCId, resource.Spec.ServiceName, r.clusterInfo.clusterTag)
+			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, resource.Status.VPCId, resource.Status.VPCEndpointServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create vpc endpoint: %w", err)
 			}
@@ -576,7 +612,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 
 		// When auto-discovering the cluster's private subnet ids, only subnets supported by the VPC Endpoint
 		// Service should be attached
-		allowedAZs, err := r.awsClient.GetVpcEndpointServiceAZs(ctx, resource.Spec.ServiceName)
+		allowedAZs, err := r.awsClient.GetVpcEndpointServiceAZs(ctx, resource.Status.VPCEndpointServiceName)
 		if err != nil {
 			return err
 		}
@@ -591,7 +627,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 			}
 		}
 
-		r.log.V(1).Info("Private subnet(s) in availability zones supported by the VPC Endpoint Service:", "subnets", expectedSubnetIds, "serviceName", resource.Spec.ServiceName)
+		r.log.V(1).Info("Private subnet(s) in availability zones supported by the VPC Endpoint Service:", "subnets", expectedSubnetIds, "serviceName", resource.Status.VPCEndpointServiceName)
 		subnetsToAdd, subnetsToRemove = util.StringSliceTwoWayDiff(vpce.SubnetIds, expectedSubnetIds)
 	} else {
 		// When subnet ids are specified, use exactly those subnets
