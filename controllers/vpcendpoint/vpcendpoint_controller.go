@@ -68,6 +68,7 @@ type clusterInfo struct {
 //+kubebuilder:rbac:groups=config.openshift.io,resources=dnses,verbs=get,list
 //+kubebuilder:rbac:groups=v1,resources=services,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=v1,resources=services/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=hypershift.openshift.io,resources=awsendpointservices,verbs=get;list
 //+kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
