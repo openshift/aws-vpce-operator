@@ -4,6 +4,14 @@ metadata:
   name: aws-vpce-operator
 rules:
   - apiGroups:
+      - hypershift.openshift.io
+    resources:
+      - awsendpointservices
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
     - config.openshift.io
     resources:
     - infrastructures
