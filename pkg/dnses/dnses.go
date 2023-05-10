@@ -23,13 +23,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-const defaultDnsesName = "cluster"
+const DefaultDnsesName = "cluster"
 
 // GetPrivateHostedZoneDomainName returns the domain name for the cluster's private hosted zone
-func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client) (string, error) {
+func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, name string) (string, error) {
 	dnses := new(configv1.DNS)
 
-	if err := c.Get(ctx, client.ObjectKey{Name: defaultDnsesName}, dnses); err != nil {
+	if err := c.Get(ctx, client.ObjectKey{Name: name}, dnses); err != nil {
 		return "", err
 	}
 

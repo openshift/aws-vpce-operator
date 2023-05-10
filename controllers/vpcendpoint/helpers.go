@@ -31,6 +31,8 @@ import (
 
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
+	"github.com/openshift/aws-vpce-operator/pkg/dnses"
+	"github.com/openshift/aws-vpce-operator/pkg/hostedcontrolplanes"
 	"github.com/openshift/aws-vpce-operator/pkg/infrastructures"
 	"github.com/openshift/aws-vpce-operator/pkg/secrets"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
@@ -714,7 +716,40 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		return errors.New("resource must be specified")
 	}
 
-	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+	var (
+		domainName string
+		err        error
+	)
+
+	switch {
+	case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "":
+		domainName = resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName
+	case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil:
+		switch {
+		case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.Name != "":
+			domainName = resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.Name
+		case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil:
+			switch {
+			case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.DnsRef != nil:
+				domainName, err = dnses.GetPrivateHostedZoneDomainName(ctx, r.Client, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.DnsRef.Name)
+				if err != nil {
+					return err
+				}
+			case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil:
+				switch {
+				case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef.NamespaceFieldRef.FieldPath == ".metadata.name":
+					domainName, err = hostedcontrolplanes.GetPrivateHostedZoneDomainName(ctx, r.Client, resource.Namespace)
+					if err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+
+	r.log.V(0).Info("using domain name", "domain name", domainName)
+
+	if domainName != "" {
 		r.log.V(1).Info("Searching for Route 53 Private Hosted Zone", "vpc", resource.Status.VPCId, "region", r.clusterInfo.region)
 		// TODO: Unlikely, but would be nice to handle pagination
 		resp, err := r.awsClient.ListHostedZonesByVPC(ctx, resource.Status.VPCId, r.clusterInfo.region)
@@ -738,7 +773,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		}
 
 		// Otherwise, create one
-		createResp, err := r.awsClient.CreateHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName, resource.Status.VPCId, r.clusterInfo.region)
+		createResp, err := r.awsClient.CreateHostedZone(ctx, domainName, resource.Status.VPCId, r.clusterInfo.region)
 		if err != nil {
 			return fmt.Errorf("failed to create hosted zone: %w", err)
 		}

@@ -35,6 +35,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
+	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
 
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
@@ -52,11 +53,14 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	// Add config.openshift.io/v1 for the infrastructures CR
+	// Add config.openshift.io/v1
 	utilruntime.Must(configv1.Install(scheme))
 
 	// Add aws.managed.openshift.io/v1alpha1 for the AccountList CR
 	utilruntime.Must(aaov1alpha1.AddToScheme(scheme))
+
+	// Add hypershift.openshift.io/v1alpha1
+	utilruntime.Must(hyperv1beta1.AddToScheme(scheme))
 
 	utilruntime.Must(avov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(avov1alpha2.AddToScheme(scheme))

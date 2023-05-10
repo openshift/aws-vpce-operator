@@ -90,8 +90,10 @@ func validateVpcEndpointCR(vpce *avov1alpha2.VpcEndpoint) error {
 	}
 
 	// Custom DNS validations
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
-		return errors.New("cannot set both .spec.customDns.route53PrivateHostedZone.id and .spec.customDns.route53PrivateHostedZone.domainName")
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" {
+		if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
+			return errors.New("cannot set both a Route53 Hosted Zone ID and domain name")
+		}
 	}
 
 	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name != "" {
@@ -265,7 +267,7 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 	}
 
 	if resource.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
-		domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client)
+		domainName, err := dnses.GetPrivateHostedZoneDomainName(ctx, r.Client, dnses.DefaultDnsesName)
 		if err != nil {
 			return err
 		}
@@ -306,7 +308,7 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 		return nil
 	}
 
-	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+	if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
 		if err := r.findOrCreatePrivateHostedZone(ctx, resource); err != nil {
 			return err
 		}

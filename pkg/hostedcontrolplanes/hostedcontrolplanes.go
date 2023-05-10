@@ -1,0 +1,50 @@
+/*
+Copyright 2022.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package hostedcontrolplanes
+
+import (
+	"context"
+	"fmt"
+
+	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// GetPrivateHostedZoneDomainName returns the domain name for a hosted cluster's private hosted zone
+func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, namespace string) (string, error) {
+	hcpList := new(hyperv1beta1.HostedControlPlaneList)
+
+	if err := c.List(ctx, hcpList, &client.ListOptions{
+		Namespace: namespace,
+	}); err != nil {
+		return "", err
+	}
+
+	if len(hcpList.Items) == 1 {
+		if hcpList.Items[0].Spec.Platform.AWS != nil {
+			for _, svc := range hcpList.Items[0].Spec.Platform.AWS.ServiceEndpoints {
+				if svc.Name == string(hyperv1beta1.APIServer) {
+					return svc.URL, nil
+				}
+			}
+		}
+
+		return "", fmt.Errorf("unable to find APIServer url in hostedcontrolplane .spec.platform.aws.serviceEndpoints")
+	}
+
+	return "", fmt.Errorf("found %d hostedcontrolplanes in namespace: %s, expected 1", len(hcpList.Items), namespace)
+}

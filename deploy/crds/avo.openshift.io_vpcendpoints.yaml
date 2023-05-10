@@ -288,6 +288,50 @@ spec:
                         description: DomainName specifies the domain name of a Route
                           53 Private Hosted Zone to create
                         type: string
+                      domainNameRef:
+                        description: DomainNameRef is an alternative to DomainName
+                          when the domain name of a Route 53 Private Hosted Zone is
+                          read from another source
+                        properties:
+                          name:
+                            description: Name specifies the base domain name directly
+                            type: string
+                          valueFrom:
+                            description: ValueFrom allows the base domain name to
+                              be read from a source
+                            properties:
+                              dnsRef:
+                                description: A reference to a config.openshift.io/v1
+                                  DNS custom resource
+                                properties:
+                                  name:
+                                    description: Name of the config.openshift.io/v1
+                                      DNS custom resource to select
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              hostedControlPlaneRef:
+                                description: A reference to a hypershift.openshift.io/v1beta1
+                                  HostedControlPlane custom resource
+                                properties:
+                                  namespaceFieldRef:
+                                    description: Path of the field containing the
+                                      namespace of the hostedcontrolplane, typically
+                                      ".metadata.name" to select the same namespace
+                                      as the VpcEndpoint itself
+                                    properties:
+                                      fieldPath:
+                                        description: Path of the field to select
+                                        enum:
+                                        - .metadata.namespace
+                                        type: string
+                                    required:
+                                    - fieldPath
+                                    type: object
+                                type: object
+                            type: object
+                        type: object
                       id:
                         description: Id specifies the AWS ID of an existing Route
                           53 Private Hosted Zone to use

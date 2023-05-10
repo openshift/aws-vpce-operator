@@ -37,7 +37,7 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 		{
 			dns: &configv1.DNS{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: defaultDnsesName,
+					Name: DefaultDnsesName,
 				},
 				Spec: configv1.DNSSpec{
 					BaseDomain: mockBaseDomain,
@@ -61,7 +61,7 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 
 	for _, test := range tests {
 		mock := testutil.NewTestMock(t, test.dns)
-		actual, err := GetPrivateHostedZoneDomainName(context.TODO(), mock.Client)
+		actual, err := GetPrivateHostedZoneDomainName(context.TODO(), mock.Client, DefaultDnsesName)
 		if test.expectErr {
 			assert.NotNil(t, err)
 		} else {
