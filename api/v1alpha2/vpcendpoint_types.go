@@ -111,6 +111,47 @@ type Route53HostedZoneRecord struct {
 	ExternalNameService ExternalNameService `json:"externalNameService,omitempty"`
 }
 
+// DomainName represents the base domain name of a Route 53 Private Hosted Zone
+// Similar to: https://github.com/kubernetes/api/blob/7a87286591e433a1d034a768032b5fd4abb072b3/core/v1/types.go#L2100-L2110
+type DomainName struct {
+	// Name specifies the base domain name directly
+	Name string `json:"name,omitempty"`
+
+	// ValueFrom allows the base domain name to be read from a source
+	ValueFrom *DomainNameSource `json:"valueFrom,omitempty"`
+}
+
+type DomainNameSource struct {
+	// A reference to a config.openshift.io/v1 DNS custom resource
+	DnsRef *DnsSelector `json:"dnsRef,omitempty"`
+
+	// A reference to a hypershift.openshift.io/v1beta1 HostedControlPlane custom resource
+	HostedControlPlaneRef *HostedControlPlaneSelector `json:"hostedControlPlaneRef,omitempty"`
+}
+
+// DnsSelector represents a selector for a config.openshift.io/v1 DNS custom resource
+type DnsSelector struct {
+	// Name of the config.openshift.io/v1 DNS custom resource to select
+	Name string `json:"name"`
+}
+
+// HostedControlPlaneSelector represents a selector for a hypershift.openshift.io/v1beta1 HostedControlPlane
+// custom resource
+type HostedControlPlaneSelector struct {
+	// Path of the field containing the namespace of the hostedcontrolplane, typically ".metadata.name" to select the
+	// same namespace as the VpcEndpoint itself
+	NamespaceFieldRef *ObjectFieldSelector `json:"namespaceFieldRef,omitempty"`
+}
+
+// ObjectFieldSelector selects a field of a VpcEndpoint.
+// https://github.com/kubernetes/api/blob/f3a0f2ed177a2ba0eb0b6318ee16222b14872d70/core/v1/types.go#L2054
+type ObjectFieldSelector struct {
+	// +kubebuilder:validation:Enum=`.metadata.namespace`
+
+	// Path of the field to select
+	FieldPath string `json:"fieldPath"`
+}
+
 // Route53PrivateHostedZone is the configuration of an AWS Route 53 Private Hosted Zone to create a custom domain
 // the resolves to the regional endpoint of the created VPCE.
 type Route53PrivateHostedZone struct {
@@ -121,6 +162,10 @@ type Route53PrivateHostedZone struct {
 
 	// DomainName specifies the domain name of a Route 53 Private Hosted Zone to create
 	DomainName string `json:"domainName,omitempty"`
+
+	// DomainNameRef is an alternative to DomainName when the domain name of a Route 53 Private Hosted Zone is read from
+	// another source
+	DomainNameRef *DomainName `json:"domainNameRef,omitempty"`
 
 	// Id specifies the AWS ID of an existing Route 53 Private Hosted Zone to use
 	Id string `json:"id,omitempty"`
