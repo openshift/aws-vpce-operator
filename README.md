@@ -16,7 +16,7 @@ graph LR
   end
   subgraph Customer Account
   subgraph ROSA Cluster
-  A[ExternalName Service] 
+  A[ExternalName Service]
   end
   A --Cluster's Private Hosted Zone--> B
   end

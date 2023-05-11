@@ -1,0 +1,391 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.10.0
+  creationTimestamp: null
+  name: vpcendpointtemplates.avo.openshift.io
+spec:
+  group: avo.openshift.io
+  names:
+    kind: VpcEndpointTemplate
+    listKind: VpcEndpointTemplateList
+    plural: vpcendpointtemplates
+    shortNames:
+    - vpcet
+    singular: vpcendpointtemplate
+  scope: Namespaced
+  versions:
+  - name: v1alpha2
+    schema:
+      openAPIV3Schema:
+        description: VpcEndpointTemplate is the Schema for the vpcendpointtemplates
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VpcEndpointTemplateSpec defines the desired state of VpcEndpointTemplate
+            properties:
+              selector:
+                description: A label selector is a label query over a set of resources.
+                  The result of matchLabels and matchExpressions are ANDed. An empty
+                  label selector matches all objects. A null label selector matches
+                  no objects.
+                properties:
+                  matchExpressions:
+                    description: matchExpressions is a list of label selector requirements.
+                      The requirements are ANDed.
+                    items:
+                      description: A label selector requirement is a selector that
+                        contains values, a key, and an operator that relates the key
+                        and values.
+                      properties:
+                        key:
+                          description: key is the label key that the selector applies
+                            to.
+                          type: string
+                        operator:
+                          description: operator represents a key's relationship to
+                            a set of values. Valid operators are In, NotIn, Exists
+                            and DoesNotExist.
+                          type: string
+                        values:
+                          description: values is an array of string values. If the
+                            operator is In or NotIn, the values array must be non-empty.
+                            If the operator is Exists or DoesNotExist, the values
+                            array must be empty. This array is replaced during a strategic
+                            merge patch.
+                          items:
+                            type: string
+                          type: array
+                      required:
+                      - key
+                      - operator
+                      type: object
+                    type: array
+                  matchLabels:
+                    additionalProperties:
+                      type: string
+                    description: matchLabels is a map of {key,value} pairs. A single
+                      {key,value} in the matchLabels map is equivalent to an element
+                      of matchExpressions, whose key field is "key", the operator
+                      is "In", and the values array contains only "value". The requirements
+                      are ANDed.
+                    type: object
+                type: object
+                x-kubernetes-map-type: atomic
+              template:
+                description: Template describes the VpcEndpoints that will be created.
+                properties:
+                  metadata:
+                    description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata'
+                    type: object
+                  spec:
+                    description: Specification of the desired behavior of the VpcEndpoint.
+                    properties:
+                      assumeRoleArn:
+                        description: 'AssumeRoleArn will allow AVO to use sts:AssumeRole
+                          to create VPC Endpoints in separate AWS Accounts TODO: Implement'
+                        type: string
+                      awsCredentialOverrideRef:
+                        description: AWSCredentialOverride is a Kubernetes secret
+                          containing AWS credentials for the operator to use for reconciling
+                          this specific vpcendpoint Custom Resource
+                        properties:
+                          name:
+                            description: name is unique within a namespace to reference
+                              a secret resource.
+                            type: string
+                          namespace:
+                            description: namespace defines the space within which
+                              the secret name must be unique.
+                            type: string
+                        type: object
+                        x-kubernetes-map-type: atomic
+                      customDns:
+                        description: CustomDns will define configurations for all
+                          other custom DNS setups, such as a separate Route 53 Private
+                          Hosted Zone or an `ExternalName` Kubernetes service.
+                        properties:
+                          route53PrivateHostedZone:
+                            description: Route53PrivateHostedZone configures an AWS
+                              Route 53 Private Hosted Zone with a route to the created
+                              VPCE.
+                            properties:
+                              autoDiscoverPrivateHostedZone:
+                                description: AutoDiscover will use the existing ROSA
+                                  cluster's Route 53 Private Hosted Zone
+                                type: boolean
+                              domainName:
+                                description: DomainName specifies the domain name
+                                  of a Route 53 Private Hosted Zone to create
+                                type: string
+                              domainNameRef:
+                                description: DomainNameRef is an alternative to DomainName
+                                  when the domain name of a Route 53 Private Hosted
+                                  Zone is read from another source
+                                properties:
+                                  name:
+                                    description: Name specifies the base domain name
+                                      directly
+                                    type: string
+                                  valueFrom:
+                                    description: ValueFrom allows the base domain
+                                      name to be read from a source
+                                    properties:
+                                      dnsRef:
+                                        description: A reference to a config.openshift.io/v1
+                                          DNS custom resource
+                                        properties:
+                                          name:
+                                            description: Name of the config.openshift.io/v1
+                                              DNS custom resource to select
+                                            type: string
+                                        required:
+                                        - name
+                                        type: object
+                                      hostedControlPlaneRef:
+                                        description: A reference to a hypershift.openshift.io/v1beta1
+                                          HostedControlPlane custom resource
+                                        properties:
+                                          namespaceFieldRef:
+                                            description: Path of the field containing
+                                              the namespace of the hostedcontrolplane,
+                                              typically ".metadata.name" to select
+                                              the same namespace as the VpcEndpoint
+                                              itself
+                                            properties:
+                                              fieldPath:
+                                                description: Path of the field to
+                                                  select
+                                                enum:
+                                                - .metadata.namespace
+                                                type: string
+                                            required:
+                                            - fieldPath
+                                            type: object
+                                        type: object
+                                    type: object
+                                type: object
+                              id:
+                                description: Id specifies the AWS ID of an existing
+                                  Route 53 Private Hosted Zone to use
+                                type: string
+                              record:
+                                description: Record is the configuration of a record
+                                  within the selected Route 53 Private Hosted Zone
+                                properties:
+                                  externalNameService:
+                                    description: ExternalNameService is the configuration
+                                      of a Kubernetes ExternalName Service pointing
+                                      to a CustomDns Route53PrivateHostedZone Record
+                                      for the VPC Endpoint.
+                                    properties:
+                                      name:
+                                        description: Name of the ExternalName service
+                                          to create in the same namespace as the VPCE
+                                          Custom Resource
+                                        type: string
+                                    required:
+                                    - name
+                                    type: object
+                                  hostname:
+                                    description: Hostname is the hostname of the record.
+                                    type: string
+                                required:
+                                - hostname
+                                type: object
+                            type: object
+                        type: object
+                      enablePrivateDns:
+                        default: false
+                        description: 'EnablePrivateDns will allow AVO to create VPC
+                          Endpoints with private DNS names specified by a VPC Endpoint
+                          Service https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html
+                          (defaults to false) TODO: Implement'
+                        type: boolean
+                      region:
+                        description: Region will allow AVO to create VPC Endpoints
+                          and other AWS infrastructure in a specific region Defaults
+                          to the same region as the cluster AVO is running on
+                        type: string
+                      securityGroup:
+                        description: SecurityGroup contains the configuration of the
+                          security group attached to the VPC Endpoint
+                        properties:
+                          egressRules:
+                            description: EgressRules is a list of security group egress
+                              rules They will be allowed for the master and worker
+                              security groups.
+                            items:
+                              description: SecurityGroupRule is based on required
+                                inputs for `aws authorize-security-group-ingress/egress`
+                              properties:
+                                cidrIp:
+                                  description: CidrIp is the IPv4 address range, in
+                                    CIDR format, to allow. If not specified, the cluster's
+                                    master and worker security group are allowed instead.
+                                  format: cidr
+                                  type: string
+                                fromPort:
+                                  description: FromPort and ToPort are the start and
+                                    end of the port range to allow. In the case of
+                                    a single port, set both to the same value.
+                                  format: int32
+                                  type: integer
+                                protocol:
+                                  description: Protocol is the IP protocol, tcp |
+                                    udp | icmp | all
+                                  type: string
+                                toPort:
+                                  description: FromPort and ToPort are the start and
+                                    end of the port range to allow. In the case of
+                                    a single port, set both to the same value.
+                                  format: int32
+                                  type: integer
+                              type: object
+                            type: array
+                          ingressRules:
+                            description: IngressRules is a list of security group
+                              ingress rules. They will be allowed for the master and
+                              worker security groups.
+                            items:
+                              description: SecurityGroupRule is based on required
+                                inputs for `aws authorize-security-group-ingress/egress`
+                              properties:
+                                cidrIp:
+                                  description: CidrIp is the IPv4 address range, in
+                                    CIDR format, to allow. If not specified, the cluster's
+                                    master and worker security group are allowed instead.
+                                  format: cidr
+                                  type: string
+                                fromPort:
+                                  description: FromPort and ToPort are the start and
+                                    end of the port range to allow. In the case of
+                                    a single port, set both to the same value.
+                                  format: int32
+                                  type: integer
+                                protocol:
+                                  description: Protocol is the IP protocol, tcp |
+                                    udp | icmp | all
+                                  type: string
+                                toPort:
+                                  description: FromPort and ToPort are the start and
+                                    end of the port range to allow. In the case of
+                                    a single port, set both to the same value.
+                                  format: int32
+                                  type: integer
+                              type: object
+                            type: array
+                        type: object
+                      serviceName:
+                        description: ServiceName is the name of the VPC Endpoint Service
+                          to connect to
+                        type: string
+                      serviceNameRef:
+                        description: ServiceNameRef refers to a group and resource
+                          that contains the name of the VPC Endpoint Service
+                        properties:
+                          name:
+                            type: string
+                          valueFrom:
+                            description: 'ServiceNameSource represents the source
+                              of a VPC Endpoint Service Name Similar to: https://github.com/kubernetes/api/blob/7a87286591e433a1d034a768032b5fd4abb072b3/core/v1/types.go#L2100-L2110'
+                            properties:
+                              awsEndpointServiceRef:
+                                properties:
+                                  name:
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                            type: object
+                        type: object
+                      vpc:
+                        description: Vpc will allow AVO to use a specific VPC or use
+                          the same VPC as the ROSA cluster it's running on
+                        properties:
+                          autoDiscoverSubnets:
+                            description: 'AutoDiscoverSubnets will instruct the controller
+                              to use the subnets associated with this ROSA cluster
+                              if true using the tag-key: "kubernetes.io/cluster/${infraName}".
+                              If .spec.vpc.ids or spec.vpc.tags is specified, the
+                              tag-key "kubernetes.io/role/internal-elb" will be used
+                              instead.'
+                            type: boolean
+                          ids:
+                            description: Ids is a list of VPC ids that aws-vpce-operator
+                              can choose from to load balance in a "least used" fashion
+                              to evenly spread quota usage across provided VPCs. All
+                              provided VPCs must be in the same region as the specified
+                              VPC Endpoint Service (.spec.serviceName) and must use
+                              subnet auto-discovery (.spec.vpc.autoDiscoverSubnets
+                              true) based on the "kubernetes.io/role/internal-elb"
+                              tag key
+                            items:
+                              type: string
+                            type: array
+                          subnetIds:
+                            description: 'SubnetIds is a list of subnet ids to associate
+                              with the VPC Endpoint, which must all be in the same
+                              VPC. If more than one is specified, each subnet must
+                              be in a different Availability Zone. Ref: https://docs.aws.amazon.com/vpc/latest/privatelink/create-interface-endpoint.html'
+                            items:
+                              type: string
+                            type: array
+                          tags:
+                            description: Tags is a list of AWS tag key-value pairs
+                              to find VPCs with. This is mutually exclusive with .spec.vpc.ids
+                              and can only be specified with .spec.vpc.autoDiscoverSubnets
+                              = true.
+                            items:
+                              description: Tag represents a key-value pair to filter
+                                AWS resources by
+                              properties:
+                                key:
+                                  description: Key of an AWS tag
+                                  type: string
+                                value:
+                                  description: Value of an AWS tag
+                                  type: string
+                              required:
+                              - key
+                              - value
+                              type: object
+                            type: array
+                        type: object
+                    required:
+                    - securityGroup
+                    type: object
+                required:
+                - spec
+                type: object
+              type:
+                description: Type allows us to make different VpcEndpointTemplates
+                  that watch various kinds
+                type: string
+            required:
+            - selector
+            - template
+            - type
+            type: object
+          status:
+            description: VpcEndpointTemplateStatus defines the observed state of VpcEndpointTemplate
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

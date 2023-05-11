@@ -7,6 +7,7 @@ rules:
       - hypershift.openshift.io
     resources:
       - awsendpointservices
+      - hostedcontrolplanes
     verbs:
       - get
       - list
