@@ -34,6 +34,7 @@ rules:
     resources:
     - vpcendpoints
     - vpcendpointacceptances
+    - vpcendpointtemplates
     verbs:
     - create
     - delete
@@ -47,6 +48,7 @@ rules:
     resources:
       - vpcendpoints/status
       - vpcendpointacceptances/status
+      - vpcendpointtemplates/status
     verbs:
       - get
       - update
@@ -56,6 +58,7 @@ rules:
     resources:
       - vpcendpoints/finalizers
       - vpcendpointacceptances/finalizers
+      - vpcendpointtemplates/finalizers
     verbs:
       - update
   - apiGroups:
