@@ -25,6 +25,68 @@ import (
 	"testing"
 )
 
+func TestGetInfraId(t *testing.T) {
+	tests := []struct {
+		name      string
+		namespace string
+		hcp       *hyperv1beta1.HostedControlPlane
+		expected  string
+		expectErr bool
+	}{
+		{
+			name:      "working",
+			namespace: "example",
+			hcp: &hyperv1beta1.HostedControlPlane{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "example",
+				},
+				Spec: hyperv1beta1.HostedControlPlaneSpec{
+					InfraID: "mycluster",
+				},
+			},
+			expected:  "mycluster",
+			expectErr: false,
+		},
+		{
+			name:      "empty infraId",
+			namespace: "example",
+			hcp: &hyperv1beta1.HostedControlPlane{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "example",
+				},
+				Spec: hyperv1beta1.HostedControlPlaneSpec{},
+			},
+			expectErr: true,
+		},
+		{
+			name:      "no hostedcontrolplane",
+			namespace: "example",
+			hcp: &hyperv1beta1.HostedControlPlane{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "example2",
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			mock := testutil.NewTestMock(t, test.hcp)
+			actual, err := GetInfraId(context.TODO(), mock.Client, test.namespace)
+			if test.expectErr {
+				assert.NotNil(t, err)
+			} else {
+				assert.Nil(t, err)
+				assert.Equal(t, test.expected, actual)
+			}
+		})
+	}
+}
+
 func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -48,7 +110,7 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 							ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
 								Type: hyperv1beta1.Route,
 								Route: &hyperv1beta1.RoutePublishingStrategy{
-									Hostname: "example.com",
+									Hostname: "api.example.com",
 								},
 							},
 						},

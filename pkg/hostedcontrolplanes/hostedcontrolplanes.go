@@ -19,10 +19,30 @@ package hostedcontrolplanes
 import (
 	"context"
 	"fmt"
-
 	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
+
+// GetInfraId returns the infra id of a hostedcontrolplane
+func GetInfraId(ctx context.Context, c client.Client, namespace string) (string, error) {
+	hcpList := new(hyperv1beta1.HostedControlPlaneList)
+
+	if err := c.List(ctx, hcpList, &client.ListOptions{
+		Namespace: namespace,
+	}); err != nil {
+		return "", err
+	}
+
+	if len(hcpList.Items) == 1 {
+		if hcpList.Items[0].Spec.InfraID == "" {
+			return "", fmt.Errorf("blank .spec.infraId for %s", hcpList.Items[0].Name)
+		}
+
+		return hcpList.Items[0].Spec.InfraID, nil
+	}
+
+	return "", fmt.Errorf("found %d hostedcontrolplanes in namespace: %s, expected 1", len(hcpList.Items), namespace)
+}
 
 // GetPrivateHostedZoneDomainName returns the domain name for a hosted cluster's private hosted zone
 func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, namespace string) (string, error) {
@@ -39,7 +59,12 @@ func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, namesp
 			for _, svc := range hcpList.Items[0].Spec.Services {
 				if svc.Service == hyperv1beta1.APIServer {
 					if svc.ServicePublishingStrategy.Type == hyperv1beta1.Route && svc.Route.Hostname != "" {
-						return svc.Route.Hostname, nil
+						// The hostname contains the full api.${basedomain}, so take out the leading "api"
+						var domainName string
+						if _, err := fmt.Sscanf(svc.Route.Hostname, "api.%s", &domainName); err != nil {
+							return "", err
+						}
+						return domainName, nil
 					} else {
 						return "", fmt.Errorf("unable to find APIServer route hostname in hostedcontrolplane .spec.services")
 					}

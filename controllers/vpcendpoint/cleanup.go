@@ -80,7 +80,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 
 	if resource.Status.HostedZoneId != "" {
 		// Only delete a Route53 Private Hosted Zone if AVO created it
-		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" {
+		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
 			if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
 				return err
 			}
