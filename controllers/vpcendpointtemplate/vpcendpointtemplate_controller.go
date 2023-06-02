@@ -84,7 +84,7 @@ func (r *VpcEndpointTemplateReconciler) Reconcile(ctx context.Context, req ctrl.
 				return ctrl.Result{}, err
 			}
 
-		// Delete all VpcEndpoints matching the label selector on this VpcEndpointTemplate
+			// Delete all VpcEndpoints matching the label selector on this VpcEndpointTemplate
 			// DeleteAllOf does not act across namespaces
 			// https://github.com/kubernetes-sigs/controller-runtime/issues/1842
 			for i := range vpceList.Items {
@@ -126,7 +126,7 @@ func (r *VpcEndpointTemplateReconciler) ValidateVpcEndpointForHostedControlPlane
 
 	// We want one VpcEndpoint per namespace/HCP per vpcet
 	for _, hcp := range hcpList {
-		r.log.V(0).Info("Validating HostedControlPlane", "namespace", hcp.Namespace, "name", hcp.Name)
+		r.log.V(1).Info("Validating HostedControlPlane", "namespace", hcp.Namespace, "name", hcp.Name)
 
 		vpceList := new(avov1alpha2.VpcEndpointList)
 		if err := r.List(ctx, vpceList, &client.ListOptions{
