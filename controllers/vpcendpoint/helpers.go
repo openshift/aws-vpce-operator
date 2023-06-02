@@ -53,15 +53,25 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 	r.clusterInfo = new(clusterInfo)
 
-	// TODO: For HyperShift, it would be better if the infra name was the hosted cluster's infra name
-	infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
-	if err != nil {
-		return err
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
+		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil &&
+		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil {
+		// For HyperShift, use the infra id from the hostedcontrolplane
+		infraName, err := hostedcontrolplanes.GetInfraId(ctx, r.Client, vpce.Namespace)
+		if err != nil {
+			return err
+		}
+		r.clusterInfo.infraName = infraName
+	} else {
+		infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
+		if err != nil {
+			return err
+		}
+		r.clusterInfo.infraName = infraName
 	}
-	r.clusterInfo.infraName = infraName
-	r.log.V(1).Info("Found infrastructure name:", "name", infraName)
 
-	clusterTag, err := util.GetClusterTagKey(infraName)
+	r.log.V(1).Info("Found infrastructure name:", "name", r.clusterInfo.infraName)
+	clusterTag, err := util.GetClusterTagKey(r.clusterInfo.infraName)
 	if err != nil {
 		return err
 	}
@@ -779,7 +789,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 
 		for _, hz := range resp.HostedZoneSummaries {
 			// If we find a matching hosted zone, update status
-			if strings.TrimRight(*hz.Name, ".") == resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName {
+			if strings.TrimRight(*hz.Name, ".") == domainName {
 				if resource.Status.HostedZoneId != *hz.HostedZoneId {
 					resource.Status.HostedZoneId = *hz.HostedZoneId
 					if err := r.Status().Update(ctx, resource); err != nil {
