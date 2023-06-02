@@ -623,7 +623,15 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 		for _, subnet := range discoveredSubnets {
 			for _, az := range allowedAZs {
 				if *subnet.AvailabilityZone == az {
-					expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+					if resource.Status.VPCId != "" {
+						// If the VPCE's status contains a VPC id, only select subnets from that VPC
+						if *subnet.VpcId == resource.Status.VPCId {
+							expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+						}
+					} else {
+						// Otherwise, just filter if the subnet's AZ matches
+						expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+					}
 					break
 				}
 			}
