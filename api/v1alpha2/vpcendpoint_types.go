@@ -138,8 +138,8 @@ type DnsSelector struct {
 // HostedControlPlaneSelector represents a selector for a hypershift.openshift.io/v1beta1 HostedControlPlane
 // custom resource
 type HostedControlPlaneSelector struct {
-	// Path of the field containing the namespace of the hostedcontrolplane, typically ".metadata.name" to select the
-	// same namespace as the VpcEndpoint itself
+	// Path of the field containing the namespace of the hostedcontrolplane, typically ".metadata.namespace" to select
+	// the same namespace as the VpcEndpoint itself
 	NamespaceFieldRef *ObjectFieldSelector `json:"namespaceFieldRef,omitempty"`
 }
 

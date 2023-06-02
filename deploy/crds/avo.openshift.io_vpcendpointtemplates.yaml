@@ -180,7 +180,7 @@ spec:
                                           namespaceFieldRef:
                                             description: Path of the field containing
                                               the namespace of the hostedcontrolplane,
-                                              typically ".metadata.name" to select
+                                              typically ".metadata.namespace" to select
                                               the same namespace as the VpcEndpoint
                                               itself
                                             properties:
