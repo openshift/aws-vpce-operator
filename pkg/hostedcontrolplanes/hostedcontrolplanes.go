@@ -35,15 +35,19 @@ func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, namesp
 	}
 
 	if len(hcpList.Items) == 1 {
-		if hcpList.Items[0].Spec.Platform.AWS != nil {
-			for _, svc := range hcpList.Items[0].Spec.Platform.AWS.ServiceEndpoints {
-				if svc.Name == string(hyperv1beta1.APIServer) {
-					return svc.URL, nil
+		if hcpList.Items[0].Spec.Services != nil {
+			for _, svc := range hcpList.Items[0].Spec.Services {
+				if svc.Service == hyperv1beta1.APIServer {
+					if svc.ServicePublishingStrategy.Type == hyperv1beta1.Route && svc.Route.Hostname != "" {
+						return svc.Route.Hostname, nil
+					} else {
+						return "", fmt.Errorf("unable to find APIServer route hostname in hostedcontrolplane .spec.services")
+					}
 				}
 			}
 		}
 
-		return "", fmt.Errorf("unable to find APIServer url in hostedcontrolplane .spec.platform.aws.serviceEndpoints")
+		return "", fmt.Errorf("unable to find APIServer url in hostedcontrolplane .spec.services")
 	}
 
 	return "", fmt.Errorf("found %d hostedcontrolplanes in namespace: %s, expected 1", len(hcpList.Items), namespace)
