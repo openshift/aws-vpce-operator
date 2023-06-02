@@ -736,12 +736,14 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 					return err
 				}
 			case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil:
-				switch {
-				case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef.NamespaceFieldRef.FieldPath == ".metadata.name":
+				switch resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef.NamespaceFieldRef.FieldPath {
+				case ".metadata.namespace":
 					domainName, err = hostedcontrolplanes.GetPrivateHostedZoneDomainName(ctx, r.Client, resource.Namespace)
 					if err != nil {
 						return err
 					}
+				default:
+					return fmt.Errorf("unsupported fieldPath: %s", resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef.NamespaceFieldRef.FieldPath)
 				}
 			}
 		}
