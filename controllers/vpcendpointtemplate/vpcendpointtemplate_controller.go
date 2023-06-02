@@ -30,6 +30,7 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -60,19 +61,42 @@ func (r *VpcEndpointTemplateReconciler) Reconcile(ctx context.Context, req ctrl.
 	}
 
 	// If the VpcEndpointTemplate is deleting, delete all the VpcEndpoints matching the template
-	if !vpcet.ObjectMeta.DeletionTimestamp.IsZero() {
-		vpce := new(avov1alpha2.VpcEndpoint)
-		vpceSelector, err := metav1.LabelSelectorAsSelector(&vpcet.Spec.Selector)
-		if err != nil {
-			return ctrl.Result{}, err
+	if vpcet.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so if it does not have our finalizer,
+		// then lets add the finalizer and update the object. This is equivalent
+		// registering our finalizer.
+		if !controllerutil.ContainsFinalizer(vpcet, finalizer) {
+			controllerutil.AddFinalizer(vpcet, finalizer)
+			if err := r.Update(ctx, vpcet); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
+	} else {
+		if controllerutil.ContainsFinalizer(vpcet, finalizer) {
+			vpceList := new(avov1alpha2.VpcEndpointList)
+			vpceSelector, err := metav1.LabelSelectorAsSelector(&vpcet.Spec.Selector)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			if err := r.List(ctx, vpceList, &client.ListOptions{
+				LabelSelector: vpceSelector,
+			}); err != nil {
+				return ctrl.Result{}, err
+			}
 
 		// Delete all VpcEndpoints matching the label selector on this VpcEndpointTemplate
-		if err := r.DeleteAllOf(ctx, vpce, &client.DeleteAllOfOptions{
-			ListOptions: client.ListOptions{
-				LabelSelector: vpceSelector,
-			},
-		}); err != nil {
+			// DeleteAllOf does not act across namespaces
+			// https://github.com/kubernetes-sigs/controller-runtime/issues/1842
+			for i := range vpceList.Items {
+				if err := r.Delete(ctx, &vpceList.Items[i]); err != nil {
+					return ctrl.Result{}, err
+				}
+			}
+		}
+
+		// remove our finalizer from the list and update it.
+		controllerutil.RemoveFinalizer(vpcet, finalizer)
+		if err := r.Update(ctx, vpcet); err != nil {
 			return ctrl.Result{}, err
 		}
 
