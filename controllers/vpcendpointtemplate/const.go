@@ -17,5 +17,6 @@ limitations under the License.
 package vpcendpointtemplate
 
 const (
+	finalizer      = "vpcendpointtemplate.avo.openshift.io/finalizer"
 	ControllerName = "VpcEndpointTemplate"
 )

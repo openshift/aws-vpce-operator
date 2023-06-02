@@ -42,16 +42,13 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 					Namespace: "example",
 				},
 				Spec: hyperv1beta1.HostedControlPlaneSpec{
-					Platform: hyperv1beta1.PlatformSpec{
-						AWS: &hyperv1beta1.AWSPlatformSpec{
-							ServiceEndpoints: []hyperv1beta1.AWSServiceEndpoint{
-								{
-									Name: string(hyperv1beta1.OAuthServer),
-									URL:  "oauth.example.com",
-								},
-								{
-									Name: string(hyperv1beta1.APIServer),
-									URL:  "example.com",
+					Services: []hyperv1beta1.ServicePublishingStrategyMapping{
+						{
+							Service: hyperv1beta1.APIServer,
+							ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
+								Type: hyperv1beta1.Route,
+								Route: &hyperv1beta1.RoutePublishingStrategy{
+									Hostname: "example.com",
 								},
 							},
 						},
@@ -70,13 +67,11 @@ func TestGetPrivateHostedZoneDomainName(t *testing.T) {
 					Namespace: "example",
 				},
 				Spec: hyperv1beta1.HostedControlPlaneSpec{
-					Platform: hyperv1beta1.PlatformSpec{
-						AWS: &hyperv1beta1.AWSPlatformSpec{
-							ServiceEndpoints: []hyperv1beta1.AWSServiceEndpoint{
-								{
-									Name: string(hyperv1beta1.OAuthServer),
-									URL:  "oauth.example.com",
-								},
+					Services: []hyperv1beta1.ServicePublishingStrategyMapping{
+						{
+							Service: hyperv1beta1.APIServer,
+							ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
+								Type: hyperv1beta1.NodePort,
 							},
 						},
 					},

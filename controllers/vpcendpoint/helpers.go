@@ -623,7 +623,15 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 		for _, subnet := range discoveredSubnets {
 			for _, az := range allowedAZs {
 				if *subnet.AvailabilityZone == az {
-					expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+					if resource.Status.VPCId != "" {
+						// If the VPCE's status contains a VPC id, only select subnets from that VPC
+						if *subnet.VpcId == resource.Status.VPCId {
+							expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+						}
+					} else {
+						// Otherwise, just filter if the subnet's AZ matches
+						expectedSubnetIds = append(expectedSubnetIds, *subnet.SubnetId)
+					}
 					break
 				}
 			}
@@ -722,6 +730,16 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 	)
 
 	switch {
+	case resource.Status.HostedZoneId != "":
+		resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+		if err != nil {
+			return err
+		}
+		if *resp.HostedZone.Id == fmt.Sprintf("/hostedzone/%s", resource.Status.HostedZoneId) {
+			return nil
+		} else {
+			return fmt.Errorf("could not find hosted zone %s", resource.Status.HostedZoneId)
+		}
 	case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "":
 		domainName = resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName
 	case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil:
@@ -779,10 +797,15 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		if err != nil {
 			return fmt.Errorf("failed to create hosted zone: %w", err)
 		}
-		r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", *createResp.HostedZone.Id)
-		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", *createResp.HostedZone.Id)
 
-		resource.Status.HostedZoneId = *createResp.HostedZone.Id
+		if _, err := fmt.Sscanf(*createResp.HostedZone.Id, "/hostedzone/%s", &resource.Status.HostedZoneId); err != nil {
+			// We would like to store the id without the prefix /hostedzone/, but if we fail to parse it out, just use
+			// what we are given
+			resource.Status.HostedZoneId = *createResp.HostedZone.Id
+		}
+		r.log.V(0).Info("Created Route 53 Private Hosted Zone", "id", resource.Status.HostedZoneId)
+		r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Created", "Created Private Hosted Zone: %s", resource.Status.HostedZoneId)
+
 		if err := r.Status().Update(ctx, resource); err != nil {
 			return fmt.Errorf("failed to update status: %w", err)
 		}

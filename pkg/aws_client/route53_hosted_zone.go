@@ -45,7 +45,8 @@ func (c *AWSClient) GetDefaultPrivateHostedZoneId(ctx context.Context, domainNam
 
 // GetHostedZone is a wrapper around Route53 GetHostedZone
 func (c *AWSClient) GetHostedZone(ctx context.Context, id string) (*route53.GetHostedZoneOutput, error) {
-	return c.route53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{Id: aws.String(id)})
+	fullId := fmt.Sprintf("/hostedzone/%s", id)
+	return c.route53Client.GetHostedZone(ctx, &route53.GetHostedZoneInput{Id: aws.String(fullId)})
 }
 
 // ListHostedZonesByVPC is a wrapper around route53:ListHostedZonesByVPC
