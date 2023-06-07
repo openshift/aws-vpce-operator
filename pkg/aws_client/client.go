@@ -46,11 +46,20 @@ type AvoEC2API interface {
 	DescribeVpcEndpointServices(ctx context.Context, params *ec2.DescribeVpcEndpointServicesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointServicesOutput, error)
 }
 
+type VpcAssociationAPI interface {
+	AssociateVPCWithHostedZone(ctx context.Context, params *route53.AssociateVPCWithHostedZoneInput, optFns ...func(*route53.Options)) (*route53.AssociateVPCWithHostedZoneOutput, error)
+}
+
+type VpcAssociationClient struct {
+	route53Client VpcAssociationAPI
+}
+
 // AvoRoute53API defines the subset of the AWS Route53 API that AVO needs to interact with
 type AvoRoute53API interface {
 	ChangeResourceRecordSets(ctx context.Context, params *route53.ChangeResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ChangeResourceRecordSetsOutput, error)
 	ChangeTagsForResource(ctx context.Context, input *route53.ChangeTagsForResourceInput, optFns ...func(*route53.Options)) (*route53.ChangeTagsForResourceOutput, error)
 	CreateHostedZone(ctx context.Context, params *route53.CreateHostedZoneInput, optFns ...func(*route53.Options)) (*route53.CreateHostedZoneOutput, error)
+	CreateVPCAssociationAuthorization(ctx context.Context, params *route53.CreateVPCAssociationAuthorizationInput, optFns ...func(*route53.Options)) (*route53.CreateVPCAssociationAuthorizationOutput, error)
 	DeleteHostedZone(ctx context.Context, params *route53.DeleteHostedZoneInput, optFns ...func(*route53.Options)) (*route53.DeleteHostedZoneOutput, error)
 	GetHostedZone(ctx context.Context, params *route53.GetHostedZoneInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneOutput, error)
 	ListHostedZonesByVPC(ctx context.Context, params *route53.ListHostedZonesByVPCInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByVPCOutput, error)
@@ -82,6 +91,19 @@ func NewAwsClient(cfg aws.Config) *AWSClient {
 func NewAwsClientWithServiceClients(ec2 AvoEC2API, r53 AvoRoute53API) *AWSClient {
 	return &AWSClient{
 		ec2Client:     ec2,
+		route53Client: r53,
+	}
+}
+
+// NewVpcAssociationClient returns a VpcAssociationClient with the provided session
+func NewVpcAssociationClient(cfg aws.Config) *VpcAssociationClient {
+	return NewVpcAssociationClientWithServiceClients(route53.NewFromConfig(cfg))
+}
+
+// NewVpcAssociationClientWithServiceClients returns an VpcAssociationClient with the provided Route53 client.
+// Typically, not used directly except for building a mock for testing.
+func NewVpcAssociationClientWithServiceClients(r53 VpcAssociationAPI) *VpcAssociationClient {
+	return &VpcAssociationClient{
 		route53Client: r53,
 	}
 }

@@ -26,7 +26,9 @@ import (
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
+	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
+	"github.com/openshift/aws-vpce-operator/pkg/secrets"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -251,6 +253,7 @@ func (r *VpcEndpointReconciler) validateCustomDns(ctx context.Context, resource 
 		[]Validation{
 			r.validateR53PrivateHostedZone,
 			r.validateR53HostedZoneRecord,
+			r.validateR53HostedZoneAuthorization,
 			r.validateExternalNameService,
 		}); err != nil {
 		return err
@@ -317,6 +320,57 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 			return err
 		}
 		return nil
+	}
+
+	return nil
+}
+
+func (r *VpcEndpointReconciler) validateR53HostedZoneAuthorization(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	if resource == nil {
+		// Should never happen
+		return errors.New("resource must be specified")
+	}
+
+	if len(resource.Spec.CustomDns.Route53PrivateHostedZone.AssociatedVpcs) == 0 {
+		return nil
+	}
+
+	r.log.V(1).Info("Ensuring Route53 Hosted Zone has all additional authorized VPCs", "id", resource.Status.HostedZoneId)
+	if resource.Status.HostedZoneId == "" {
+		return errors.New("cannot validate hosted zone authorizations with an empty resource.status.hostedZoneId")
+	}
+
+	r.log.V(1).Info("Searching for Route53 Hosted Zone by id", "id", resource.Status.HostedZoneId)
+	resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+	if err != nil {
+		return err
+	}
+
+	associatedVpcs := map[string]struct{}{}
+	for _, vpc := range resp.VPCs {
+		associatedVpcs[*vpc.VPCId] = struct{}{}
+	}
+
+	for _, v := range resource.Spec.CustomDns.Route53PrivateHostedZone.AssociatedVpcs {
+		// If the desired VPC is not already associated, do so
+		if _, ok := associatedVpcs[v.VpcId]; !ok {
+			r.log.V(1).Info("Associating VPC with Route53 Hosted Zone", "vpc", v.VpcId)
+
+			if _, err := r.awsClient.CreateVPCAssociationAuthorization(ctx, resource.Status.HostedZoneId, v.VpcId, v.Region); err != nil {
+				return err
+			}
+
+			// Use the provided override credentials for this specific vpcendpoint
+			cfg, err := secrets.ParseAWSCredentialOverride(ctx, r.APIReader, v.Region, v.CredentialsSecretRef)
+			if err != nil {
+				return err
+			}
+
+			r.awsAssociatedVpcClient = aws_client.NewVpcAssociationClient(cfg)
+			if _, err := r.awsAssociatedVpcClient.AssociateVPCWithHostedZone(ctx, resource.Status.HostedZoneId, v.VpcId, v.Region); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil

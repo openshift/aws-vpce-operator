@@ -105,6 +105,7 @@ objects:
               - route53:CreateHostedZone
               - route53:DeleteHostedZone
               - route53:ChangeTagsForResource
+              - route53:CreateVpcAssociationAuthorization
               # VPCEndpointAcceptance Controller
               - sts:AssumeRole
               - ec2:DescribeVpcEndpointConnections

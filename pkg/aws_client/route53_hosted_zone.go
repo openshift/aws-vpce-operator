@@ -157,3 +157,24 @@ func (c *AWSClient) FetchPrivateZoneTags(ctx context.Context, zoneId string) (*r
 		ResourceType: types.TagResourceTypeHostedzone,
 	})
 }
+
+func (c *AWSClient) CreateVPCAssociationAuthorization(ctx context.Context, hostedZoneId, vpcId, region string) (*route53.CreateVPCAssociationAuthorizationOutput, error) {
+	return c.route53Client.CreateVPCAssociationAuthorization(ctx, &route53.CreateVPCAssociationAuthorizationInput{
+		HostedZoneId: aws.String(hostedZoneId),
+		VPC: &types.VPC{
+			VPCId:     aws.String(vpcId),
+			VPCRegion: types.VPCRegion(region),
+		},
+	})
+}
+
+func (a *VpcAssociationClient) AssociateVPCWithHostedZone(ctx context.Context, hostedZoneId, vpcId, region string) (*route53.AssociateVPCWithHostedZoneOutput, error) {
+	return a.route53Client.AssociateVPCWithHostedZone(ctx, &route53.AssociateVPCWithHostedZoneInput{
+		HostedZoneId: aws.String(hostedZoneId),
+		VPC: &types.VPC{
+			VPCId:     aws.String(vpcId),
+			VPCRegion: types.VPCRegion(region),
+		},
+		Comment: aws.String("associated by aws-vpce-operator"),
+	})
+}

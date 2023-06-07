@@ -44,9 +44,10 @@ type VpcEndpointReconciler struct {
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
 
-	log         logr.Logger
-	awsClient   *aws_client.AWSClient
-	clusterInfo *clusterInfo
+	log                    logr.Logger
+	awsClient              *aws_client.AWSClient
+	awsAssociatedVpcClient *aws_client.VpcAssociationClient
+	clusterInfo            *clusterInfo
 }
 
 // clusterInfo contains naming and AWS information unique to the cluster
