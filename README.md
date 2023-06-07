@@ -61,7 +61,8 @@ AVO currently assumes it is running on an AWS OpenShift cluster, specifically:
             "route53:GetHostedZone",
             "route53:CreateHostedZone",
             "route53:DeleteHostedZone",
-            "route53:ChangeTagsForResource"
+            "route53:ChangeTagsForResource",
+            "route53:CreateVpcAssociationAuthorization"
           ],
           "Resource": "*"
         }

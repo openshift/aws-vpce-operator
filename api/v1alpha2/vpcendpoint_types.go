@@ -152,6 +152,19 @@ type ObjectFieldSelector struct {
 	FieldPath string `json:"fieldPath"`
 }
 
+// AssociatedVpc represents configuration for associating the created Route53 Private Hosted Zone to an additional VPC.
+// Ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-associate-vpcs-different-accounts.html
+type AssociatedVpc struct {
+	// CredentialsSecretRef references a Kubernetes secret with the keys: "aws_access_key_id" and
+	// "aws_secret_access_key" which has the permissions to perform route53:AssociateVpcWithHostedZone and
+	// ec2:DescribeVpcs
+	CredentialsSecretRef *corev1.SecretReference `json:"credentialsSecretRef"`
+	// VpcId is the ID of the VPC to associate to the Route 53 Private Hosted Zone
+	VpcId string `json:"vpcId"`
+	// Region is the AWS Region the VPC exists in
+	Region string `json:"region"`
+}
+
 // Route53PrivateHostedZone is the configuration of an AWS Route 53 Private Hosted Zone to create a custom domain
 // the resolves to the regional endpoint of the created VPCE.
 type Route53PrivateHostedZone struct {
@@ -159,6 +172,10 @@ type Route53PrivateHostedZone struct {
 
 	// AutoDiscover will use the existing ROSA cluster's Route 53 Private Hosted Zone
 	AutoDiscover bool `json:"autoDiscoverPrivateHostedZone,omitempty"`
+
+	// AssociatedVpc represents configuration for associating the created Route53 Private Hosted Zone to additional VPCs
+	// Ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-associate-vpcs-different-accounts.html
+	AssociatedVpcs []AssociatedVpc `json:"associatedVpcs,omitempty"`
 
 	// DomainName specifies the domain name of a Route 53 Private Hosted Zone to create
 	DomainName string `json:"domainName,omitempty"`

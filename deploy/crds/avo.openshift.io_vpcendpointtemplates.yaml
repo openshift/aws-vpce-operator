@@ -141,6 +141,46 @@ spec:
                               Route 53 Private Hosted Zone with a route to the created
                               VPCE.
                             properties:
+                              associatedVpcs:
+                                description: 'AssociatedVpc represents configuration
+                                  for associating the created Route53 Private Hosted
+                                  Zone to additional VPCs Ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-associate-vpcs-different-accounts.html'
+                                items:
+                                  description: 'AssociatedVpc represents configuration
+                                    for associating the created Route53 Private Hosted
+                                    Zone to an additional VPC. Ref: https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/hosted-zone-private-associate-vpcs-different-accounts.html'
+                                  properties:
+                                    credentialsSecretRef:
+                                      description: 'CredentialsSecretRef references
+                                        a Kubernetes secret with the keys: "aws_access_key_id"
+                                        and "aws_secret_access_key" which has the
+                                        permissions to perform route53:AssociateVpcWithHostedZone
+                                        and ec2:DescribeVpcs'
+                                      properties:
+                                        name:
+                                          description: name is unique within a namespace
+                                            to reference a secret resource.
+                                          type: string
+                                        namespace:
+                                          description: namespace defines the space
+                                            within which the secret name must be unique.
+                                          type: string
+                                      type: object
+                                      x-kubernetes-map-type: atomic
+                                    region:
+                                      description: Region is the AWS Region the VPC
+                                        exists in
+                                      type: string
+                                    vpcId:
+                                      description: VpcId is the ID of the VPC to associate
+                                        to the Route 53 Private Hosted Zone
+                                      type: string
+                                  required:
+                                  - credentialsSecretRef
+                                  - region
+                                  - vpcId
+                                  type: object
+                                type: array
                               autoDiscoverPrivateHostedZone:
                                 description: AutoDiscover will use the existing ROSA
                                   cluster's Route 53 Private Hosted Zone
