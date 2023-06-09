@@ -209,7 +209,13 @@ func (r *VpcEndpointReconciler) getVpcEndpointServiceName(ctx context.Context, v
 			Namespace: vpce.Namespace,
 			Name:      vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef.Name,
 		}, awsEndpointService); err != nil {
-			return err
+			if vpce.Status.VPCEndpointServiceName == "" {
+				return err
+			}
+
+			// If we already have a VpcEndpointService name set in status, ignore this error in case the
+			// awsendpointservice gets deleted before the VpcEndpoint
+			return nil
 		}
 		vpceServiceName = awsEndpointService.Status.EndpointServiceName
 	}
