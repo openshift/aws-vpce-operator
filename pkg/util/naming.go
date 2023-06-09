@@ -88,6 +88,9 @@ func GetClusterTagKey(infraName string) (string, error) {
 // GenerateSecurityGroupName generates a name for a security group given a cluster name
 // and a "purpose" for the security group
 func GenerateSecurityGroupName(clusterName, purpose string) (string, error) {
+	if clusterName == "" {
+		return "", errors.New("clusterName must not be empty when generating a security group name")
+	}
 	prefix := fmt.Sprintf("%s-%s", clusterName, purpose)
 	return generateName(prefix, "sg", 255)
 }
@@ -95,6 +98,9 @@ func GenerateSecurityGroupName(clusterName, purpose string) (string, error) {
 // GenerateVPCEndpointName generates a name for a VPC endpoint given a cluster name
 // and a "purpose" for the VPC endpoint
 func GenerateVPCEndpointName(clusterName, purpose string) (string, error) {
+	if clusterName == "" {
+		return "", errors.New("clusterName must not be empty when generating a vpc endpoint name")
+	}
 	prefix := fmt.Sprintf("%s-%s", clusterName, purpose)
 	return generateName(prefix, "vpce", 255)
 }

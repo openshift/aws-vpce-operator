@@ -138,6 +138,11 @@ func TestGenerateSecurityGroupName(t *testing.T) {
 			expected:    fmt.Sprintf("cluster-%s-sg", strings.Repeat("a", 244)),
 			expectErr:   false,
 		},
+		{
+			clusterName: "",
+			purpose:     "test",
+			expectErr:   true,
+		},
 	}
 
 	for _, test := range tests {
@@ -169,6 +174,11 @@ func TestGenerateVPCEndpointName(t *testing.T) {
 			purpose:     strings.Repeat("a", 255),
 			expected:    fmt.Sprintf("cluster-%s-vpce", strings.Repeat("a", 242)),
 			expectErr:   false,
+		},
+		{
+			clusterName: "",
+			purpose:     "test",
+			expectErr:   true,
 		},
 	}
 

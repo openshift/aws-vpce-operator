@@ -37,10 +37,9 @@ import (
 
 func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 	tests := []struct {
-		name        string
-		resource    *avov1alpha2.VpcEndpoint
-		clusterInfo *clusterInfo
-		expectErr   bool
+		name      string
+		resource  *avov1alpha2.VpcEndpoint
+		expectErr bool
 	}{
 		{
 			name: "SecurityGroupID populated",
@@ -60,10 +59,9 @@ func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock2",
 				},
-				Status: avov1alpha2.VpcEndpointStatus{},
-			},
-			clusterInfo: &clusterInfo{
-				infraName: testutil.MockInfrastructureName,
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
+				},
 			},
 			expectErr: false,
 		},
@@ -72,12 +70,11 @@ func TestVpcEndpointReconciler_findOrCreateSecurityGroup(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			r := &VpcEndpointReconciler{
-				Client:      testutil.NewTestMock(t, test.resource).Client,
-				Scheme:      testutil.NewTestMock(t).Client.Scheme(),
-				Recorder:    record.NewFakeRecorder(1),
-				log:         testr.New(t),
-				awsClient:   aws_client.NewMockedAwsClient(),
-				clusterInfo: test.clusterInfo,
+				Client:    testutil.NewTestMock(t, test.resource).Client,
+				Scheme:    testutil.NewTestMock(t).Client.Scheme(),
+				Recorder:  record.NewFakeRecorder(1),
+				log:       testr.New(t),
+				awsClient: aws_client.NewMockedAwsClient(),
 			}
 
 			_, err := r.findOrCreateSecurityGroup(context.TODO(), test.resource)
@@ -123,11 +120,13 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 			},
 			clusterInfo: &clusterInfo{
 				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
 			},
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock1",
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
 				},
 			},
 		},
@@ -144,11 +143,13 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 			},
 			clusterInfo: &clusterInfo{
 				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
 			},
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock2",
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
 				},
 			},
 		},
@@ -178,7 +179,6 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 	tests := []struct {
 		name               string
-		clusterInfo        *clusterInfo
 		resource           *avov1alpha2.VpcEndpoint
 		sg                 *ec2Types.SecurityGroup
 		expectedNumIngress int
@@ -191,9 +191,6 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 		},
 		{
 			name: "valid",
-			clusterInfo: &clusterInfo{
-				infraName: testutil.MockInfrastructureName,
-			},
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock1",
@@ -228,6 +225,9 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 						},
 					},
 				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
+				},
 			},
 			sg: &ec2Types.SecurityGroup{
 				GroupId: aws.String(aws_client.MockSecurityGroupId),
@@ -249,7 +249,7 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 				Scheme:      client.Scheme(),
 				log:         testr.New(t),
 				awsClient:   aws_client.NewMockedAwsClient(),
-				clusterInfo: test.clusterInfo,
+				clusterInfo: &clusterInfo{},
 			}
 
 			ingress, egress, err := r.generateMissingSecurityGroupRules(context.TODO(), test.sg, test.resource)
@@ -340,12 +340,12 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 					Name: "mock2",
 				},
 				Status: avov1alpha2.VpcEndpointStatus{
-					VPCId: aws_client.MockVpcId,
+					VPCId:   aws_client.MockVpcId,
+					InfraId: testutil.MockInfrastructureName,
 				},
 			},
 			clusterInfo: &clusterInfo{
 				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
 			},
 			expectErr: false,
 		},
