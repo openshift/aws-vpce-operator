@@ -53,7 +53,8 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 	r.clusterInfo = new(clusterInfo)
 
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
+	if vpce.Status.InfraId == "" &&
+		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
 		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil &&
 		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil {
 		// For HyperShift, use the infra id from the hostedcontrolplane
@@ -61,17 +62,24 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		if err != nil {
 			return err
 		}
-		r.clusterInfo.infraName = infraName
+		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
+		vpce.Status.InfraId = infraName
+		if err := r.Status().Update(ctx, vpce); err != nil {
+			return fmt.Errorf("failed to update status: %v", err)
+		}
 	} else {
 		infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
 		if err != nil {
 			return err
 		}
-		r.clusterInfo.infraName = infraName
+		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
+		vpce.Status.InfraId = infraName
+		if err := r.Status().Update(ctx, vpce); err != nil {
+			return fmt.Errorf("failed to update status: %v", err)
+		}
 	}
 
-	r.log.V(1).Info("Found infrastructure name:", "name", r.clusterInfo.infraName)
-	clusterTag, err := util.GetClusterTagKey(r.clusterInfo.infraName)
+	clusterTag, err := util.GetClusterTagKey(vpce.Status.InfraId)
 	if err != nil {
 		return err
 	}
@@ -234,13 +242,13 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 	// If there's no security group returned by ID, look for one by tag
 	// first, generate the security group name to search tags or use it later to create it
 	if resp == nil || len(resp.SecurityGroups) == 0 {
-		sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+		sgName, err := util.GenerateSecurityGroupName(resource.Status.InfraId, resource.Name)
 		if err != nil {
 			return nil, err
 		}
 
 		r.log.V(1).Info("Searching for security group by tags")
-		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(ctx, r.clusterInfo.infraName, sgName)
+		resp, err = r.awsClient.FilterSecurityGroupByDefaultTags(ctx, resource.Status.InfraId, sgName)
 		if err != nil {
 			return nil, err
 		}
@@ -286,7 +294,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 // createMissingSecurityGroupTags ensures the expected AWS tags exist on a VpcEndpoint CR's Security Group.
 // It will not delete any extra tags and only create missing ones.
 func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha2.VpcEndpoint) error {
-	sgName, err := util.GenerateSecurityGroupName(r.clusterInfo.infraName, resource.Name)
+	sgName, err := util.GenerateSecurityGroupName(resource.Status.InfraId, resource.Name)
 	if err != nil {
 		return fmt.Errorf("failed to generate security group name: %v", err)
 	}
@@ -330,7 +338,7 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 		return nil, nil, err
 	}
 
-	sourceSgResp, err := r.awsClient.FilterClusterNodeSecurityGroupsByDefaultTags(ctx, r.clusterInfo.infraName)
+	sourceSgResp, err := r.awsClient.FilterClusterNodeSecurityGroupsByDefaultTags(ctx, resource.Status.InfraId)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -550,7 +558,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	// If there's no VPC Endpoint returned by ID, look for one by tag
 	// first, generate the VPC Endpoint name to search tags or use it later to create it
 	if resp == nil || len(resp.VpcEndpoints) == 0 {
-		vpceName, err := util.GenerateVPCEndpointName(r.clusterInfo.infraName, resource.Name)
+		vpceName, err := util.GenerateVPCEndpointName(resource.Status.InfraId, resource.Name)
 		if err != nil {
 			return nil, err
 		}

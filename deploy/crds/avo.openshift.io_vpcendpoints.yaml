@@ -630,6 +630,10 @@ spec:
                 description: The AWS ID of the Route 53 Private Hosted Zone being
                   used
                 type: string
+              infraId:
+                description: The Infra Id of the cluster, used for naming and tagging
+                  purposes
+                type: string
               resourceRecordSet:
                 description: The FQDN of a Route 53 Hosted Zone record that has been
                   created

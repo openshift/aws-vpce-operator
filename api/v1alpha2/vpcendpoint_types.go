@@ -297,6 +297,10 @@ type VpcEndpointStatus struct {
 	// +kubebuilder:validation:Optional
 	ResourceRecordSet string `json:"resourceRecordSet,omitempty"`
 
+	// The Infra Id of the cluster, used for naming and tagging purposes
+	// +kubebuilder:validation:Optional
+	InfraId string `json:"infraId,omitempty"`
+
 	// The status conditions of the AWS and K8s resources managed by this controller
 	// +kubebuilder:validation:Optional
 	Conditions []metav1.Condition `json:"conditions"`

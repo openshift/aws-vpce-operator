@@ -177,6 +177,7 @@ func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
 				},
 				Status: avov1alpha2.VpcEndpointStatus{
 					SecurityGroupId: aws_client.MockSecurityGroupId,
+					InfraId:         testutil.MockInfrastructureName,
 				},
 			},
 			expectErr: false,
@@ -195,7 +196,6 @@ func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
 			log:       testr.New(t),
 			clusterInfo: &clusterInfo{
 				clusterTag: aws_client.MockClusterTag,
-				infraName:  testutil.MockInfrastructureName,
 			},
 			Recorder: record.NewFakeRecorder(1),
 		}

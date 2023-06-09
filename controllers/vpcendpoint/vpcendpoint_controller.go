@@ -55,9 +55,6 @@ type clusterInfo struct {
 	// clusterTag is the tag that uniquely identifies AWS resources for this cluster
 	// e.g. "kubernetes.io/cluster/${infraName}"
 	clusterTag string
-	// infraName is the name shown in the cluster's infrastructures CR
-	// e.g. "${clusterName}-abcd"
-	infraName string
 	// region is the AWS region for the cluster
 	region string
 }
