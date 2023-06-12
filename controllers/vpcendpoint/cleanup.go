@@ -84,13 +84,22 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 		// Only delete a Route53 Private Hosted Zone if AVO created it
 		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
 			if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
-				return err
+				var ae smithy.APIError
+				if errors.As(err, &ae) {
+					if ae.ErrorCode() == new(route53Types.NoSuchHostedZone).ErrorCode() {
+						resource.Status.HostedZoneId = ""
+						if err := r.Status().Update(ctx, resource); err != nil {
+							r.log.V(0).Error(err, "failed to update status")
+							return err
+						}
+					} else {
+						return err
+					}
+				} else {
+					// Shouldn't happen
+					return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
+				}
 			}
-		}
-		resource.Status.HostedZoneId = ""
-		if err := r.Status().Update(ctx, resource); err != nil {
-			r.log.V(0).Error(err, "failed to update status")
-			return err
 		}
 	}
 
@@ -124,13 +133,21 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 	if resource.Status.SecurityGroupId != "" {
 		r.log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
 		if _, err := r.awsClient.DeleteSecurityGroup(ctx, resource.Status.SecurityGroupId); err != nil {
-			return err
-		}
-
-		resource.Status.SecurityGroupId = ""
-		if err := r.Status().Update(ctx, resource); err != nil {
-			r.log.V(0).Error(err, "failed to update status")
-			return err
+			var ae smithy.APIError
+			if errors.As(err, &ae) {
+				if ae.ErrorCode() == "InvalidGroup.NotFound" {
+					resource.Status.SecurityGroupId = ""
+					if err := r.Status().Update(ctx, resource); err != nil {
+						r.log.V(0).Error(err, "failed to update status")
+						return err
+					}
+				} else {
+					return err
+				}
+			} else {
+				// Shouldn't happen
+				return fmt.Errorf("unexpected error while deleting security group: %v", err)
+			}
 		}
 	}
 

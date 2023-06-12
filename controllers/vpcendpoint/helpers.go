@@ -62,11 +62,12 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			if vpce.Status.InfraId == "" {
 				return err
 			}
-		}
-		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
-		vpce.Status.InfraId = infraName
-		if err := r.Status().Update(ctx, vpce); err != nil {
-			return fmt.Errorf("failed to update status: %v", err)
+		} else {
+			r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
+			vpce.Status.InfraId = infraName
+			if err := r.Status().Update(ctx, vpce); err != nil {
+				return fmt.Errorf("failed to update status: %v", err)
+			}
 		}
 	} else {
 		infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
@@ -74,11 +75,12 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			if vpce.Status.InfraId == "" {
 				return err
 			}
-		}
-		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
-		vpce.Status.InfraId = infraName
-		if err := r.Status().Update(ctx, vpce); err != nil {
-			return fmt.Errorf("failed to update status: %v", err)
+		} else {
+			r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
+			vpce.Status.InfraId = infraName
+			if err := r.Status().Update(ctx, vpce); err != nil {
+				return fmt.Errorf("failed to update status: %v", err)
+			}
 		}
 	}
 
