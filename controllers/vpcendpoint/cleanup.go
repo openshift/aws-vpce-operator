@@ -18,10 +18,12 @@ package vpcendpoint
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/aws/smithy-go"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -99,11 +101,20 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 
 		r.log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
 		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {
-			return err
+			var ae smithy.APIError
+			if errors.As(err, &ae) {
+				if ae.ErrorCode() == "InvalidVpcEndpoint.NotFound" {
+					resource.Status.VPCEndpointId = ""
+				} else {
+					return err
+				}
+			} else {
+				// Shouldn't happen
+				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %v", err)
+			}
 		}
 
 		resource.Status.Status = "deleting"
-		resource.Status.VPCEndpointId = ""
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
 			return err

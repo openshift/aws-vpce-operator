@@ -53,14 +53,15 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 	r.clusterInfo = new(clusterInfo)
 
-	if vpce.Status.InfraId == "" &&
-		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
+	if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
 		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil &&
 		vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil {
 		// For HyperShift, use the infra id from the hostedcontrolplane
 		infraName, err := hostedcontrolplanes.GetInfraId(ctx, r.Client, vpce.Namespace)
 		if err != nil {
-			return err
+			if vpce.Status.InfraId == "" {
+				return err
+			}
 		}
 		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
 		vpce.Status.InfraId = infraName
@@ -70,7 +71,9 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 	} else {
 		infraName, err := infrastructures.GetInfrastructureName(ctx, r.Client)
 		if err != nil {
-			return err
+			if vpce.Status.InfraId == "" {
+				return err
+			}
 		}
 		r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
 		vpce.Status.InfraId = infraName
