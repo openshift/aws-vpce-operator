@@ -145,12 +145,20 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err = (&vpcendpointtemplate.VpcEndpointTemplateReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointTemplate")
-		os.Exit(1)
+
+	if ctrlConfig.EnableVpcEndpointTemplateController == nil {
+		ctrlConfig.EnableVpcEndpointTemplateController = &falseBool
+	}
+
+	if *ctrlConfig.EnableVpcEndpointTemplateController {
+		setupLog.Info("starting controller", "controller", "VpcEndpointTemplate")
+		if err = (&vpcendpointtemplate.VpcEndpointTemplateReconciler{
+			Client: mgr.GetClient(),
+			Scheme: mgr.GetScheme(),
+		}).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "VpcEndpointTemplate")
+			os.Exit(1)
+		}
 	}
 	//+kubebuilder:scaffold:builder
 

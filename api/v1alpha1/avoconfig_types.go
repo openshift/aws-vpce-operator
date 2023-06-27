@@ -37,6 +37,10 @@ type AvoConfig struct {
 	// EnableVpcEndpointAcceptanceController is a feature flag to determine whether the VpcEndpointAcceptance controller runs
 	// Defaults to false
 	EnableVpcEndpointAcceptanceController *bool `json:"enableVpcEndpointAcceptanceController,omitempty"`
+
+	// EnableVpcEndpointTemplateController is a feature flag to determine whether the VpcEndpointTemplate controller runs
+	// Defaults to false
+	EnableVpcEndpointTemplateController *bool `json:"enableVpcEndpointTemplateController,omitempty"`
 }
 
 //+kubebuilder:object:root=true
