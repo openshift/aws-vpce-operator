@@ -390,7 +390,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 
 	resourceRecord, err := r.generateRoute53Record(ctx, resource)
 	if err != nil {
-		r.log.V(0).Info("Skipping Route53 Record, VPCEndpoint is not in the available state")
+		r.log.V(0).Info("Skipping Route53 Record", "error", err.Error())
 		return nil
 	}
 
