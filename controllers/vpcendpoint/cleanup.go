@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
@@ -32,36 +31,36 @@ import (
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
 func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
-		resourceRecord, err := r.generateRoute53Record(ctx, resource)
-		if err != nil {
-			return err
-		}
-
 		// Ensure .status.hostedZoneId is populated
 		if err := r.validateR53PrivateHostedZone(ctx, resource); err != nil {
 			return err
 		}
 
 		// HostedZoneId and resourceRecord are required if we want to clean up a ResourceRecordSet
-		if resource.Status.HostedZoneId != "" && resourceRecord != nil {
+		if resource.Status.HostedZoneId != "" && resource.Status.ResourceRecordSet != "" {
 			resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
 			if err != nil {
 				return err
 			}
 
 			if resp.HostedZone != nil {
-				// To delete a resource record set, you must specify all the same values that you specified when you created it.
-				// https://docs.aws.amazon.com/cli/latest/reference/route53/change-resource-record-sets.html
-				r.log.V(0).Info("Deleting Route53 Hosted Zone Record")
-				input := &route53Types.ResourceRecordSet{
-					Name:            aws.String(fmt.Sprintf("%s.%s", resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname, *resp.HostedZone.Name)),
-					ResourceRecords: []route53Types.ResourceRecord{*resourceRecord},
-					TTL:             aws.Int64(300),
-					Type:            route53Types.RRTypeCname,
+				listRRSResp, err := r.awsClient.ListResourceRecordSets(ctx, resource.Status.HostedZoneId)
+				if err != nil {
+					return err
 				}
 
-				if _, err := r.awsClient.DeleteResourceRecordSet(ctx, input, *resp.HostedZone.Id); err != nil {
-					return err
+				// Delete all records in the hosted zone except the default SOA and NS records
+				for _, resourceRecord := range listRRSResp.ResourceRecordSets {
+					rr := resourceRecord
+					switch *rr.Name {
+					case fmt.Sprintf("%s.", resource.Status.ResourceRecordSet):
+						r.log.V(0).Info("Deleting Route53 Hosted Zone Record", "name", *resourceRecord.Name, "type", resourceRecord.Type)
+						if _, err := r.awsClient.DeleteResourceRecordSet(ctx, &rr, *resp.HostedZone.Id); err != nil {
+							return err
+						}
+					default:
+						continue
+					}
 				}
 			}
 
@@ -86,13 +85,38 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 			if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
 				var ae smithy.APIError
 				if errors.As(err, &ae) {
-					if ae.ErrorCode() == new(route53Types.NoSuchHostedZone).ErrorCode() {
+					switch ae.ErrorCode() {
+					case new(route53Types.NoSuchHostedZone).ErrorCode():
+						// If there's no such hosted zone, then it's already been deleted
 						resource.Status.HostedZoneId = ""
 						if err := r.Status().Update(ctx, resource); err != nil {
 							r.log.V(0).Error(err, "failed to update status")
 							return err
 						}
-					} else {
+					case new(route53Types.HostedZoneNotEmpty).ErrorCode():
+						// If there are other records in this hosted zone, delete them so that we can delete the
+						// hosted zone that we own
+						listRRSResp, err := r.awsClient.ListResourceRecordSets(ctx, resource.Status.HostedZoneId)
+						if err != nil {
+							return err
+						}
+
+						// Delete all records in the hosted zone except the default SOA and NS records
+						for _, resourceRecord := range listRRSResp.ResourceRecordSets {
+							rr := resourceRecord
+							switch rr.Type {
+							case route53Types.RRTypeNs:
+								continue
+							case route53Types.RRTypeSoa:
+								continue
+							default:
+								r.log.V(0).Info("Deleting Route53 Hosted Zone Record", "name", *rr.Name, "type", rr.Type)
+								if _, err := r.awsClient.DeleteResourceRecordSet(ctx, &rr, resource.Status.HostedZoneId); err != nil {
+									return err
+								}
+							}
+						}
+					default:
 						return err
 					}
 				} else {
