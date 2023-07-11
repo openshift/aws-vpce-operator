@@ -1,6 +1,5 @@
 FROM quay.io/app-sre/boilerplate:image-v3.0.3 AS builder
 
-RUN mkdir -p /workdir
 WORKDIR /workdir
 COPY go.mod go.mod
 COPY go.sum go.sum

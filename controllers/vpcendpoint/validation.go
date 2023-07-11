@@ -25,6 +25,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/aws/smithy-go"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
@@ -203,8 +204,24 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		return nil
 	case "available":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(0)
-		r.log.V(0).Info("VPC Endpoint ready", "status", string(vpce.State))
-	case ec2Types.StateFailed, ec2Types.StateRejected, ec2Types.StateDeleted:
+		r.log.V(0).Info("VPC Endpoint ready", "id", resource.Status.VPCEndpointId)
+	case "rejected":
+		r.log.V(0).Info("VPC Endpoint rejected, starting deletion", "id", resource.Status.VPCEndpointId)
+		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {
+			var ae smithy.APIError
+			if errors.As(err, &ae) {
+				if ae.ErrorCode() == "InvalidVpcEndpoint.NotFound" {
+					resource.Status.VPCEndpointId = ""
+				} else {
+					return err
+				}
+			} else {
+				return err
+			}
+		}
+
+		return fmt.Errorf("VPC Endpoint unexpectedly needed to be deleted")
+	case ec2Types.StateFailed, ec2Types.StateDeleted:
 		// No other known states, but just in case catch with a default
 		fallthrough
 	default:
