@@ -117,6 +117,7 @@ objects:
       spec:
         image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
         grpcPodConfig:
+          securityContextConfig: restricted
           nodeSelector:
             node-role.kubernetes.io: infra
           tolerations:
@@ -251,6 +252,7 @@ objects:
       spec:
         image: ${REGISTRY_IMG}@${IMAGE_DIGEST}
         grpcPodConfig:
+          securityContextConfig: restricted
           nodeSelector:
             node-role.kubernetes.io: infra
           tolerations:
