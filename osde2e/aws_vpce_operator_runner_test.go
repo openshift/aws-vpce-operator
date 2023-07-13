@@ -5,16 +5,15 @@
 package osde2etests
 
 import (
-	"path/filepath"
-	"testing"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"path/filepath"
+	"testing"
 )
 
 const (
 	testResultsDirectory = "/test-run-results"
-	jUnitOutputFilename  = "junit-example-addon.xml"
+	jUnitOutputFilename  = "junit-aws-vpce-operator.xml"
 )
 
 // Test entrypoint. osde2e runs this as a test suite on test pod.
