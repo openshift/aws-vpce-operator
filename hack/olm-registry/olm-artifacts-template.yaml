@@ -19,7 +19,7 @@ parameters:
   value: AWS VPCE Operator
   required: true
 - name: KNOWN_SECTORS
-  value: "['main']"
+  value: '["main"]'
   required: true
 
 objects:
