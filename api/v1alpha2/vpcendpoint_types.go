@@ -92,6 +92,12 @@ type Vpc struct {
 	// Tags is a list of AWS tag key-value pairs to find VPCs with. This is mutually exclusive with
 	// .spec.vpc.ids and can only be specified with .spec.vpc.autoDiscoverSubnets = true.
 	Tags []Tag `json:"tags,omitempty"`
+
+	// +kubebuilder:validation:Optional
+
+	// SubnetTags is a list of AWS tag key-value pairs to additionally filter private-subnets with. The main tags used
+	// when filtering subnets is controlled by .spec.vpc.autoDiscoverSubnets
+	SubnetTags []Tag `json:"subnetTags,omitempty"`
 }
 
 // ExternalNameService is the configuration of a Kubernetes ExternalName Service pointing to a CustomDns
