@@ -20,10 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/openshift/aws-vpce-operator/api/v1alpha2"
 )
 
 // privateSubnetTagKey is labelled by Hive on a non-BYOVPC cluster's subnets at install time
@@ -61,9 +61,9 @@ func (c *AWSClient) GetVPCId(ctx context.Context, subnetIds []string) (string, e
 // AutodiscoverPrivateSubnets attempts to automatically return a slice of ROSA cluster private subnet ids.
 // A ROSA cluster's subnets are tagged with a tag key in AWS: "kubernetes.io/cluster/<cluster-name>".
 // Private subnets for non-BYOVPC clusters also have the `kubernetes.io/role/internal-elb` tag key.
-func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag string) ([]types.Subnet, error) {
+func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag string, tags ...v1alpha2.Tag) ([]types.Subnet, error) {
 	// For non-BYOVPC clusters, resp will contain only the private subnets.
-	nonByovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag, privateSubnetTagKey)
+	nonByovpc, err := c.DescribeSubnetsByTags(ctx, append(tags, v1alpha2.Tag{Key: clusterTag}, v1alpha2.Tag{Key: privateSubnetTagKey})...)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag s
 
 	// For BYOVPC+PrivateLink clusters, resp will contain only the private subnets.
 	// TODO: Make this work for BYOVPC non-PrivateLink clusters
-	byovpc, err := c.DescribeSubnetsByTagKey(ctx, clusterTag)
+	byovpc, err := c.DescribeSubnetsByTags(ctx, append(tags, v1alpha2.Tag{Key: clusterTag})...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,17 +86,27 @@ func (c *AWSClient) AutodiscoverPrivateSubnets(ctx context.Context, clusterTag s
 	return nil, fmt.Errorf("failed to find subnets with tag key: %s", clusterTag)
 }
 
-// DescribeSubnetsByTagKey returns a list of subnets that have all the specified tag key(s).
-func (c *AWSClient) DescribeSubnetsByTagKey(ctx context.Context, tagKey ...string) (*ec2.DescribeSubnetsOutput, error) {
+// DescribeSubnetsByTags returns a list of subnets filtered by the provided tags
+// If there is no value in the provided tag, filtering is done by tag-key only
+func (c *AWSClient) DescribeSubnetsByTags(ctx context.Context, tags ...v1alpha2.Tag) (*ec2.DescribeSubnetsOutput, error) {
 	filters := []types.Filter{}
-	for _, t := range tagKey {
+	for _, t := range tags {
 		// If a tag-key is empty, don't filter by it as it will exclude all subnets i.e. treat it as bad input.
-		if t != "" {
-			filters = append(filters, types.Filter{
-				Name: aws.String("tag-key"),
-				// Values are OR-ed
-				Values: []string{t},
-			})
+		if t.Key != "" {
+			switch {
+			case t.Value == "":
+				// If a tag value is empty, filter by tag-key
+				filters = append(filters, types.Filter{
+					Name: aws.String("tag-key"),
+					// Values are OR-ed
+					Values: []string{t.Key},
+				})
+			default:
+				filters = append(filters, types.Filter{
+					Name:   aws.String(fmt.Sprintf("tag:%s", t.Key)),
+					Values: []string{t.Value},
+				})
+			}
 		}
 	}
 

@@ -151,7 +151,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			vpcId = v
 			r.log.V(1).Info("Selecting vpc id", "vpcId", vpcId)
 		case vpce.Spec.Vpc.AutoDiscoverSubnets:
-			resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+			resp, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag, vpce.Spec.Vpc.SubnetTags...)
 			if err != nil {
 				return fmt.Errorf("unable to autodiscover subnets: %w", err)
 			}
@@ -622,7 +622,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 		var discoveredSubnets []ec2Types.Subnet
 		if len(resource.Spec.Vpc.Ids) > 0 || len(resource.Spec.Vpc.Tags) > 0 {
 			// Do not expect private subnets to have the cluster id when load balancing vpc ids
-			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, "")
+			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, "", resource.Spec.Vpc.SubnetTags...)
 			if err != nil {
 				return err
 			}
@@ -633,7 +633,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 				return fmt.Errorf("unable to parse cluster tag: %v", r.clusterInfo)
 			}
 
-			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag)
+			privateSubnets, err := r.awsClient.AutodiscoverPrivateSubnets(ctx, r.clusterInfo.clusterTag, resource.Spec.Vpc.SubnetTags...)
 			if err != nil {
 				return err
 			}
