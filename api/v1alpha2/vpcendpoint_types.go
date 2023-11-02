@@ -238,7 +238,10 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 
 	// AWSCredentialOverride is a Kubernetes secret containing AWS credentials for the operator to use for reconciling
-	// this specific vpcendpoint Custom Resource
+	// this specific vpcendpoint Custom Resource.
+	// The secret should have data keys for either:
+	// * role_arn: The operator will attempt to assume this role
+	// * aws_access_key_id and aws_secret_access_key: The operator will simply use these IAM User credentials
 	AWSCredentialOverrideRef *corev1.SecretReference `json:"awsCredentialOverrideRef,omitempty"`
 
 	// +kubebuilder:validation:Optional
