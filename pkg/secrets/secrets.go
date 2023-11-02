@@ -24,12 +24,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
+	defaultRoleArn            = "role_arn"
 	defaultAWSAccessKeyId     = "aws_access_key_id"     //#nosec G101
 	defaultAWSSecretAccessKey = "aws_secret_access_key" //#nosec G101
 )
@@ -46,6 +49,20 @@ func ParseAWSCredentialOverride(ctx context.Context, c client.Reader, region str
 	// the K8s RBAC needed to only get secrets where desired
 	if err := c.Get(ctx, client.ObjectKey{Namespace: ref.Namespace, Name: ref.Name}, secret); err != nil {
 		return aws.Config{}, err
+	}
+
+	if roleArn, ok := secret.Data[defaultRoleArn]; ok {
+		// Build a client that assumes the provided role is the secret contains one
+		// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/credentials/stscreds#hdr-Assume_Role
+		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+		if err != nil {
+			return aws.Config{}, err
+		}
+		stsSvc := sts.NewFromConfig(cfg)
+		creds := stscreds.NewAssumeRoleProvider(stsSvc, string(roleArn))
+		cfg.Credentials = aws.NewCredentialsCache(creds)
+
+		return cfg, nil
 	}
 
 	if accessKeyId, ok := secret.Data[defaultAWSAccessKeyId]; ok {

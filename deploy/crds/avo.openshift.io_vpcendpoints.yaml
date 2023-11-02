@@ -257,9 +257,12 @@ spec:
                   create VPC Endpoints in separate AWS Accounts TODO: Implement'
                 type: string
               awsCredentialOverrideRef:
-                description: AWSCredentialOverride is a Kubernetes secret containing
+                description: 'AWSCredentialOverride is a Kubernetes secret containing
                   AWS credentials for the operator to use for reconciling this specific
-                  vpcendpoint Custom Resource
+                  vpcendpoint Custom Resource. The secret should have data keys for
+                  either: * role_arn: The operator will attempt to assume this role
+                  * aws_access_key_id and aws_secret_access_key: The operator will
+                  simply use these IAM User credentials'
                 properties:
                   name:
                     description: name is unique within a namespace to reference a
