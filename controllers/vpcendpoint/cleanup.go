@@ -21,11 +21,19 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
-	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
+	configv1 "github.com/openshift/api/config/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
+)
+
+const (
+	clusterDNSName = "cluster"
 )
 
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
@@ -82,7 +90,25 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 	if resource.Status.HostedZoneId != "" {
 		// Only delete a Route53 Private Hosted Zone if AVO created it
 		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
-			if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
+			// don't delete the zone if it's the cluster's private zone
+			dnsConfig := &configv1.DNS{}
+			err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterDNSName}, dnsConfig)
+			if err != nil {
+				return err
+			}
+
+			if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName == dnsConfig.Spec.BaseDomain {
+				// only delete the record from the spec
+				rrSet := &route53Types.ResourceRecordSet{
+					Name: aws.String(resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname),
+					Type: route53Types.RRTypeA,
+				}
+
+				_, err := r.awsClient.DeleteResourceRecordSet(context.TODO(), rrSet, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
+				if err != nil {
+					return err
+				}
+			} else if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
 				var ae smithy.APIError
 				if errors.As(err, &ae) {
 					switch ae.ErrorCode() {
