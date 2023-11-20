@@ -21,12 +21,13 @@ import (
 	"testing"
 
 	"github.com/go-logr/logr/testr"
+	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
-	"github.com/stretchr/testify/assert"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
@@ -74,6 +75,89 @@ func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
 			assert.Error(t, err)
 		} else {
 			assert.NoError(t, err)
+		}
+	}
+}
+
+func TestDomainCount(t *testing.T) {
+	tests := []struct {
+		Name       string
+		TestClient client.Client
+		//Resources     []client.Object
+		//Resources     []client.Object
+		ExpectedCount int
+		ExpectError   bool
+	}{
+		{
+			Name: "one VPC with custom domain",
+			TestClient: testutil.NewTestMock(t,
+				&avov1alpha2.VpcEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "mock1",
+						Namespace: "ns1",
+					},
+					Spec: avov1alpha2.VpcEndpointSpec{
+						CustomDns: avov1alpha2.CustomDns{
+							Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+								DomainName: "test.tld",
+							},
+						},
+					},
+				},
+			).Client,
+			ExpectedCount: 1,
+			ExpectError:   false,
+		},
+		{
+			Name: "two VPCs with same custom domain",
+			TestClient: testutil.NewTestMock(t,
+				&avov1alpha2.VpcEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "mock1",
+						Namespace: "ns1",
+					},
+					Spec: avov1alpha2.VpcEndpointSpec{
+						CustomDns: avov1alpha2.CustomDns{
+							Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+								DomainName: "test.tld",
+							},
+						},
+					},
+				},
+				&avov1alpha2.VpcEndpoint{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "mock2",
+						Namespace: "ns2",
+					},
+					Spec: avov1alpha2.VpcEndpointSpec{
+						CustomDns: avov1alpha2.CustomDns{
+							Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+								DomainName: "test.tld",
+							},
+						},
+					},
+				},
+			).Client,
+			ExpectedCount: 2,
+			ExpectError:   false,
+		},
+	}
+
+	for _, test := range tests {
+		r := &VpcEndpointReconciler{
+			Client:      test.TestClient,
+			Scheme:      test.TestClient.Scheme(),
+			awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
+			log:         testr.New(t),
+			clusterInfo: &clusterInfo{},
+		}
+
+		count, err := r.domainCount("test.tld")
+		if count != test.ExpectedCount {
+			t.Errorf("TestDomainCount() %s: expected %d, got %d\n", test.Name, test.ExpectedCount, count)
+		}
+		if test.ExpectError == (err == nil) {
+			t.Errorf("TestDomainCount() %s: ExpectError: %t, actual error: %s\n", test.Name, test.ExpectError, err)
 		}
 	}
 }

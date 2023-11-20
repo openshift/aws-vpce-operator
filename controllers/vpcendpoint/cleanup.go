@@ -108,6 +108,17 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				if err != nil {
 					return err
 				}
+			} else if count, _ := r.domainCount(resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName); count >= 2 {
+				// only clean up the record if another vpce is using the same zone
+				rrSet := &route53Types.ResourceRecordSet{
+					Name: aws.String(resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname),
+					Type: route53Types.RRTypeA,
+				}
+
+				_, err := r.awsClient.DeleteResourceRecordSet(ctx, rrSet, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
+				if err != nil {
+					return err
+				}
 			} else if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
 				var ae smithy.APIError
 				if errors.As(err, &ae) {
@@ -215,4 +226,24 @@ func (r *VpcEndpointReconciler) cleanupMetrics(_ context.Context, resource *avov
 
 	// If .status.VPCEndpointId is empty, we can't delete the metric, but don't care
 	return nil
+}
+
+// domainCount returns the number of VPCEs using a given custom DNS domain
+func (r *VpcEndpointReconciler) domainCount(domain string) (count int, err error) {
+	count = 0
+
+	// get list of all VPCE resources to see if any others are using the zone we're tryign to clean up
+	vpceList := &avov1alpha2.VpcEndpointList{}
+	err = r.Client.List(context.TODO(), vpceList, &client.ListOptions{Namespace: ""})
+	if err != nil {
+		return 0, err
+	}
+
+	for _, v := range vpceList.Items {
+		if v.Spec.CustomDns.Route53PrivateHostedZone.DomainName == domain {
+			count++
+		}
+	}
+
+	return
 }
