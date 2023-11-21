@@ -1,4 +1,4 @@
-FROM quay.io/app-sre/boilerplate:image-v4.0.0 AS builder
+FROM quay.io/app-sre/boilerplate:image-v4.0.2 AS builder
 
 WORKDIR /workdir
 COPY go.mod go.mod
