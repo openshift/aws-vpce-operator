@@ -21,7 +21,7 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
-	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
+	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -102,6 +102,6 @@ func NewMock(obs ...client.Object) (*MockKubeClient, error) {
 	}
 
 	return &MockKubeClient{
-		Client: fake.NewClientBuilder().WithScheme(s).WithObjects(obs...).Build(),
+		Client: fake.NewClientBuilder().WithScheme(s).WithObjects(obs...).WithStatusSubresource(obs...).Build(),
 	}, nil
 }

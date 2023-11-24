@@ -32,10 +32,11 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	configv1 "github.com/openshift/api/config/v1"
 	aaov1alpha1 "github.com/openshift/aws-account-operator/api/v1alpha1"
-	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
+	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 
 	avov1alpha1 "github.com/openshift/aws-vpce-operator/api/v1alpha1"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
@@ -96,13 +97,18 @@ func main() {
 	// Setup default options and override with values from the AVO ComponentConfig
 	ctrlConfig := &avov1alpha1.AvoConfig{}
 	options := ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     ":8080",
+		Scheme: scheme,
+		Metrics: server.Options{
+			SecureServing: false,
+			BindAddress:   ":8080",
+		},
 		HealthProbeBindAddress: ":8081",
 		LeaderElection:         false,
 	}
 
 	if configFile != "" {
+		// TODO: Migrate away from ComponentConfig
+		//nolint:staticcheck
 		options, err = options.AndFrom(ctrl.ConfigFile().AtPath(configFile).OfKind(ctrlConfig))
 		if err != nil {
 			setupLog.Error(err, "unable to load config file, continuing with defaults", "file", configFile)
