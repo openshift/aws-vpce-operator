@@ -30,10 +30,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
-)
-
-const (
-	clusterDNSName = "cluster"
+	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 )
 
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
@@ -92,7 +89,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
 			// don't delete the zone if it's the cluster's private zone
 			dnsConfig := &configv1.DNS{}
-			err := r.Client.Get(context.TODO(), client.ObjectKey{Name: clusterDNSName}, dnsConfig)
+			err := r.Client.Get(ctx, client.ObjectKey{Name: dnses.DefaultDnsesName}, dnsConfig)
 			if err != nil {
 				return err
 			}
@@ -104,8 +101,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 					Type: route53Types.RRTypeA,
 				}
 
-				_, err := r.awsClient.DeleteResourceRecordSet(context.TODO(), rrSet, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
-				if err != nil {
+				if _, err := r.awsClient.DeleteResourceRecordSet(ctx, rrSet, resource.Status.HostedZoneId); err != nil {
 					return err
 				}
 			} else if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
