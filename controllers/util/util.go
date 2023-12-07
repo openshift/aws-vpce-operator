@@ -38,9 +38,9 @@ func DefaultAVORateLimiter() workqueue.RateLimiter {
 	)
 }
 
-// AWSEnvVarReadyzChecker is a healthz.Checker that returns an error if there are not enough environment variables
+// AWSEnvVarHealtzChecker is a healthz.Checker that returns an error if there are not enough environment variables
 // set to create an AWS client for this operator to function.
-func AWSEnvVarReadyzChecker(_ *http.Request) error {
+func AWSEnvVarHealtzChecker(_ *http.Request) error {
 	// These two in combination allow non-STS clusters to get the necessary credentials
 	if _, ok := os.LookupEnv("AWS_SECRET_ACCESS_KEY"); ok {
 		if _, ok := os.LookupEnv("AWS_ACCESS_KEY_ID"); ok {
