@@ -42,7 +42,7 @@ func TestDefaultAVORateLimiter(t *testing.T) {
 	}
 }
 
-func TestAWSEnvVarReadyzChecker(t *testing.T) {
+func TestAWSEnvVarHealtzChecker(t *testing.T) {
 	tests := []struct {
 		name      string
 		env       map[string]string
@@ -79,7 +79,7 @@ func TestAWSEnvVarReadyzChecker(t *testing.T) {
 			for k, v := range test.env {
 				t.Setenv(k, v)
 			}
-			actual := AWSEnvVarReadyzChecker(&http.Request{})
+			actual := AWSEnvVarHealtzChecker(&http.Request{})
 			if actual != nil {
 				if !test.expectErr {
 					t.Fatalf("expected no error, got %s", actual)
