@@ -269,7 +269,17 @@ spec:
                                 required:
                                 - hostname
                                 type: object
+                                x-kubernetes-validations:
+                                - message: cannot create an ExternalName service without
+                                    a Route53 Hosted Zone record
+                                  rule: '!(self.hostname == "" && self.externalNameService.name
+                                    != "")'
                             type: object
+                            x-kubernetes-validations:
+                            - message: cannot set both a Route53 Hosted Zone ID and
+                                domain name
+                              rule: '!(self.id != "" && (self.domainName != "" ||
+                                has(self.domainNameRef)))'
                         type: object
                       enablePrivateDns:
                         default: false
@@ -442,9 +452,33 @@ spec:
                               type: object
                             type: array
                         type: object
+                        x-kubernetes-validations:
+                        - message: .spec.vpc.autoDiscoverSubnets must be true when
+                            specifying tags to search for VPCs
+                          rule: '!(size(self.tags) > 0 && !self.autoDiscoverSubnets)'
+                        - message: .spec.vpc.autoDiscoverSubnets must be true when
+                            specifying VPCs to load balance
+                          rule: '!(size(self.ids) > 0 && !self.autoDiscoverSubnets)'
+                        - message: .spec.vpc.subnetIds is not supported when specifying
+                            VPCs to load balance
+                          rule: '!(size(self.ids) > 0 && size(self.subnetIds) > 0)'
                     required:
                     - securityGroup
                     type: object
+                    x-kubernetes-validations:
+                    - message: .spec.vpc.autoDiscoverSubnets is not supported with
+                        .spec.region
+                      rule: '!(self.region != "" && self.vpc.autoDiscoverSubnets)'
+                    - message: .spec.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone
+                        is not supported with .spec.region
+                      rule: '!(self.region != "" && self.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone)'
+                    - message: one of .spec.serviceName, .spec.serviceNameRef.name,
+                        or .spec.serviceNameRef.awsEndpointServiceRef.name must be
+                        specified
+                      rule: '!(self.serviceName == "" && self.serviceNameRef.name
+                        == "" && (!has(self.serviceNameRef.valueFrom) || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef)
+                        || self.serviceNameRef.valueFrom.awsEndpointServiceRef.name
+                        == ""))'
                 required:
                 - spec
                 type: object
