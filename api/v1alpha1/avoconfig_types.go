@@ -18,6 +18,9 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	// TODO: Migrate away from ComponentConfig
+	//nolint:staticcheck
 	cfg "sigs.k8s.io/controller-runtime/pkg/config/v1alpha1"
 )
 

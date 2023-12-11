@@ -19,7 +19,8 @@ package hostedcontrolplanes
 import (
 	"context"
 	"fmt"
-	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
+
+	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

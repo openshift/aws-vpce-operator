@@ -22,7 +22,7 @@ import (
 
 	"github.com/go-logr/logr"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
-	hyperv1beta1 "github.com/openshift/hypershift/api/v1beta1"
+	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -34,7 +34,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
 // VpcEndpointTemplateReconciler reconciles a VpcEndpointTemplate object
@@ -243,12 +242,12 @@ type enquerequestForControlplane struct {
 	Client client.Client
 }
 
-func (e *enquerequestForControlplane) mapAndEnqueue(q workqueue.RateLimitingInterface, obj client.Object, reqs map[reconcile.Request]struct{}) {
+func (e *enquerequestForControlplane) mapAndEnqueue(ctx context.Context, q workqueue.RateLimitingInterface, obj client.Object, reqs map[reconcile.Request]struct{}) {
 	// TODO: We're currently not filtering this by only Private HostedControlPlanes, so it costs us approximately $87/year/VpcEndpoint
 	// Ref: https://aws.amazon.com/privatelink/pricing/
 	matches := []reconcile.Request{}
 	vpceTemplateList := &avov1alpha2.VpcEndpointTemplateList{}
-	if err := e.Client.List(context.TODO(), vpceTemplateList, &client.ListOptions{}); err != nil {
+	if err := e.Client.List(ctx, vpceTemplateList, &client.ListOptions{}); err != nil {
 		return
 	}
 
@@ -273,33 +272,31 @@ func (e *enquerequestForControlplane) mapAndEnqueue(q workqueue.RateLimitingInte
 	}
 }
 
-func (e *enquerequestForControlplane) Create(evt event.CreateEvent, q workqueue.RateLimitingInterface) {
+func (e *enquerequestForControlplane) Create(ctx context.Context, evt event.CreateEvent, q workqueue.RateLimitingInterface) {
 	reqs := map[reconcile.Request]struct{}{}
-	e.mapAndEnqueue(q, evt.Object, reqs)
+	e.mapAndEnqueue(ctx, q, evt.Object, reqs)
 }
 
-func (e *enquerequestForControlplane) Update(evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
+func (e *enquerequestForControlplane) Update(ctx context.Context, evt event.UpdateEvent, q workqueue.RateLimitingInterface) {
 	reqs := map[reconcile.Request]struct{}{}
-	e.mapAndEnqueue(q, evt.ObjectOld, reqs)
-	e.mapAndEnqueue(q, evt.ObjectNew, reqs)
+	e.mapAndEnqueue(ctx, q, evt.ObjectOld, reqs)
+	e.mapAndEnqueue(ctx, q, evt.ObjectNew, reqs)
 }
 
-func (e *enquerequestForControlplane) Delete(evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
+func (e *enquerequestForControlplane) Delete(ctx context.Context, evt event.DeleteEvent, q workqueue.RateLimitingInterface) {
 	reqs := map[reconcile.Request]struct{}{}
-	e.mapAndEnqueue(q, evt.Object, reqs)
+	e.mapAndEnqueue(ctx, q, evt.Object, reqs)
 }
 
-func (e *enquerequestForControlplane) Generic(evt event.GenericEvent, q workqueue.RateLimitingInterface) {
+func (e *enquerequestForControlplane) Generic(ctx context.Context, evt event.GenericEvent, q workqueue.RateLimitingInterface) {
 	reqs := map[reconcile.Request]struct{}{}
-	e.mapAndEnqueue(q, evt.Object, reqs)
+	e.mapAndEnqueue(ctx, q, evt.Object, reqs)
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *VpcEndpointTemplateReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&avov1alpha2.VpcEndpointTemplate{}).
-		Watches(&source.Kind{Type: &hyperv1beta1.HostedControlPlane{}}, &enquerequestForControlplane{
-			Client: mgr.GetClient(),
-		}).
+		Watches(&hyperv1beta1.HostedControlPlane{}, &enquerequestForControlplane{Client: mgr.GetClient()}).
 		Complete(r)
 }
