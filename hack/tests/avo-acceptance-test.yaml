@@ -1,3 +1,6 @@
+# This yaml is part of the Progressive Delivery POC 
+# This approach was used at the first iteration and is no longer in use. 
+# For updates please refer to this Doc: https://docs.google.com/document/d/1nK5VuJgf6fJf-_7C14Dtcy9epg3ZRboDUc4fpW87zc0/edit#heading=h.l9fl7fh9ufx0
 ---
 apiVersion: template.openshift.io/v1
 kind: Template
