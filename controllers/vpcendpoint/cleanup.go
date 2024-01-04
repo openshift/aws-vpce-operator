@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
 	configv1 "github.com/openshift/api/config/v1"
@@ -94,56 +93,51 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				return err
 			}
 
-			if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName == dnsConfig.Spec.BaseDomain {
-				// only delete the record from the spec
-				rrSet := &route53Types.ResourceRecordSet{
-					Name: aws.String(resource.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname),
-					Type: route53Types.RRTypeA,
-				}
+			// Safeguard against users supplying the cluster's domain name in a VPCE. We do not want to delete this
+			// Route53 Hosted Zone in this case, even though the "correct" usage of the API would be to use
+			// autoDiscoverPrivateHostedZone: true
+			if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != dnsConfig.Spec.BaseDomain {
+				if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
+					var ae smithy.APIError
+					if errors.As(err, &ae) {
+						switch ae.ErrorCode() {
+						case new(route53Types.NoSuchHostedZone).ErrorCode():
+							// If there's no such hosted zone, then it's already been deleted
+							resource.Status.HostedZoneId = ""
+							if err := r.Status().Update(ctx, resource); err != nil {
+								r.log.V(0).Error(err, "failed to update status")
+								return err
+							}
+						case new(route53Types.HostedZoneNotEmpty).ErrorCode():
+							// If there are other records in this hosted zone, delete them so that we can delete the
+							// hosted zone that we own
+							listRRSResp, err := r.awsClient.ListResourceRecordSets(ctx, resource.Status.HostedZoneId)
+							if err != nil {
+								return err
+							}
 
-				if _, err := r.awsClient.DeleteResourceRecordSet(ctx, rrSet, resource.Status.HostedZoneId); err != nil {
-					return err
-				}
-			} else if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
-				var ae smithy.APIError
-				if errors.As(err, &ae) {
-					switch ae.ErrorCode() {
-					case new(route53Types.NoSuchHostedZone).ErrorCode():
-						// If there's no such hosted zone, then it's already been deleted
-						resource.Status.HostedZoneId = ""
-						if err := r.Status().Update(ctx, resource); err != nil {
-							r.log.V(0).Error(err, "failed to update status")
-							return err
-						}
-					case new(route53Types.HostedZoneNotEmpty).ErrorCode():
-						// If there are other records in this hosted zone, delete them so that we can delete the
-						// hosted zone that we own
-						listRRSResp, err := r.awsClient.ListResourceRecordSets(ctx, resource.Status.HostedZoneId)
-						if err != nil {
-							return err
-						}
-
-						// Delete all records in the hosted zone except the default SOA and NS records
-						for _, resourceRecord := range listRRSResp.ResourceRecordSets {
-							rr := resourceRecord
-							switch rr.Type {
-							case route53Types.RRTypeNs:
-								continue
-							case route53Types.RRTypeSoa:
-								continue
-							default:
-								r.log.V(0).Info("Deleting Route53 Hosted Zone Record", "name", *rr.Name, "type", rr.Type)
-								if _, err := r.awsClient.DeleteResourceRecordSet(ctx, &rr, resource.Status.HostedZoneId); err != nil {
-									return err
+							// Delete all records in the hosted zone except the default SOA and NS records
+							for _, resourceRecord := range listRRSResp.ResourceRecordSets {
+								rr := resourceRecord
+								switch rr.Type {
+								case route53Types.RRTypeNs:
+									continue
+								case route53Types.RRTypeSoa:
+									continue
+								default:
+									r.log.V(0).Info("Deleting Route53 Hosted Zone Record", "name", *rr.Name, "type", rr.Type)
+									if _, err := r.awsClient.DeleteResourceRecordSet(ctx, &rr, resource.Status.HostedZoneId); err != nil {
+										return err
+									}
 								}
 							}
+						default:
+							return err
 						}
-					default:
-						return err
+					} else {
+						// Shouldn't happen
+						return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
 					}
-				} else {
-					// Shouldn't happen
-					return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
 				}
 			}
 		}
