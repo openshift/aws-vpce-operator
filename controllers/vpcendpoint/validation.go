@@ -49,63 +49,6 @@ func (r *VpcEndpointReconciler) validateResources(ctx context.Context, resource 
 	return nil
 }
 
-// validateVpcEndpointCR is doing the job of a validating webhook and ensuring the provided CR is copacetic
-// beyond what OpenAPI v3 validation can do.
-func validateVpcEndpointCR(vpce *avov1alpha2.VpcEndpoint) error {
-	// TODO: Ideally this should be a validating webhook
-
-	if vpce.Spec.ServiceName == "" {
-		if vpce.Spec.ServiceNameRef.Name == "" {
-			if vpce.Spec.ServiceNameRef.ValueFrom == nil ||
-				vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef == nil ||
-				vpce.Spec.ServiceNameRef.ValueFrom.AwsEndpointServiceRef.Name == "" {
-				return errors.New("one of .spec.serviceName, .spec.serviceNameRef.Name, or .spec.serviceNameRef.awsEndpointServiceRef.Name must be specified")
-			}
-		}
-	}
-
-	// Cannot override region with autodiscovery of subnets or Route 53 Private Hosted Zone
-	if vpce.Spec.Region != "" {
-		if vpce.Spec.Vpc.AutoDiscoverSubnets {
-			return errors.New(".spec.vpc.autoDiscoverSubnets is not supported with .spec.region")
-		}
-
-		if vpce.Spec.CustomDns.Route53PrivateHostedZone.AutoDiscover {
-			return errors.New(".spec.customDns.route53PrivateHostedZone.autoDiscover is not supported with .spec.region")
-		}
-	}
-
-	// Must auto-discover subnets and cannot specify subnet ids with VPC load balancing
-	if len(vpce.Spec.Vpc.Ids) > 0 {
-		if !vpce.Spec.Vpc.AutoDiscoverSubnets {
-			return errors.New(".spec.vpc.autoDiscoverSubnets must be true when specifying VPCs to load balance")
-		}
-
-		if len(vpce.Spec.Vpc.SubnetIds) > 0 {
-			return errors.New(".spec.vpc.subnetIds is not supported with .spec.vpc.autoDiscoverSubnets")
-		}
-	}
-
-	if len(vpce.Spec.Vpc.Tags) > 0 {
-		if !vpce.Spec.Vpc.AutoDiscoverSubnets {
-			return errors.New(".spec.vpc.autoDiscoverSubnets must be true when specifying tags to search for VPCs")
-		}
-	}
-
-	// Custom DNS validations
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Id != "" {
-		if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
-			return errors.New("cannot set both a Route53 Hosted Zone ID and domain name")
-		}
-	}
-
-	if vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.Hostname == "" && vpce.Spec.CustomDns.Route53PrivateHostedZone.Record.ExternalNameService.Name != "" {
-		return errors.New("cannot create an ExternalName service without a Route53 Hosted Zone record")
-	}
-
-	return nil
-}
-
 // validateSecurityGroup checks a security group against what's expected, returning an error if there are differences.
 // Security groups can't be updated-in-place, so a new one will need to be created before deleting this existing one.
 func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {

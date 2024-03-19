@@ -47,10 +47,6 @@ import (
 // and gets a new AWS session if refreshAWSSession is true.
 // Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
 func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov1alpha2.VpcEndpoint, refreshAWSSession bool) error {
-	if err := validateVpcEndpointCR(vpce); err != nil {
-		return err
-	}
-
 	r.clusterInfo = new(clusterInfo)
 
 	if vpce.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
