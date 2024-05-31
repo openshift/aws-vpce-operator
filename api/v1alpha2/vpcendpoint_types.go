@@ -201,7 +201,7 @@ type Route53PrivateHostedZone struct {
 
 // CustomDns is the configuration of customized DNS routing external to a standalone AWS VPC Endpoint
 type CustomDns struct {
-	// +kubebuilder:validation:XValidation:message=cannot set both a Route53 Hosted Zone ID and domain name,rule=!(self.id != "" && (self.domainName != "" || has(self.domainNameRef)))
+	// +kubebuilder:validation:XValidation:message=cannot set both a Route53 Hosted Zone ID and domain name,rule=!(has(self.id) && (has(self.domainName) || has(self.domainNameRef)))
 
 	// Route53PrivateHostedZone configures an AWS Route 53 Private Hosted Zone with a route to the created VPCE.
 	Route53PrivateHostedZone Route53PrivateHostedZone `json:"route53PrivateHostedZone,omitempty"`
@@ -222,9 +222,9 @@ type AwsEndpointSelector struct {
 	Name string `json:"name"`
 }
 
-// +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets is not supported with .spec.region,rule=!(self.region != "" && self.vpc.autoDiscoverSubnets)
-// +kubebuilder:validation:XValidation:message=.spec.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone is not supported with .spec.region,rule=!(self.region != "" && self.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone)
-// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.awsEndpointServiceRef.name must be specified",rule=!(self.serviceName == "" && self.serviceNameRef.name == "" && (!has(self.serviceNameRef.valueFrom) || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef) || self.serviceNameRef.valueFrom.awsEndpointServiceRef.name == ""))
+// +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets is not supported with .spec.region,rule=!(has(self.region) && self.vpc.autoDiscoverSubnets)
+// +kubebuilder:validation:XValidation:message=.spec.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone is not supported with .spec.region,rule=!(has(self.region) && self.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone)
+// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name must be specified",rule=has(self.serviceName) || (has(self.serviceNameRef) && has(self.serviceNameRef.name)) || (!has(self.serviceNameRef.valueFrom) || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef) || has(self.serviceNameRef.valueFrom.awsEndpointServiceRef.name))
 
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
@@ -269,7 +269,7 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets must be true when specifying tags to search for VPCs,rule=!(size(self.tags) > 0 && !self.autoDiscoverSubnets)
 	// +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets must be true when specifying VPCs to load balance,rule=!(size(self.ids) > 0 && !self.autoDiscoverSubnets)
-	// +kubebuilder:validation:XValidation:message=.spec.vpc.subnetIds is not supported when specifying VPCs to load balance,rule=!(size(self.ids) > 0 && size(self.subnetIds) > 0)
+	// +kubebuilder:validation:XValidation:message=.spec.vpc.subnetIds is not supported when specifying VPCs to load balance,rule=!(size(self.ids) > 0 && has(self.subnetIds) && size(self.subnetIds) > 0)
 
 	// Vpc will allow AVO to use a specific VPC or use the same VPC as the ROSA cluster it's running on
 	Vpc Vpc `json:"vpc,omitempty"`
