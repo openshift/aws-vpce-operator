@@ -6,12 +6,12 @@ package osde2etests
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/deploy/crds"
 	corev1 "k8s.io/api/core/v1"
