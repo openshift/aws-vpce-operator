@@ -430,7 +430,7 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 				Type:    avov1alpha2.ExternalNameServiceCondition,
 				Status:  metav1.ConditionFalse,
 				Reason:  "UnknownError",
-				Message: fmt.Sprintf("Unkown error: %v", err),
+				Message: fmt.Sprintf("Unknown error: %v", err),
 			})
 			if err := r.Status().Update(ctx, resource); err != nil {
 				r.log.V(0).Error(err, "failed to update status")
@@ -450,7 +450,7 @@ func (r *VpcEndpointReconciler) validateExternalNameService(ctx context.Context,
 				Type:    avov1alpha2.ExternalNameServiceCondition,
 				Status:  metav1.ConditionFalse,
 				Reason:  "UnknownError",
-				Message: fmt.Sprintf("Unkown error: %v", err),
+				Message: fmt.Sprintf("Unknown error: %v", err),
 			})
 			if err := r.Status().Update(ctx, resource); err != nil {
 				r.log.V(0).Error(err, "failed to update status")

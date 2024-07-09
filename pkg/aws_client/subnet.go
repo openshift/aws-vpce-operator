@@ -51,7 +51,7 @@ func (c *AWSClient) GetVPCId(ctx context.Context, subnetIds []string) (string, e
 	vpcId := *resp.Subnets[0].VpcId
 	for _, s := range resp.Subnets {
 		if *s.VpcId != vpcId {
-			return "", fmt.Errorf("subnets %v are a part of mulitple VPCs", subnetIds)
+			return "", fmt.Errorf("subnets %v are a part of multiple VPCs", subnetIds)
 		}
 	}
 
