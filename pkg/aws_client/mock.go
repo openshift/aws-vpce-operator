@@ -182,9 +182,41 @@ func (m *MockedEC2) DescribeSecurityGroups(ctx context.Context, params *ec2.Desc
 }
 
 func (m *MockedEC2) DescribeSecurityGroupRules(ctx context.Context, params *ec2.DescribeSecurityGroupRulesInput, optFns ...func(*ec2.Options)) (*ec2.DescribeSecurityGroupRulesOutput, error) {
-	// TODO: This is a no-op
+	// Mock now contains "pre-existing" rules to ensure SG rules created by customer using IP's over SGs do not cause failures
+	// while reconciling security group rules
 	return &ec2.DescribeSecurityGroupRulesOutput{
-		SecurityGroupRules: []ec2Types.SecurityGroupRule{},
+		SecurityGroupRules: []ec2Types.SecurityGroupRule{
+			ec2Types.SecurityGroupRule{
+				CidrIpv4:            aws.String("0.0.0.0/0"),
+				CidrIpv6:            nil,
+				Description:         aws.String("bad rule with no source SG"),
+				FromPort:            aws.Int32(1),
+				GroupId:             nil,
+				GroupOwnerId:        nil,
+				IpProtocol:          aws.String("tcp"),
+				IsEgress:            aws.Bool(false),
+				PrefixListId:        nil,
+				ReferencedGroupInfo: nil,
+				SecurityGroupRuleId: nil,
+				Tags:                nil,
+				ToPort:              aws.Int32(1),
+			},
+			ec2Types.SecurityGroupRule{
+				CidrIpv4:            aws.String("0.0.0.0/0"),
+				CidrIpv6:            nil,
+				Description:         aws.String("bad rule with no source SG"),
+				FromPort:            aws.Int32(1),
+				GroupId:             nil,
+				GroupOwnerId:        nil,
+				IpProtocol:          aws.String("tcp"),
+				IsEgress:            aws.Bool(true),
+				PrefixListId:        nil,
+				ReferencedGroupInfo: nil,
+				SecurityGroupRuleId: nil,
+				Tags:                nil,
+				ToPort:              aws.Int32(1),
+			},
+		},
 	}, nil
 }
 

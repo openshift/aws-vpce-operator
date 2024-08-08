@@ -396,6 +396,9 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				create := true
 				for _, rule := range rulesResp.SecurityGroupRules {
 					if avoAndAwsSecurityGroupRuleCandidate(false, resource.Spec.SecurityGroup.IngressRules[i], rule) {
+						if rule.ReferencedGroupInfo == nil {
+							continue
+						}
 						if *rule.ReferencedGroupInfo.GroupId == *sourceSgId {
 							// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
 							create = false
@@ -451,6 +454,9 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 				create := true
 				for _, rule := range rulesResp.SecurityGroupRules {
 					if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.IngressRules[i], rule) {
+						if rule.ReferencedGroupInfo == nil {
+							continue
+						}
 						if *rule.ReferencedGroupInfo.GroupId == *sourceSgId {
 							// If we find a rule with the correct protocol, fromPort, and toPort, check the source security group
 							create = false

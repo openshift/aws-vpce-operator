@@ -190,7 +190,7 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			name: "valid",
+			name: "can generate security group rules successfully",
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "mock1",
