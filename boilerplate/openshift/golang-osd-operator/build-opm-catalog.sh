@@ -228,7 +228,7 @@ function build_opm_catalog() {
     fi
 
     # check if the previous catalog image is available
-    if [ $(${image_builder} pull ${previous_catalog_image} &> /dev/null;echo $?) -gt 0 ]; then
+    if [ $(${image_builder} pull ${OLM_CATALOG_IMAGE}:${prev_commit} &> /dev/null;echo $?) -gt 0 ]; then
         # remove the first character
         prev_commit=${prev_commit:1}
         from_arg="--from-index $OLM_CATALOG_IMAGE:$prev_commit"
@@ -346,9 +346,10 @@ function main() {
         return 0
     fi
 
+    # the commit needs a 'g' prefix for the bundle image
     local bundle_image_current_commit="${OLM_BUNDLE_IMAGE}:g${CURRENT_COMMIT}"
     local bundle_image_latest="$OLM_BUNDLE_IMAGE:latest"
-    local catalog_image_current_commit="{$OLM_CATALOG_IMAGE}:g${CURRENT_COMMIT}"
+    local catalog_image_current_commit="${OLM_CATALOG_IMAGE}:${CURRENT_COMMIT}"
     local catalog_image_latest="$OLM_CATALOG_IMAGE:latest"
 
     bundle_image_current_commit=$(build_opm_bundle "${temp_dir}" \
