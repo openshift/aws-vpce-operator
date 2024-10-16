@@ -2,7 +2,6 @@ reviewers:
 - aliceh
 - anispate
 - dustman9000
-- mjlshen
 - robotmaxtron
 - sam-nguyen7
 - theautoroboto
@@ -10,8 +9,6 @@ reviewers:
 - tonytheleg
 approvers:
 - dustman9000
-- mjlshen
 - tonytheleg
 maintainers:
 - dustman9000
-- mjlshen
