@@ -8,7 +8,5 @@ reviewers:
 - tnierman
 - tonytheleg
 approvers:
-- dustman9000
-- tonytheleg
-maintainers:
-- dustman9000
+- srep-functional-leads
+- srep-team-leads
