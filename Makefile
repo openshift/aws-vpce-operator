@@ -2,7 +2,7 @@ FIPS_ENABLED=true
 
 # needed for FR operators as boilerplate checks commercial app-interface saas file hashes
 export SKIP_SAAS_FILE_CHECKS=y
-export LATEST_IMAGE_TAG=image-v5.0.1
+export LATEST_IMAGE_TAG=image-v6.0.1
 
 include boilerplate/generated-includes.mk
 
