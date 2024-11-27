@@ -36,14 +36,13 @@ spec:
     strategy: deployment
     spec:
       clusterPermissions:
+      # Cluster scoped permissions will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
       - serviceAccountName: aws-vpce-operator
-        # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
       deployments:
       - name: aws-vpce-operator
         # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
       permissions:
-      - serviceAccountName: aws-vpce-operator
-        # Rules will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+      # Namespace scoped permissions will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
   customresourcedefinitions:
     owned:
     # CRD's will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
