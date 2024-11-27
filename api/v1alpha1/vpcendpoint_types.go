@@ -52,6 +52,7 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:MinLength=0
 
 	// ServiceName is the name of the VPC Endpoint Service to connect to
+	// +optional
 	ServiceName string `json:"serviceName"`
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
@@ -60,9 +61,11 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:Pattern=[a-z0-9]([-a-z0-9]*[a-z0-9])?
 	// SubdomainName is the name of the Route53 Hosted Zone CNAME rule to create in the cluster's
 	// Private Route53 Hosted Zone
+	// +optional
 	SubdomainName string `json:"subdomainName"`
 
 	// ExternalNameService configures the name and namespace of the created Kubernetes ExternalName Service
+	// +optional
 	ExternalNameService ExternalNameServiceSpec `json:"externalNameService"`
 
 	// AddtlHostedZoneName is an optional FQDN to support supplemental VPCE routing via Route53 Private Hosted Zone
