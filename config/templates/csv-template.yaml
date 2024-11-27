@@ -14,32 +14,32 @@ spec:
   displayName: aws-vpce-operator
   description: Operator to Manage VPC Endpoints
   keywords:
-  - kubernetes
-  - ingress
-  - openshift
-  - multi-cluster
-  - cluster
+    - kubernetes
+    - ingress
+    - openshift
+    - multi-cluster
+    - cluster
   version: 0.0.1
   provider:
     name: Red Hat, Inc
   maturity: alpha
   installModes:
-  - type: OwnNamespace
-    supported: true
-  - type: SingleNamespace
-    supported: true
-  - type: MultiNamespace
-    supported: false
-  - type: AllNamespaces
-    supported: false
+    - type: OwnNamespace
+      supported: true
+    - type: SingleNamespace
+      supported: true
+    - type: MultiNamespace
+      supported: false
+    - type: AllNamespaces
+      supported: false
   install:
     strategy: deployment
     spec:
       clusterPermissions:
-      # Cluster scoped permissions will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
-      - serviceAccountName: aws-vpce-operator
+        # Cluster scoped permissions will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
+        - serviceAccountName: aws-vpce-operator
       deployments:
-      - name: aws-vpce-operator
+        - name: aws-vpce-operator
         # Deployment spec will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
       permissions:
       # Namespace scoped permissions will be added here by boilerplate/openshift/golang-osd-operator/csv-generate
