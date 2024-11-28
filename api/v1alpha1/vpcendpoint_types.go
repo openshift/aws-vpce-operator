@@ -52,6 +52,7 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:validation:MinLength=0
 
 	// ServiceName is the name of the VPC Endpoint Service to connect to
+	// +optional
 	ServiceName string `json:"serviceName"`
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
