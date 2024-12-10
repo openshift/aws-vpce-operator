@@ -19,4 +19,6 @@ package config
 const (
 	OperatorName      string = "aws-vpce-operator"
 	OperatorNamespace string = "openshift-aws-vpce-operator"
+
+	EnableOLMSkipRange = "true"
 )
