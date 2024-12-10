@@ -56,7 +56,6 @@ type VpcEndpointSpec struct {
 	ServiceName string `json:"serviceName"`
 
 	// SecurityGroup contains the configuration of the security group attached to the VPC Endpoint
-	// +optional
 	SecurityGroup SecurityGroup `json:"securityGroup"`
 
 	// +kubebuilder:validation:Pattern=[a-z0-9]([-a-z0-9]*[a-z0-9])?
