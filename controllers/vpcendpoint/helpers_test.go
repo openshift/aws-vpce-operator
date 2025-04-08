@@ -109,7 +109,7 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 						Value: aws.String(util.OperatorTagValue),
 					},
 					{
-						Key:   aws.String(aws_client.MockClusterTag),
+						Key:   aws.String(aws_client.MockLegacyClusterTag),
 						Value: aws.String("owned"),
 					},
 					{
@@ -119,7 +119,7 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 				},
 			},
 			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
+				clusterTag: aws_client.MockLegacyClusterTag,
 			},
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
@@ -142,7 +142,7 @@ func TestVpcEndpointReconciler_createMissingSecurityGroupTags(t *testing.T) {
 				},
 			},
 			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
+				clusterTag: aws_client.MockLegacyClusterTag,
 			},
 			resource: &avov1alpha2.VpcEndpoint{
 				ObjectMeta: metav1.ObjectMeta{
@@ -345,7 +345,7 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 				},
 			},
 			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
+				clusterTag: aws_client.MockLegacyClusterTag,
 			},
 			expectErr: false,
 		},

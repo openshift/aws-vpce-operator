@@ -27,7 +27,7 @@ func TestAWSClient_DescribeSubnets(t *testing.T) {
 		expectErr  bool
 	}{
 		{
-			clusterTag: MockClusterTag,
+			clusterTag: MockLegacyClusterTag,
 			expectErr:  false,
 		},
 		{

@@ -87,14 +87,14 @@ func TestAWSClient_DescribeSingleVPCEndpointById(t *testing.T) {
 func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	_, err := client.FilterVPCEndpointByDefaultTags(context.TODO(), MockClusterTag, MockClusterNameTag)
+	_, err := client.FilterVPCEndpointByDefaultTags(context.TODO(), MockLegacyClusterTag, MockClusterNameTag)
 	assert.NoError(t, err)
 }
 
 func TestCreateDeleteVPCEndpoint(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	resp, err := client.CreateDefaultInterfaceVPCEndpoint(context.TODO(), "name", MockVpcId, MockVpcEndpointServiceName, MockClusterTag)
+	resp, err := client.CreateDefaultInterfaceVPCEndpoint(context.TODO(), "name", MockVpcId, MockVpcEndpointServiceName, MockLegacyClusterTag)
 	assert.NoError(t, err)
 
 	_, err = client.DeleteVPCEndpoint(context.TODO(), *resp.VpcEndpoint.VpcEndpointId)

@@ -80,7 +80,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 		}
 	}
 
-	clusterTag, err := util.GetClusterTagKey(vpce.Status.InfraId)
+	clusterTag, err := util.GetClusterLegacyTagKey(vpce.Status.InfraId)
 	if err != nil {
 		return err
 	}

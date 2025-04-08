@@ -25,11 +25,21 @@ import (
 
 func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 	tests := []struct {
+		infraName string
 		tagKey    string
+		tagValue  string
 		expectErr bool
 	}{
 		{
-			tagKey:    MockClusterTag,
+			infraName: "mock-12345",
+			tagKey:    MockLegacyClusterTag,
+			tagValue:  "owned",
+			expectErr: false,
+		},
+		{
+			infraName: "mock-12345",
+			tagKey:    MockCapiClusterTag,
+			tagValue:  "owned",
 			expectErr: false,
 		},
 	}
@@ -37,7 +47,7 @@ func TestAWSClient_FilterClusterNodeSecurityGroupsByDefaultTags(t *testing.T) {
 	client := NewMockedAwsClient()
 
 	for _, test := range tests {
-		_, err := client.FilterClusterNodeSecurityGroupsByDefaultTags(context.TODO(), test.tagKey)
+		_, err := client.FilterClusterNodeSecurityGroupsByDefaultTags(context.TODO(), test.infraName)
 		if test.expectErr {
 			assert.Error(t, err)
 		} else {
@@ -53,7 +63,7 @@ func TestAWSClient_FilterSecurityGroupByDefaultTags(t *testing.T) {
 		expectErr bool
 	}{
 		{
-			tagKey:    MockClusterTag,
+			tagKey:    MockLegacyClusterTag,
 			nameTag:   MockSecurityGroupId,
 			expectErr: false,
 		},
@@ -98,7 +108,7 @@ func TestAWSClient_FilterSecurityGroupById(t *testing.T) {
 func TestAWSClient_CreateDeleteSecurityGroup(t *testing.T) {
 	client := NewMockedAwsClient()
 
-	resp, err := client.CreateSecurityGroup(context.TODO(), "name", MockVpcId, MockClusterTag)
+	resp, err := client.CreateSecurityGroup(context.TODO(), "name", MockVpcId, MockLegacyClusterTag)
 	assert.NoError(t, err)
 
 	_, err = client.DeleteSecurityGroup(context.TODO(), *resp.GroupId)

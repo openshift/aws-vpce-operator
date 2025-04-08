@@ -32,7 +32,12 @@ import (
 // FilterClusterNodeSecurityGroupsByDefaultTags describes the security groups attached to the cluster nodes
 // by filtering by the clusterTag and expected Name tags
 func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Context, infraName string) (*ec2.DescribeSecurityGroupsOutput, error) {
-	clusterTag, err := util.GetClusterTagKey(infraName)
+	clusterLegacyTag, err := util.GetClusterLegacyTagKey(infraName)
+	if err != nil {
+		return nil, err
+	}
+
+	clusterCapiTag, err := util.GetClusterCapiTagKey(infraName)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +52,11 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Con
 		Filters: []types.Filter{
 			{
 				Name:   aws.String("tag-key"),
-				Values: []string{clusterTag},
+				Values: []string{clusterLegacyTag},
+			},
+			{
+				Name:   aws.String("tag-key"),
+				Values: []string{clusterCapiTag},
 			},
 			{
 				Name:   aws.String("tag:Name"),
@@ -60,7 +69,7 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Con
 // FilterSecurityGroupByDefaultTags describes the security group attached to the VPC Endpoint this operator manages
 // by filtering by the clusterTag and operator tag
 func (c *AWSClient) FilterSecurityGroupByDefaultTags(ctx context.Context, infraName, sgNameTag string) (*ec2.DescribeSecurityGroupsOutput, error) {
-	clusterTag, err := util.GetClusterTagKey(infraName)
+	clusterTag, err := util.GetClusterLegacyTagKey(infraName)
 	if err != nil {
 		return nil, err
 	}

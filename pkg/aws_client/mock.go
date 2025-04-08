@@ -19,6 +19,7 @@ package aws_client
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
@@ -28,7 +29,8 @@ import (
 )
 
 const (
-	MockClusterTag             = "kubernetes.io/cluster/mock-12345"
+	MockLegacyClusterTag       = "kubernetes.io/cluster/mock-12345"
+	MockCapiClusterTag         = "sigs.k8s.io/cluster-api-provider-aws/cluster/mock-54321"
 	MockClusterNameTag         = "mock-12345-vpce"
 	MockHostedZoneId           = "R53HZ12345"
 	MockPublicSubnetId         = "subnet-pub12345"
@@ -69,7 +71,7 @@ var mockSubnets = []*ec2Types.Subnet{
 				Value: nil,
 			},
 			{
-				Key:   aws.String(MockClusterTag),
+				Key:   aws.String(MockLegacyClusterTag),
 				Value: aws.String("shared"),
 			},
 		},
@@ -169,6 +171,20 @@ func (m *MockedEC2) DescribeSecurityGroups(ctx context.Context, params *ec2.Desc
 								{
 									Key:   aws.String(filter.Values[0]),
 									Value: nil,
+								},
+							},
+						},
+					},
+				}, nil
+			} else if *filter.Name == "Tag:Name" {
+				return &ec2.DescribeSecurityGroupsOutput{
+					SecurityGroups: []ec2Types.SecurityGroup{
+						{
+							GroupId: aws.String(MockSecurityGroupId),
+							Tags: []ec2Types.Tag{
+								{
+									Key:   aws.String("Name"),
+									Value: aws.String(filter.Values[0]),
 								},
 							},
 						},
