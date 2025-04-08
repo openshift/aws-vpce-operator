@@ -58,6 +58,7 @@ objects:
           values:
             - "true"
     resourceApplyMode: Sync
+    applyBehavior: CreateOrUpdate
     resources:
     - kind: Namespace
       apiVersion: v1
@@ -185,6 +186,7 @@ objects:
           operator: NotIn
           values: ["true"]
     resourceApplyMode: Upsert
+    applyBehavior: CreateOrUpdate
     resources:
     - kind: Namespace
       apiVersion: v1
@@ -307,6 +309,7 @@ objects:
           operator: NotIn
           values: ["true"]
     resourceApplyMode: Sync
+    applyBehavior: CreateOrUpdate
     resources:
       - kind: ConfigMap
         apiVersion: v1
