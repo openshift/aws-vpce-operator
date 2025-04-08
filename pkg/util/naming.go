@@ -33,6 +33,10 @@ const (
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
 )
 
+// These are the expected security group suffixes available in the VPC based on the cluster's infra id.
+// NOTE: With 4.16+ the suffix changed to *-controlplane and *-node
+var SupportedInfraIDSuffixes = [...]string{"%s-master-sg", "%s-worker-sg", "%s-controlplane", "%s-node"}
+
 // GenerateAwsTags returns the tags that should be reconciled on every AWS resource
 // created by this operator
 func GenerateAwsTags(name, clusterTagKey string) ([]types.Tag, error) {

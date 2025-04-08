@@ -37,6 +37,12 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Con
 		return nil, err
 	}
 
+	// Loop through the expected suffixes and generate the names based on the infra name
+	var nameValues []string
+	for i := 0; i < len(util.SupportedInfraIDSuffixes); i++ {
+		nameValues = append(nameValues, fmt.Sprintf(util.SupportedInfraIDSuffixes[i], infraName))
+	}
+
 	return c.ec2Client.DescribeSecurityGroups(ctx, &ec2.DescribeSecurityGroupsInput{
 		Filters: []types.Filter{
 			{
@@ -44,11 +50,8 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Con
 				Values: []string{clusterTag},
 			},
 			{
-				Name: aws.String("tag:Name"),
-				Values: []string{
-					fmt.Sprintf("%s-master-sg", infraName),
-					fmt.Sprintf("%s-worker-sg", infraName),
-				},
+				Name:   aws.String("tag:Name"),
+				Values: nameValues,
 			},
 		},
 	})
