@@ -31,6 +31,8 @@ const (
 	RedHatManagedTagKey      = "red-hat-managed"
 	RedHatManagedTagValue    = "true"
 	SecurityGroupDescription = "Managed by AWS VPCE Operator"
+	LegacyClusterTagPrefix   = "kubernetes.io/cluster"
+	CapiClusterTagPrefix     = "sigs.k8s.io/cluster-api-provider-aws/cluster"
 )
 
 // These are the expected security group suffixes available in the VPC based on the cluster's infra id.
@@ -80,13 +82,22 @@ func GenerateAwsTagsAsMap(name, clusterTagKey string) (map[string]string, error)
 	return tagsMap, nil
 }
 
-// GetClusterTagKey returns the tag assigned to all AWS resources for the given cluster
-func GetClusterTagKey(infraName string) (string, error) {
+// GetClusterLegacyTagKey returns the tag assigned to all AWS resources for the given cluster
+func GetClusterLegacyTagKey(infraName string) (string, error) {
 	if infraName == "" {
-		return "", errors.New("failed to GetClusterTagKey: infraName must be specified")
+		return "", errors.New("failed to GetClusterLegacyTagKey: infraName must be specified")
 	}
 
-	return fmt.Sprintf("kubernetes.io/cluster/%s", infraName), nil
+	return fmt.Sprintf("%s/%s", LegacyClusterTagPrefix, infraName), nil
+}
+
+// GetClusterCapiTagKey returns the tag assigned to all AWS resources for the given cluster in CAPI format
+func GetClusterCapiTagKey(infraName string) (string, error) {
+	if infraName == "" {
+		return "", errors.New("failed to GetClusterCapiTagKey: infraName must be specified")
+	}
+
+	return fmt.Sprintf("%s/%s", CapiClusterTagPrefix, infraName), nil
 }
 
 // GenerateSecurityGroupName generates a name for a security group given a cluster name

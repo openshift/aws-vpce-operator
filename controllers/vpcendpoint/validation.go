@@ -59,15 +59,18 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 
 	sg, err := r.findOrCreateSecurityGroup(ctx, resource)
 	if err != nil {
+		r.log.V(0).Error(err, "failed to find or create security groups")
 		return err
 	}
 
 	if err := r.createMissingSecurityGroupTags(ctx, sg, resource); err != nil {
+		r.log.V(0).Error(err, "failed to create missing security group tags")
 		return err
 	}
 
 	ingressInput, egressInput, err := r.generateMissingSecurityGroupRules(ctx, sg, resource)
 	if err != nil {
+		r.log.V(0).Error(err, "failed to generate missing security group rules")
 		return err
 	}
 

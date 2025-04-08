@@ -37,7 +37,7 @@ func TestGenerateAwsTags(t *testing.T) {
 		},
 		{
 			name:          "cluster",
-			clusterTagKey: "kubernetes.io/cluster/infra",
+			clusterTagKey: LegacyClusterTagPrefix + "/infra",
 			expectErr:     false,
 		},
 	}
@@ -66,12 +66,12 @@ func TestGenerateAwsTagsAsMap(t *testing.T) {
 		},
 		{
 			name:          "cluster",
-			clusterTagKey: "kubernetes.io/cluster/infra",
+			clusterTagKey: LegacyClusterTagPrefix + "/mock-12345",
 			expectErr:     false,
 			expected: map[string]string{
-				"Name":                        "cluster",
-				"kubernetes.io/cluster/infra": "owned",
-				OperatorTagKey:                OperatorTagValue,
+				"Name":                                 "cluster",
+				LegacyClusterTagPrefix + "/mock-12345": "owned",
+				OperatorTagKey:                         OperatorTagValue,
 			},
 		},
 	}
@@ -91,7 +91,7 @@ func TestGenerateAwsTagsAsMap(t *testing.T) {
 	}
 }
 
-func TestGetClusterTagKey(t *testing.T) {
+func TestGetClusterLegacyTagKey(t *testing.T) {
 	tests := []struct {
 		infraName string
 		expected  string
@@ -102,14 +102,42 @@ func TestGetClusterTagKey(t *testing.T) {
 			expectErr: true,
 		},
 		{
-			infraName: "infra",
-			expected:  "kubernetes.io/cluster/infra",
+			infraName: "mock-12345",
+			expected:  LegacyClusterTagPrefix + "/mock-12345",
 			expectErr: false,
 		},
 	}
 
 	for _, test := range tests {
-		actual, err := GetClusterTagKey(test.infraName)
+		actual, err := GetClusterLegacyTagKey(test.infraName)
+		if test.expectErr {
+			assert.NotNil(t, err)
+		} else {
+			assert.Nil(t, err)
+			assert.Equal(t, test.expected, actual)
+		}
+	}
+}
+
+func TestGetClusterCapiTagKey(t *testing.T) {
+	tests := []struct {
+		infraName string
+		expected  string
+		expectErr bool
+	}{
+		{
+			infraName: "",
+			expectErr: true,
+		},
+		{
+			infraName: "mock-12345",
+			expected:  CapiClusterTagPrefix + "/mock-12345",
+			expectErr: false,
+		},
+	}
+
+	for _, test := range tests {
+		actual, err := GetClusterCapiTagKey(test.infraName)
 		if test.expectErr {
 			assert.NotNil(t, err)
 		} else {

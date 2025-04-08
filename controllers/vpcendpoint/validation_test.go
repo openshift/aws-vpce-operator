@@ -86,7 +86,7 @@ func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
 			awsClient: aws_client.NewMockedAwsClientWithSubnets(),
 			log:       testr.New(t),
 			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
+				clusterTag: aws_client.MockLegacyClusterTag,
 			},
 			Recorder: record.NewFakeRecorder(1),
 		}
@@ -142,7 +142,7 @@ func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 			awsClient: aws_client.NewMockedAwsClientWithSubnets(),
 			log:       testr.New(t),
 			clusterInfo: &clusterInfo{
-				clusterTag: aws_client.MockClusterTag,
+				clusterTag: aws_client.MockLegacyClusterTag,
 			},
 		}
 
