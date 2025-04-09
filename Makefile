@@ -3,9 +3,6 @@ FIPS_ENABLED=true
 # needed for FR operators as boilerplate checks commercial app-interface saas file hashes
 export SKIP_SAAS_FILE_CHECKS=y
 
-# TODO: Remove once OSD-29374 is fixed
-export TESTTARGETS=./...
-
 include boilerplate/generated-includes.mk
 
 SHELL := /usr/bin/env bash
