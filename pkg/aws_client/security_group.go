@@ -52,11 +52,7 @@ func (c *AWSClient) FilterClusterNodeSecurityGroupsByDefaultTags(ctx context.Con
 		Filters: []types.Filter{
 			{
 				Name:   aws.String("tag-key"),
-				Values: []string{clusterLegacyTag},
-			},
-			{
-				Name:   aws.String("tag-key"),
-				Values: []string{clusterCapiTag},
+				Values: []string{clusterLegacyTag, clusterCapiTag},
 			},
 			{
 				Name:   aws.String("tag:Name"),
