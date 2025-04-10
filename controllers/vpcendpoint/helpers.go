@@ -356,7 +356,7 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 	}
 
 	if len(sourceSgIds) == 0 {
-		return nil, nil, fmt.Errorf("failed to find source security groups by default tags")
+		r.log.V(1).Info("Unable to find source security groups")
 	}
 
 	// Ensure ingress/egress rules
