@@ -93,8 +93,8 @@ func (c *AWSClient) DescribeSubnetsByTags(ctx context.Context, tags ...v1alpha2.
 	for _, t := range tags {
 		// If a tag-key is empty, don't filter by it as it will exclude all subnets i.e. treat it as bad input.
 		if t.Key != "" {
-			switch {
-			case t.Value == "":
+			switch t.Value {
+			case "":
 				// If a tag value is empty, filter by tag-key
 				filters = append(filters, types.Filter{
 					Name: aws.String("tag-key"),

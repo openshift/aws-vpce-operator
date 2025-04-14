@@ -84,7 +84,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	if vpce.ObjectMeta.DeletionTimestamp.IsZero() {
+	if vpce.DeletionTimestamp.IsZero() {
 		// The object is not being deleted, so if it does not have our finalizer,
 		// then lets add the finalizer and update the object. This is equivalent
 		// registering our finalizer.
