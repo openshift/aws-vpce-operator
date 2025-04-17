@@ -97,14 +97,6 @@ GOBIN?=$(shell go env GOBIN)
 unexport GOFLAGS
 GOFLAGS_MOD ?=
 
-# Optionally use alternate GOCACHE location if default is not writeable
-CACHE_WRITEABLE := $(shell test -w "${HOME}/.cache" && echo yes || echo no)
-ifeq ($(CACHE_WRITEABLE),no)
-tmpDir := $(shell mktemp -d)
-GOENV+=GOCACHE=${tmpDir}
-$(info Using custom GOCACHE of ${tmpDir})
-endif
-
 GOENV+=GOOS=${GOOS} GOARCH=${GOARCH} CGO_ENABLED=1 GOFLAGS="${GOFLAGS_MOD}"
 GOBUILDFLAGS=-gcflags="all=-trimpath=${GOPATH}" -asmflags="all=-trimpath=${GOPATH}"
 
@@ -119,8 +111,6 @@ endif
 # GOLANGCI_LINT_CACHE needs to be set to a directory which is writeable
 # Relevant issue - https://github.com/golangci/golangci-lint/issues/734
 GOLANGCI_LINT_CACHE ?= /tmp/golangci-cache
-
-GOLANGCI_OPTIONAL_CONFIG ?=
 
 ifeq ($(origin TESTTARGETS), undefined)
 TESTTARGETS := $(shell ${GOENV} go list -e ./... | grep -E -v "/(vendor)/" | grep -E -v "/(test/e2e)/")
@@ -185,7 +175,6 @@ docker-login:
 go-check: ## Golang linting and other static analysis
 	${CONVENTION_DIR}/ensure.sh golangci-lint
 	${GOENV} GOLANGCI_LINT_CACHE=${GOLANGCI_LINT_CACHE} golangci-lint run -c ${CONVENTION_DIR}/golangci.yml ./...
-	test "${GOLANGCI_OPTIONAL_CONFIG}" = "" || test ! -e "${GOLANGCI_OPTIONAL_CONFIG}" || ${GOENV} GOLANGCI_LINT_CACHE="${GOLANGCI_LINT_CACHE}" golangci-lint run -c "${GOLANGCI_OPTIONAL_CONFIG}" ./...
 
 .PHONY: go-generate
 go-generate:
