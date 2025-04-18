@@ -56,7 +56,7 @@ func ParseAWSCredentialOverride(ctx context.Context, c client.Reader, region str
 		// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/credentials/stscreds#hdr-Assume_Role
 		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 		if err != nil {
-			return aws.Config{}, fmt.Errorf("Failed to build AWS client. Error: %v", err)
+			return aws.Config{}, fmt.Errorf("failed to build AWS client. Error: %v", err)
 		}
 		stsSvc := sts.NewFromConfig(cfg)
 		creds := stscreds.NewAssumeRoleProvider(stsSvc, string(roleArn))

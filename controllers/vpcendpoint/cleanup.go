@@ -88,7 +88,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != "" || resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil {
 			// don't delete the zone if it's the cluster's private zone
 			dnsConfig := &configv1.DNS{}
-			err := r.Client.Get(ctx, client.ObjectKey{Name: dnses.DefaultDnsesName}, dnsConfig)
+			err := r.Get(ctx, client.ObjectKey{Name: dnses.DefaultDnsesName}, dnsConfig)
 			if err != nil {
 				return err
 			}

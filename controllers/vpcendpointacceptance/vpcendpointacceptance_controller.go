@@ -63,7 +63,7 @@ func (r *VpcEndpointAcceptanceReconciler) Reconcile(ctx context.Context, req ctr
 	}
 
 	// The object is being deleted
-	if !vpceAcceptance.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !vpceAcceptance.DeletionTimestamp.IsZero() {
 		// Delete metrics
 		vpcEndpointAcceptanceQueue.DeleteLabelValues(vpceAcceptance.Name, vpceAcceptance.Namespace)
 		// Stop reconciliation as the item is being deleted

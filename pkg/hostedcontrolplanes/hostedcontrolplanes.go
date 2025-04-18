@@ -59,7 +59,7 @@ func GetPrivateHostedZoneDomainName(ctx context.Context, c client.Client, namesp
 		if hcpList.Items[0].Spec.Services != nil {
 			for _, svc := range hcpList.Items[0].Spec.Services {
 				if svc.Service == hyperv1beta1.APIServer {
-					if svc.ServicePublishingStrategy.Type == hyperv1beta1.Route && svc.Route.Hostname != "" {
+					if svc.Type == hyperv1beta1.Route && svc.Route.Hostname != "" {
 						// The hostname contains the full api.${basedomain}, so take out the leading "api"
 						var domainName string
 						if _, err := fmt.Sscanf(svc.Route.Hostname, "api.%s", &domainName); err != nil {
