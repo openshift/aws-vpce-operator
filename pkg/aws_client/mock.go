@@ -162,7 +162,8 @@ func (m *MockedEC2) DescribeSecurityGroups(ctx context.Context, params *ec2.Desc
 
 	if len(params.Filters) > 0 {
 		for _, filter := range params.Filters {
-			if *filter.Name == "tag-key" {
+			switch *filter.Name {
+			case "tag-key":
 				return &ec2.DescribeSecurityGroupsOutput{
 					SecurityGroups: []ec2Types.SecurityGroup{
 						{
@@ -176,7 +177,7 @@ func (m *MockedEC2) DescribeSecurityGroups(ctx context.Context, params *ec2.Desc
 						},
 					},
 				}, nil
-			} else if *filter.Name == "Tag:Name" {
+			case "Tag:Name":
 				return &ec2.DescribeSecurityGroupsOutput{
 					SecurityGroups: []ec2Types.SecurityGroup{
 						{
