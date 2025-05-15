@@ -76,7 +76,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 
 	// Not idempotent
 	if _, err := r.awsClient.AuthorizeSecurityGroupRules(ctx, ingressInput, egressInput); err != nil {
-		r.log.V(1).Error(err, "failed to authorize security group rules")
+		r.log.V(0).Error(err, "failed to authorize security group rules")
 		return err
 	}
 
