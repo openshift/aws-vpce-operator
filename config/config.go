@@ -17,8 +17,7 @@ limitations under the License.
 package config
 
 const (
-	OperatorName      string = "aws-vpce-operator"
-	OperatorNamespace string = "openshift-aws-vpce-operator"
-
+	OperatorName       = "aws-vpce-operator"
+	OperatorNamespace  = "openshift-aws-vpce-operator"
 	EnableOLMSkipRange = "true"
 )
