@@ -118,11 +118,37 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
 
 1. Build and push a container image for the operator (or use an existing image from [quay.io/app-sre/aws-vpce-operator](https://quay.io/repository/app-sre/aws-vpce-operator?tab=tags)).
 2. Update the container image in `./deploy/20_operator.yml`
-3. Apply all the resources (namespace, RBAC, deployment) to the cluster
+3. Create the `openshift-aws-vpce-operator` namespace
+    ```bash
+    oc apply -f ./dev/vpce_example.yml
+    ```
+
+   the first time this runs it will only apply the namespace openshift-aws-vpce-operator since the CRD has not been created yet.
+
+4. Create a secret with you AWS credentials
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: avo-aws-iam-user-creds
+      namespace: openshift-aws-vpce-operator
+    type: Opaque
+    data:
+      aws_secret_access_key: <base64 $AWS_ACCESS_KEY_ID>
+      aws_access_key_id: <base64 $AWS_SECRET_ACCESS_KEY>
+    ```
+
+5. Apply all the resources (namespace, RBAC, deployment) to the cluster (elevation might be needed)
 
     ```bash
     oc apply -f deploy
     ```
+
+6. Apply all the CRDs on deploy/crds/ (elevation might be needed)
+    ```bash
+    oc apply -f deploy/crds/
+    ```
+
 
 ## Profit
 
@@ -133,3 +159,5 @@ oc apply -f vpce_example.yml
 # Testing and other shenanigans
 oc delete -f vpce_example.yml
 ```
+
+  > NOTE: There is currently a bug affecting the vpcendpoints operator. The operator will fail if you set up egressRules that already exist on the SecurityGroup. Thus, it is recommended for tests to only create ingress rules until the bug is fixed.
