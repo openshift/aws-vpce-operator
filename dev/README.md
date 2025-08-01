@@ -117,11 +117,31 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
 ## Running in a ROSA STS cluster
 
 1. Build and push a container image for the operator (or use an existing image from [quay.io/app-sre/aws-vpce-operator](https://quay.io/repository/app-sre/aws-vpce-operator?tab=tags)).
+
 2. Update the container image in `./deploy/20_operator.yml`
-3. Apply all the resources (namespace, RBAC, deployment) to the cluster
+
+3. Create a secret with your AWS credentials
+    ```yaml
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: avo-aws-iam-user-creds
+      namespace: openshift-aws-vpce-operator
+    type: Opaque
+    data:
+      aws_secret_access_key: <base64 $AWS_ACCESS_KEY_ID>
+      aws_access_key_id: <base64 $AWS_SECRET_ACCESS_KEY>
+    ```
+
+4. Apply all the resources (namespace, RBAC, deployment) to the cluster.
 
     ```bash
     oc apply -f deploy
+    ```
+
+5. Apply all the CRDs on deploy/crds/
+    ```bash
+    oc apply -f deploy/crds/
     ```
 
 ## Profit
