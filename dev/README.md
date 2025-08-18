@@ -120,7 +120,12 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
 
 2. Update the container image in `./deploy/20_operator.yml`
 
-3. Create a secret with your AWS credentials
+3. Create the namespace
+    ```bash
+    oc create namespace openshift-aws-vpce-operator
+    ```
+
+4. Create a secret with your AWS credentials
     ```yaml
     apiVersion: v1
     kind: Secret
@@ -133,13 +138,13 @@ run locally (i.e. with `go run .`) and depends on local K8s and AWS credentials 
       aws_access_key_id: <base64 $AWS_SECRET_ACCESS_KEY>
     ```
 
-4. Apply all the resources (namespace, RBAC, deployment) to the cluster.
+5. Apply all the resources (namespace, RBAC, deployment) to the cluster.
 
     ```bash
     oc apply -f deploy
     ```
 
-5. Apply all the CRDs on deploy/crds/
+6. Apply all the CRDs on deploy/crds/
     ```bash
     oc apply -f deploy/crds/
     ```
