@@ -1,3 +1,4 @@
+export KONFLUX_BUILDS=true
 FIPS_ENABLED=true
 
 # needed for FR operators as boilerplate checks commercial app-interface saas file hashes
