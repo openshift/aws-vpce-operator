@@ -54,26 +54,46 @@ func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
 			},
 			expectErr: false,
 		},
+		{
+			name: "private DNS enabled has no Route53 condition so cleanup skips Route53 naturally",
+			resource: &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock-goalert",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					EnablePrivateDns: true,
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					SecurityGroupId: aws_client.MockSecurityGroupId,
+					VPCEndpointId:   testutil.MockVpcEndpointId,
+					// No Route53 condition since validateCustomDns never sets one for private DNS
+					Conditions: []metav1.Condition{},
+				},
+			},
+			expectErr: false,
+		},
 	}
 
 	for _, test := range tests {
-		client := testutil.NewTestMock(t).Client
-		if test.resource != nil {
-			client = testutil.NewTestMock(t, test.resource).Client
-		}
-		r := &VpcEndpointReconciler{
-			Client:      client,
-			Scheme:      client.Scheme(),
-			awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
-			log:         testr.New(t),
-			clusterInfo: &clusterInfo{},
-		}
+		t.Run(test.name, func(t *testing.T) {
+			client := testutil.NewTestMock(t).Client
+			if test.resource != nil {
+				client = testutil.NewTestMock(t, test.resource).Client
+			}
+			r := &VpcEndpointReconciler{
+				Client:      client,
+				Scheme:      client.Scheme(),
+				awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
+				log:         testr.New(t),
+				clusterInfo: &clusterInfo{},
+			}
 
-		err := r.cleanupAwsResources(context.TODO(), test.resource)
-		if test.expectErr {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err)
-		}
+			err := r.cleanupAwsResources(context.TODO(), test.resource)
+			if test.expectErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
 	}
 }

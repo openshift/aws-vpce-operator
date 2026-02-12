@@ -125,12 +125,17 @@ func main() {
 		ctrlConfig.EnableVpcEndpointController = &trueBool
 	}
 
+	if ctrlConfig.EnablePrivateDns == nil {
+		ctrlConfig.EnablePrivateDns = &falseBool
+	}
+
 	if *ctrlConfig.EnableVpcEndpointController {
-		setupLog.Info("starting controller", "controller", vpcendpoint.ControllerName)
+		setupLog.Info("starting controller", "controller", vpcendpoint.ControllerName, "enablePrivateDns", *ctrlConfig.EnablePrivateDns)
 		if err = (&vpcendpoint.VpcEndpointReconciler{
-			Client:   mgr.GetClient(),
-			Scheme:   mgr.GetScheme(),
-			Recorder: mgr.GetEventRecorderFor(vpcendpoint.ControllerName),
+			Client:           mgr.GetClient(),
+			Scheme:           mgr.GetScheme(),
+			Recorder:         mgr.GetEventRecorderFor(vpcendpoint.ControllerName),
+			EnablePrivateDns: *ctrlConfig.EnablePrivateDns,
 		}).SetupWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create controller", "controller", vpcendpoint.ControllerName)
 			os.Exit(1)

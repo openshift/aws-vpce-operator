@@ -44,6 +44,10 @@ type VpcEndpointReconciler struct {
 	Scheme    *runtime.Scheme
 	Recorder  record.EventRecorder
 
+	// EnablePrivateDns is a feature flag that allows VpcEndpoint CRs to use the enablePrivateDns field.
+	// When false, the enablePrivateDns field on VpcEndpoint CRs is ignored.
+	EnablePrivateDns bool
+
 	log                    logr.Logger
 	awsClient              *aws_client.AWSClient
 	awsAssociatedVpcClient *aws_client.VpcAssociationClient

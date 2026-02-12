@@ -261,9 +261,10 @@ type VpcEndpointSpec struct {
 	// +kubebuilder:default=false
 	// +kubebuilder:validation:Optional
 
-	// EnablePrivateDns will allow AVO to create VPC Endpoints with private DNS names specified by a VPC Endpoint Service
+	// EnablePrivateDns will allow AVO to create VPC Endpoints with private DNS names specified by a VPC Endpoint Service.
+	// When true, DNS resolution is handled at the VPC Endpoint Service level via Domain Ownership Verification,
+	// and AVO will skip Route53 hosted zone and record management for this endpoint.
 	// https://docs.aws.amazon.com/vpc/latest/privatelink/manage-dns-names.html (defaults to false)
-	// TODO: Implement
 	EnablePrivateDns bool `json:"enablePrivateDns,omitempty"`
 
 	// +kubebuilder:validation:Optional

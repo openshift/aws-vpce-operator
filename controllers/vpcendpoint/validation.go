@@ -212,6 +212,13 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 }
 
 func (r *VpcEndpointReconciler) validateCustomDns(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	// When enablePrivateDns is active, DNS resolution is handled at the VPC Endpoint Service level
+	// via Domain Ownership Verification, so skip all Route53 and ExternalName service management.
+	if r.EnablePrivateDns && resource.Spec.EnablePrivateDns {
+		r.log.V(0).Info("Skipping Route53 DNS management, private DNS is enabled via Domain Ownership Verification")
+		return nil
+	}
+
 	if err := r.validateResources(ctx, resource,
 		[]Validation{
 			r.validateR53PrivateHostedZone,
