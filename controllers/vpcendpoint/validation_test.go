@@ -161,6 +161,82 @@ func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 	}
 }
 
+func TestVPCEndpointReconciler_validateCustomDns_privateDns(t *testing.T) {
+	tests := []struct {
+		name                     string
+		operatorEnablePrivateDns bool
+		crEnablePrivateDns       bool
+		expectSkipRoute53        bool
+	}{
+		{
+			name:                     "both flags true: skips Route53",
+			operatorEnablePrivateDns: true,
+			crEnablePrivateDns:       true,
+			expectSkipRoute53:        true,
+		},
+		{
+			name:                     "operator flag true, CR flag false: does not skip Route53",
+			operatorEnablePrivateDns: true,
+			crEnablePrivateDns:       false,
+			expectSkipRoute53:        false,
+		},
+		{
+			name:                     "operator flag false, CR flag true: does not skip Route53",
+			operatorEnablePrivateDns: false,
+			crEnablePrivateDns:       true,
+			expectSkipRoute53:        false,
+		},
+		{
+			name:                     "both flags false: does not skip Route53",
+			operatorEnablePrivateDns: false,
+			crEnablePrivateDns:       false,
+			expectSkipRoute53:        false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resource := &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock-goalert",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					EnablePrivateDns: test.crEnablePrivateDns,
+				},
+			}
+
+			client := testutil.NewTestMock(t, resource).Client
+			r := &VpcEndpointReconciler{
+				Client:           client,
+				Scheme:           client.Scheme(),
+				awsClient:        aws_client.NewMockedAwsClient(),
+				log:              testr.New(t),
+				EnablePrivateDns: test.operatorEnablePrivateDns,
+				clusterInfo: &clusterInfo{
+					clusterTag: aws_client.MockLegacyClusterTag,
+				},
+			}
+
+			if test.expectSkipRoute53 {
+				err := r.validateCustomDns(context.TODO(), resource)
+				assert.NoError(t, err)
+
+				// No Route53 condition should be set since AVO doesn't manage Route53 resources
+				condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+				assert.Nil(t, condition, "Route53 condition should not be set when private DNS is enabled")
+			} else {
+				// When private DNS is not active, the code proceeds into Route53 validation.
+				// With the minimal mock setup, validateR53PrivateHostedZone returns nil (all fields
+				// are zero) and validateR53HostedZoneRecord calls GetHostedZone which panics on the
+				// mock. Verify the code enters the Route53 path by catching the panic.
+				assert.Panics(t, func() {
+					_ = r.validateCustomDns(context.TODO(), resource)
+				}, "expected Route53 validation to be entered (panics on unimplemented mock)")
+			}
+		})
+	}
+}
+
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {
 //	tests := []struct {
 //		name       string

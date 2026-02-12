@@ -45,6 +45,9 @@ type MockedEC2 struct {
 	AvoEC2API
 
 	Subnets []*ec2Types.Subnet
+
+	// LastCreateVpcEndpointInput captures the most recent CreateVpcEndpoint call input for test assertions
+	LastCreateVpcEndpointInput *ec2.CreateVpcEndpointInput
 }
 
 type MockedRoute53 struct {
@@ -273,6 +276,7 @@ func (m *MockedEC2) CreateTags(ctx context.Context, params *ec2.CreateTagsInput,
 }
 
 func (m *MockedEC2) CreateVpcEndpoint(ctx context.Context, params *ec2.CreateVpcEndpointInput, optFns ...func(*ec2.Options)) (*ec2.CreateVpcEndpointOutput, error) {
+	m.LastCreateVpcEndpointInput = params
 	return &ec2.CreateVpcEndpointOutput{
 		VpcEndpoint: &ec2Types.VpcEndpoint{
 			State:         "available",

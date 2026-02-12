@@ -44,6 +44,11 @@ type AvoConfig struct {
 	// EnableVpcEndpointTemplateController is a feature flag to determine whether the VpcEndpointTemplate controller runs
 	// Defaults to false
 	EnableVpcEndpointTemplateController *bool `json:"enableVpcEndpointTemplateController,omitempty"`
+
+	// EnablePrivateDns is a feature flag that allows VpcEndpoint CRs to use the enablePrivateDns field.
+	// When false, the enablePrivateDns field on VpcEndpoint CRs is ignored.
+	// Defaults to false
+	EnablePrivateDns *bool `json:"enablePrivateDns,omitempty"`
 }
 
 //+kubebuilder:object:root=true
