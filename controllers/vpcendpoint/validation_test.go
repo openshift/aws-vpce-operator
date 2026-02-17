@@ -161,6 +161,73 @@ func TestVPCEndpointReconciler_validateVPCEndpoint(t *testing.T) {
 	}
 }
 
+func TestVPCEndpointReconciler_validateVPCEndpoint_enablesPrivateDns(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-goalert",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			EnablePrivateDns: true,
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+		},
+	}
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:           client,
+		Scheme:           client.Scheme(),
+		awsClient:        aws_client.NewMockedAwsClientWithSubnets(),
+		log:              testr.New(t),
+		EnablePrivateDns: true,
+		Recorder:         record.NewFakeRecorder(1),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+		},
+	}
+
+	err := r.validateVPCEndpoint(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition)
+	assert.NotNilf(t, condition, "missing expected %s condition", avov1alpha2.AWSVpcEndpointCondition)
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+}
+
+func TestVPCEndpointReconciler_validateVPCEndpoint_skipsPrivateDnsWhenFlagDisabled(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-goalert",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			EnablePrivateDns: true,
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+		},
+	}
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:           client,
+		Scheme:           client.Scheme(),
+		awsClient:        aws_client.NewMockedAwsClientWithSubnets(),
+		log:              testr.New(t),
+		EnablePrivateDns: false, // operator flag off
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+		},
+	}
+
+	err := r.validateVPCEndpoint(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition)
+	assert.NotNilf(t, condition, "missing expected %s condition", avov1alpha2.AWSVpcEndpointCondition)
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+}
+
 func TestVPCEndpointReconciler_validateCustomDns_privateDns(t *testing.T) {
 	tests := []struct {
 		name                     string

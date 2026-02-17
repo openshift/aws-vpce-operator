@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
@@ -151,6 +152,20 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	case "available":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(0)
 		r.log.V(0).Info("VPC Endpoint ready", "id", resource.Status.VPCEndpointId)
+
+		// Enable private DNS after the VPCE connection has been accepted. AWS does not allow
+		// PrivateDnsEnabled at creation time for services that require acceptance.
+		if r.EnablePrivateDns && resource.Spec.EnablePrivateDns && (vpce.PrivateDnsEnabled == nil || !*vpce.PrivateDnsEnabled) {
+			r.log.V(0).Info("Enabling private DNS on VPC Endpoint", "id", resource.Status.VPCEndpointId)
+			enablePrivateDns := true
+			if _, err := r.awsClient.ModifyVpcEndpoint(ctx, &ec2.ModifyVpcEndpointInput{
+				VpcEndpointId:     vpce.VpcEndpointId,
+				PrivateDnsEnabled: &enablePrivateDns,
+			}); err != nil {
+				return fmt.Errorf("failed to enable private DNS on VPC Endpoint: %w", err)
+			}
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Updated", "Enabled private DNS on VPC Endpoint: %s", resource.Status.VPCEndpointId)
+		}
 	case "rejected":
 		r.log.V(0).Info("VPC Endpoint rejected, starting deletion", "id", resource.Status.VPCEndpointId)
 		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {

@@ -22,7 +22,6 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/go-logr/logr/testr"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
@@ -368,93 +367,6 @@ func TestVpcEndpointReconciler_findOrCreateVpcEndpoint(t *testing.T) {
 				assert.NoError(t, err)
 				assert.Equalf(t, "available", test.resource.Status.Status, "expected state to be %s, got %s", "available", test.resource.Status.Status)
 			}
-		})
-	}
-}
-
-// mockEC2NoExistingVpce embeds MockedEC2 but overrides DescribeVpcEndpoints to always return
-// empty results, forcing findOrCreateVpcEndpoint to call CreateVpcEndpoint.
-type mockEC2NoExistingVpce struct {
-	*aws_client.MockedEC2
-}
-
-func (m *mockEC2NoExistingVpce) DescribeVpcEndpoints(ctx context.Context, params *ec2.DescribeVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointsOutput, error) {
-	return &ec2.DescribeVpcEndpointsOutput{}, nil
-}
-
-func TestVpcEndpointReconciler_findOrCreateVpcEndpoint_privateDns(t *testing.T) {
-	tests := []struct {
-		name                     string
-		operatorEnablePrivateDns bool
-		crEnablePrivateDns       bool
-		expectPrivateDnsEnabled  bool
-	}{
-		{
-			name:                     "both flags true: passes PrivateDnsEnabled=true to AWS",
-			operatorEnablePrivateDns: true,
-			crEnablePrivateDns:       true,
-			expectPrivateDnsEnabled:  true,
-		},
-		{
-			name:                     "operator flag false: passes PrivateDnsEnabled=false even if CR is true",
-			operatorEnablePrivateDns: false,
-			crEnablePrivateDns:       true,
-			expectPrivateDnsEnabled:  false,
-		},
-		{
-			name:                     "CR flag false: passes PrivateDnsEnabled=false even if operator is true",
-			operatorEnablePrivateDns: true,
-			crEnablePrivateDns:       false,
-			expectPrivateDnsEnabled:  false,
-		},
-		{
-			name:                     "both flags false: passes PrivateDnsEnabled=false",
-			operatorEnablePrivateDns: false,
-			crEnablePrivateDns:       false,
-			expectPrivateDnsEnabled:  false,
-		},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			resource := &avov1alpha2.VpcEndpoint{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "mock-goalert",
-				},
-				Spec: avov1alpha2.VpcEndpointSpec{
-					EnablePrivateDns: test.crEnablePrivateDns,
-				},
-				Status: avov1alpha2.VpcEndpointStatus{
-					VPCId:   aws_client.MockVpcId,
-					InfraId: testutil.MockInfrastructureName,
-				},
-			}
-
-			innerMock := aws_client.NewMockedEC2WithSubnets()
-			mockEC2 := &mockEC2NoExistingVpce{MockedEC2: innerMock}
-			awsClient := aws_client.NewAwsClientWithServiceClients(mockEC2, &aws_client.MockedRoute53{})
-
-			r := &VpcEndpointReconciler{
-				Client:           testutil.NewTestMock(t, resource).Client,
-				Scheme:           testutil.NewTestMock(t).Client.Scheme(),
-				Recorder:         record.NewFakeRecorder(1),
-				log:              testr.New(t),
-				awsClient:        awsClient,
-				EnablePrivateDns: test.operatorEnablePrivateDns,
-				clusterInfo: &clusterInfo{
-					clusterTag: aws_client.MockLegacyClusterTag,
-				},
-			}
-
-			_, err := r.findOrCreateVpcEndpoint(context.TODO(), resource)
-			assert.NoError(t, err)
-
-			assert.NotNil(t, innerMock.LastCreateVpcEndpointInput,
-				"CreateVpcEndpoint should have been called")
-			assert.NotNil(t, innerMock.LastCreateVpcEndpointInput.PrivateDnsEnabled,
-				"PrivateDnsEnabled should be set")
-			assert.Equal(t, test.expectPrivateDnsEnabled, *innerMock.LastCreateVpcEndpointInput.PrivateDnsEnabled,
-				"PrivateDnsEnabled should reflect the combined feature flag and CR setting")
 		})
 	}
 }

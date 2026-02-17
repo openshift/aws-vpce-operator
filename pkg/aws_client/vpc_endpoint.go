@@ -169,10 +169,8 @@ func (c *AWSClient) FilterVPCEndpointByDefaultTags(ctx context.Context, clusterT
 
 // CreateDefaultInterfaceVPCEndpoint creates an interface VPC endpoint with
 // the default (open to all) VPC Endpoint policy. It attaches no security groups
-// nor associates the VPC Endpoint with any subnets. When enablePrivateDns is true,
-// the VPC Endpoint will use the private DNS name configured on the VPC Endpoint Service
-// via Domain Ownership Verification.
-func (c *AWSClient) CreateDefaultInterfaceVPCEndpoint(ctx context.Context, name, vpcId, serviceName, tagKey string, enablePrivateDns bool) (*ec2.CreateVpcEndpointOutput, error) {
+// nor associates the VPC Endpoint with any subnets.
+func (c *AWSClient) CreateDefaultInterfaceVPCEndpoint(ctx context.Context, name, vpcId, serviceName, tagKey string) (*ec2.CreateVpcEndpointOutput, error) {
 	tags, err := util.GenerateAwsTags(name, tagKey)
 	if err != nil {
 		return nil, err
@@ -181,10 +179,9 @@ func (c *AWSClient) CreateDefaultInterfaceVPCEndpoint(ctx context.Context, name,
 	input := &ec2.CreateVpcEndpointInput{
 		// TODO: Implement ClientToken for idempotency guarantees
 		// ClientToken:     "token",
-		VpcId:             &vpcId,
-		ServiceName:       &serviceName,
-		VpcEndpointType:   types.VpcEndpointTypeInterface,
-		PrivateDnsEnabled: &enablePrivateDns,
+		VpcId:           &vpcId,
+		ServiceName:     &serviceName,
+		VpcEndpointType: types.VpcEndpointTypeInterface,
 		TagSpecifications: []types.TagSpecification{
 			{
 				ResourceType: types.ResourceTypeVpcEndpoint,

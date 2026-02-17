@@ -585,8 +585,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 		// If there are still no VPC Endpoints found, it needs to be created
 		if resp == nil || len(resp.VpcEndpoints) == 0 {
 
-			enablePrivateDns := r.EnablePrivateDns && resource.Spec.EnablePrivateDns
-			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, resource.Status.VPCId, resource.Status.VPCEndpointServiceName, r.clusterInfo.clusterTag, enablePrivateDns)
+			creationResp, err := r.awsClient.CreateDefaultInterfaceVPCEndpoint(ctx, vpceName, resource.Status.VPCId, resource.Status.VPCEndpointServiceName, r.clusterInfo.clusterTag)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create vpc endpoint: %w", err)
 			}
