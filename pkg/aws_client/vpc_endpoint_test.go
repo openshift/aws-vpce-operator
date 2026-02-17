@@ -92,39 +92,13 @@ func TestAWSClient_FilterVPCEndpointByDefaultTags(t *testing.T) {
 }
 
 func TestCreateDeleteVPCEndpoint(t *testing.T) {
-	tests := []struct {
-		name             string
-		enablePrivateDns bool
-	}{
-		{
-			name:             "private DNS disabled",
-			enablePrivateDns: false,
-		},
-		{
-			name:             "private DNS enabled",
-			enablePrivateDns: true,
-		},
-	}
+	client := NewMockedAwsClient()
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			mockEC2 := &MockedEC2{}
-			client := NewAwsClientWithServiceClients(mockEC2, &MockedRoute53{})
+	resp, err := client.CreateDefaultInterfaceVPCEndpoint(context.TODO(), "name", MockVpcId, MockVpcEndpointServiceName, MockLegacyClusterTag)
+	assert.NoError(t, err)
 
-			resp, err := client.CreateDefaultInterfaceVPCEndpoint(
-				context.TODO(), "name", MockVpcId, MockVpcEndpointServiceName, MockLegacyClusterTag, test.enablePrivateDns,
-			)
-			assert.NoError(t, err)
-			assert.NotNil(t, mockEC2.LastCreateVpcEndpointInput)
-			assert.NotNil(t, mockEC2.LastCreateVpcEndpointInput.PrivateDnsEnabled,
-				"PrivateDnsEnabled should always be set")
-			assert.Equal(t, test.enablePrivateDns, *mockEC2.LastCreateVpcEndpointInput.PrivateDnsEnabled,
-				"PrivateDnsEnabled should match the input parameter")
-
-			_, err = client.DeleteVPCEndpoint(context.TODO(), *resp.VpcEndpoint.VpcEndpointId)
-			assert.NoError(t, err)
-		})
-	}
+	_, err = client.DeleteVPCEndpoint(context.TODO(), *resp.VpcEndpoint.VpcEndpointId)
+	assert.NoError(t, err)
 }
 
 func TestAWSClient_ModifyVPCEndpoint(t *testing.T) {
