@@ -359,6 +359,20 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 		r.log.V(0).Info("Unable to find source security groups")
 	}
 
+	// When UseVpcCidr is true, look up the VPC CIDR block to use instead of source SG IDs
+	var vpcCidr string
+	if resource.Spec.SecurityGroup.UseVpcCidr {
+		if resource.Status.VPCId == "" {
+			return nil, nil, fmt.Errorf("cannot use VPC CIDR: VPC ID is not set in status")
+		}
+		cidr, err := r.awsClient.GetVpcCidrBlock(ctx, resource.Status.VPCId)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to get VPC CIDR block: %w", err)
+		}
+		vpcCidr = cidr
+		r.log.V(1).Info("Using VPC CIDR for security group rules", "vpcCidr", vpcCidr)
+	}
+
 	// Ensure ingress/egress rules
 	var (
 		ingressRules []ec2Types.IpPermission
@@ -387,6 +401,29 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 					IpRanges: []ec2Types.IpRange{
 						{
 							CidrIp: aws.String(resource.Spec.SecurityGroup.IngressRules[i].CidrIp),
+						},
+					},
+				})
+			}
+		case resource.Spec.SecurityGroup.UseVpcCidr && vpcCidr != "":
+			create := true
+			for _, rule := range rulesResp.SecurityGroupRules {
+				if avoAndAwsSecurityGroupRuleCandidate(false, resource.Spec.SecurityGroup.IngressRules[i], rule) {
+					if rule.CidrIpv4 != nil && vpcCidr == *rule.CidrIpv4 {
+						create = false
+						break
+					}
+				}
+			}
+
+			if create {
+				ingressRules = append(ingressRules, ec2Types.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.IngressRules[i].Protocol),
+					FromPort:   aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].FromPort),
+					ToPort:     aws.Int32(resource.Spec.SecurityGroup.IngressRules[i].ToPort),
+					IpRanges: []ec2Types.IpRange{
+						{
+							CidrIp: aws.String(vpcCidr),
 						},
 					},
 				})
@@ -428,9 +465,9 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 		case resource.Spec.SecurityGroup.EgressRules[i].CidrIp != "":
 			create := true
 			for _, rule := range rulesResp.SecurityGroupRules {
-				if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.IngressRules[i], rule) {
+				if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.EgressRules[i], rule) {
 					// If we find a rule with the correct protocol, fromPort, and toPort, check CidrIP
-					if rule.CidrIpv4 != nil && resource.Spec.SecurityGroup.IngressRules[i].CidrIp == *rule.CidrIpv4 {
+					if rule.CidrIpv4 != nil && resource.Spec.SecurityGroup.EgressRules[i].CidrIp == *rule.CidrIpv4 {
 						create = false
 						break
 					}
@@ -449,11 +486,34 @@ func (r *VpcEndpointReconciler) generateMissingSecurityGroupRules(ctx context.Co
 					},
 				})
 			}
+		case resource.Spec.SecurityGroup.UseVpcCidr && vpcCidr != "":
+			create := true
+			for _, rule := range rulesResp.SecurityGroupRules {
+				if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.EgressRules[i], rule) {
+					if rule.CidrIpv4 != nil && vpcCidr == *rule.CidrIpv4 {
+						create = false
+						break
+					}
+				}
+			}
+
+			if create {
+				egressRules = append(egressRules, ec2Types.IpPermission{
+					IpProtocol: aws.String(resource.Spec.SecurityGroup.EgressRules[i].Protocol),
+					FromPort:   aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].FromPort),
+					ToPort:     aws.Int32(resource.Spec.SecurityGroup.EgressRules[i].ToPort),
+					IpRanges: []ec2Types.IpRange{
+						{
+							CidrIp: aws.String(vpcCidr),
+						},
+					},
+				})
+			}
 		case len(sourceSgIds) > 0:
 			for _, sourceSgId := range sourceSgIds {
 				create := true
 				for _, rule := range rulesResp.SecurityGroupRules {
-					if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.IngressRules[i], rule) {
+					if avoAndAwsSecurityGroupRuleCandidate(true, resource.Spec.SecurityGroup.EgressRules[i], rule) {
 						if rule.ReferencedGroupInfo == nil {
 							continue
 						}

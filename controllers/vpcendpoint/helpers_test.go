@@ -236,6 +236,107 @@ func TestVpcEndpointReconciler_generateMissingSecurityGroupRules(t *testing.T) {
 			expectedNumIngress: 2,
 			expectErr:          false,
 		},
+		{
+			name: "generates rules using VPC CIDR when useVpcCidr is true",
+			resource: &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock-cidr",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					SecurityGroup: avov1alpha2.SecurityGroup{
+						UseVpcCidr: true,
+						IngressRules: []avov1alpha2.SecurityGroupRule{
+							{
+								FromPort: 443,
+								ToPort:   443,
+								Protocol: "tcp",
+							},
+						},
+						EgressRules: []avov1alpha2.SecurityGroupRule{
+							{
+								FromPort: 443,
+								ToPort:   443,
+								Protocol: "tcp",
+							},
+						},
+					},
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
+					VPCId:   aws_client.MockVpcId,
+				},
+			},
+			sg: &ec2Types.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+			},
+			expectedNumIngress: 1,
+			expectedNumEgress:  1,
+			expectErr:          false,
+		},
+		{
+			name: "VPC CIDR with explicit CidrIp on some rules",
+			resource: &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock-mixed",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					SecurityGroup: avov1alpha2.SecurityGroup{
+						UseVpcCidr: true,
+						IngressRules: []avov1alpha2.SecurityGroupRule{
+							{
+								FromPort: 443,
+								ToPort:   443,
+								Protocol: "tcp",
+								CidrIp:   "192.168.1.0/24",
+							},
+							{
+								FromPort: 8080,
+								ToPort:   8080,
+								Protocol: "tcp",
+							},
+						},
+						EgressRules: []avov1alpha2.SecurityGroupRule{},
+					},
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
+					VPCId:   aws_client.MockVpcId,
+				},
+			},
+			sg: &ec2Types.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+			},
+			expectedNumIngress: 2,
+			expectedNumEgress:  0,
+			expectErr:          false,
+		},
+		{
+			name: "VPC CIDR fails when VPCId is empty",
+			resource: &avov1alpha2.VpcEndpoint{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "mock-no-vpc",
+				},
+				Spec: avov1alpha2.VpcEndpointSpec{
+					SecurityGroup: avov1alpha2.SecurityGroup{
+						UseVpcCidr: true,
+						IngressRules: []avov1alpha2.SecurityGroupRule{
+							{
+								FromPort: 443,
+								ToPort:   443,
+								Protocol: "tcp",
+							},
+						},
+					},
+				},
+				Status: avov1alpha2.VpcEndpointStatus{
+					InfraId: testutil.MockInfrastructureName,
+				},
+			},
+			sg: &ec2Types.SecurityGroup{
+				GroupId: aws.String(aws_client.MockSecurityGroupId),
+			},
+			expectErr: true,
+		},
 	}
 
 	for _, test := range tests {

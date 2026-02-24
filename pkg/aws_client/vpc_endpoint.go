@@ -113,6 +113,30 @@ func (c *AWSClient) FilterVpcIdsByTags(ctx context.Context, tags []avov1alpha2.T
 	return ids, nil
 }
 
+// GetVpcCidrBlock returns the primary CIDR block for the given VPC ID
+func (c *AWSClient) GetVpcCidrBlock(ctx context.Context, vpcId string) (string, error) {
+	if vpcId == "" {
+		return "", errors.New("must specify vpc id when getting VPC CIDR block")
+	}
+
+	resp, err := c.ec2Client.DescribeVpcs(ctx, &ec2.DescribeVpcsInput{
+		VpcIds: []string{vpcId},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to describe VPC %s: %w", vpcId, err)
+	}
+
+	if len(resp.Vpcs) == 0 {
+		return "", fmt.Errorf("no VPC found with id: %s", vpcId)
+	}
+
+	if resp.Vpcs[0].CidrBlock == nil {
+		return "", fmt.Errorf("VPC %s has no CIDR block", vpcId)
+	}
+
+	return *resp.Vpcs[0].CidrBlock, nil
+}
+
 // DescribeSingleVPCEndpointById returns information about a VPC endpoint with a given id.
 func (c *AWSClient) DescribeSingleVPCEndpointById(ctx context.Context, id string) (*ec2.DescribeVpcEndpointsOutput, error) {
 	if id == "" {

@@ -101,6 +101,17 @@ func TestCreateDeleteVPCEndpoint(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestAWSClient_GetVpcCidrBlock(t *testing.T) {
+	client := NewMockedAwsClient()
+
+	cidr, err := client.GetVpcCidrBlock(context.TODO(), MockVpcId)
+	assert.NoError(t, err)
+	assert.Equal(t, MockVpcCidr, cidr)
+
+	_, err = client.GetVpcCidrBlock(context.TODO(), "")
+	assert.Error(t, err)
+}
+
 func TestAWSClient_ModifyVPCEndpoint(t *testing.T) {
 	tests := []struct {
 		input     *ec2.ModifyVpcEndpointInput
