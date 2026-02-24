@@ -1,0 +1,105 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.16.4
+    package-operator.run/phase: crds
+    package-operator.run/collision-protection: IfNoController
+  name: vpcendpointacceptances.avo.openshift.io
+spec:
+  group: avo.openshift.io
+  names:
+    kind: VpcEndpointAcceptance
+    listKind: VpcEndpointAcceptanceList
+    plural: vpcendpointacceptances
+    shortNames:
+    - vpceacceptance
+    singular: vpcendpointacceptance
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: VpcEndpointAcceptance is the Schema for the vpcendpointacceptances
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object.
+
+              Servers should convert recognized schemas to the latest internal value,
+              and
+
+              may reject unrecognized values.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents.
+
+              Servers may infer this from the endpoint the client submits requests
+              to.
+
+              Cannot be updated.
+
+              In CamelCase.
+
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VpcEndpointAcceptanceSpec defines the desired state of VpcEndpointAcceptance
+            properties:
+              acceptanceCriteria:
+                description: AcceptanceCriteria
+                properties:
+                  alwaysAccept:
+                    description: AlwaysAccept will instruct the controller to accept
+                      any VPC Endpoint Connections
+                    type: boolean
+                  awsAccountOperatorAccount:
+                    description: 'AwsAccountOperatorAccount will accept VPC Endpoint
+                      Connections that were requested from an AWS
+
+                      account that matches AWS accounts defined in account.aws.managed.openshift.io
+                      custom resources'
+                    properties:
+                      namespace:
+                        type: string
+                    required:
+                    - namespace
+                    type: object
+                type: object
+              assumeRoleArn:
+                description: 'AssumeRoleArn is the ARN of an AWS IAM role in the same
+                  account as the specified VPC Endpoint Service.
+
+                  This is necessary if the IAM entity available to the controller
+                  is not in the same AWS account as the
+
+                  VPC Endpoint Service.'
+                type: string
+              id:
+                description: Id is the AWS ID of the VPC Endpoint Service for this
+                  controller to poll
+                type: string
+              region:
+                description: Region is the AWS region that contains the specified
+                  VPC Endpoint Service
+                type: string
+            required:
+            - acceptanceCriteria
+            - id
+            - region
+            type: object
+          status:
+            description: VpcEndpointAcceptanceStatus defines the observed state of
+              VpcEndpointAcceptance
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
