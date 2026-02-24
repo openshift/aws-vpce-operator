@@ -52,6 +52,14 @@ type SecurityGroup struct {
 	// They will be allowed for the master and worker security groups.
 	// +optional
 	EgressRules []SecurityGroupRule `json:"egressRules,omitempty"`
+
+	// UseVpcCidr, when true, causes rules without an explicit CidrIp to use the VPC's
+	// CIDR block instead of the cluster's master and worker node security group IDs.
+	// This is useful in multi-cluster VPC environments where multiple clusters need
+	// to access shared VPC Endpoints.
+	// +kubebuilder:default=false
+	// +optional
+	UseVpcCidr bool `json:"useVpcCidr,omitempty"`
 }
 
 // Tag represents a key-value pair to filter AWS resources by

@@ -39,6 +39,7 @@ const (
 	MockVpcId                  = "vpc-12345"
 	MockVpcEndpointServiceName = "com.amazonaws.vpce.service.mock-12345"
 	MockVpcEndpointServiceId   = "vpce-svc-12345"
+	MockVpcCidr                = "10.0.0.0/16"
 )
 
 type MockedEC2 struct {
@@ -238,6 +239,21 @@ func (m *MockedEC2) DescribeSecurityGroupRules(ctx context.Context, params *ec2.
 			},
 		},
 	}, nil
+}
+
+func (m *MockedEC2) DescribeVpcs(ctx context.Context, params *ec2.DescribeVpcsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcsOutput, error) {
+	if len(params.VpcIds) > 0 {
+		return &ec2.DescribeVpcsOutput{
+			Vpcs: []ec2Types.Vpc{
+				{
+					VpcId:     aws.String(params.VpcIds[0]),
+					CidrBlock: aws.String(MockVpcCidr),
+				},
+			},
+		}, nil
+	}
+
+	return &ec2.DescribeVpcsOutput{}, nil
 }
 
 func (m *MockedEC2) AuthorizeSecurityGroupIngress(ctx context.Context, params *ec2.AuthorizeSecurityGroupIngressInput, optFns ...func(*ec2.Options)) (*ec2.AuthorizeSecurityGroupIngressOutput, error) {

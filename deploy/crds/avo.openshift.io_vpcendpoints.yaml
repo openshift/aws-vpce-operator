@@ -489,6 +489,14 @@ spec:
                           type: integer
                       type: object
                     type: array
+                  useVpcCidr:
+                    default: false
+                    description: |-
+                      UseVpcCidr, when true, causes rules without an explicit CidrIp to use the VPC's
+                      CIDR block instead of the cluster's master and worker node security group IDs.
+                      This is useful in multi-cluster VPC environments where multiple clusters need
+                      to access shared VPC Endpoints.
+                    type: boolean
                 type: object
               serviceName:
                 description: ServiceName is the name of the VPC Endpoint Service to
