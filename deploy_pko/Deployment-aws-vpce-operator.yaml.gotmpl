@@ -1,0 +1,109 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-vpce-operator
+  namespace: openshift-aws-vpce-operator
+  annotations:
+    package-operator.run/phase: deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: aws-vpce-operator
+  template:
+    metadata:
+      labels:
+        name: aws-vpce-operator
+    spec:
+      serviceAccountName: aws-vpce-operator
+      securityContext:
+        runAsNonRoot: true
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - preference:
+              matchExpressions:
+              - key: node-role.kubernetes.io/infra
+                operator: Exists
+            weight: 1
+      tolerations:
+      - operator: Exists
+        key: node-role.kubernetes.io/infra
+        effect: NoSchedule
+      containers:
+      - name: aws-vpce-operator
+        image: '{{ .config.image }}'
+        command:
+        - aws-vpce-operator
+        args:
+        - --config=/avo/avo_config.yaml
+        env:
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: avo-aws-iam-user-creds
+              key: aws_secret_access_key
+              optional: true
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: avo-aws-iam-user-creds
+              key: aws_access_key_id
+              optional: true
+        - name: AWS_ROLE_ARN
+          valueFrom:
+            secretKeyRef:
+              name: avo-aws-creds
+              key: role_arn
+              optional: true
+        - name: AWS_WEB_IDENTITY_TOKEN_FILE
+          value: /var/run/secrets/openshift/serviceaccount/token
+        imagePullPolicy: Always
+        resources:
+          requests:
+            cpu: 200m
+          limits:
+            memory: 1G
+            cpu: 200m
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: 8081
+          initialDelaySeconds: 15
+          periodSeconds: 20
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8081
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        securityContext:
+          allowPrivilegeEscalation: false
+        volumeMounts:
+        - name: openshift-sa-token
+          mountPath: /var/run/secrets/openshift/serviceaccount
+          readOnly: true
+        - name: avo-config
+          mountPath: /avo
+          readOnly: true
+      volumes:
+      - name: openshift-sa-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              path: token
+              audience: openshift
+      - name: avo-aws-creds
+        secret:
+          secretName: avo-aws-creds
+          optional: true
+      - name: avo-aws-iam-user-creds
+        secret:
+          secretName: avo-aws-iam-user-creds
+          optional: true
+      - name: avo-config
+        configMap:
+          name: avo-config
+          optional: true
