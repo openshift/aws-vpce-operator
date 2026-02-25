@@ -18,9 +18,6 @@ parameters:
 - name: DISPLAY_NAME
   value: AWS VPCE Operator
   required: true
-- name: KNOWN_SECTORS
-  value: '["main"]'
-  required: true
 
 objects:
 ###############
@@ -179,9 +176,6 @@ objects:
           values:
             - "management-cluster"
             - "service-cluster"
-        - key: ext-hypershift.openshift.io/cluster-sector
-          operator: NotIn
-          values: "${{KNOWN_SECTORS}}"
         - key: api.openshift.com/fedramp
           operator: NotIn
           values: ["true"]
