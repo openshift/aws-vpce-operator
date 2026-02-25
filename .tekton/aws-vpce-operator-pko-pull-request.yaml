@@ -32,7 +32,7 @@ spec:
   - name: image-expires-after
     value: 3d
   taskRunTemplate:
-    serviceAccountName: build-pipeline-aws-vpce-operator-pko
+    serviceAccountName: build-pipeline-aws-vpce-operator
   workspaces:
   - name: git-auth
     secret:
