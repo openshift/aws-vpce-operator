@@ -582,9 +582,8 @@ spec:
                         or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name
                         must be specified
                       rule: has(self.serviceName) || (has(self.serviceNameRef) &&
-                        has(self.serviceNameRef.name)) || (!has(self.serviceNameRef.valueFrom)
-                        || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef)
-                        || has(self.serviceNameRef.valueFrom.awsEndpointServiceRef.name))
+                        (has(self.serviceNameRef.name) || (has(self.serviceNameRef.valueFrom)
+                        && has(self.serviceNameRef.valueFrom.awsEndpointServiceRef))))
                 required:
                 - spec
                 type: object

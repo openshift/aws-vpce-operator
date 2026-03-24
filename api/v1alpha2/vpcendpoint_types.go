@@ -232,7 +232,17 @@ type AwsEndpointSelector struct {
 
 // +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets is not supported with .spec.region,rule=!(has(self.region) && self.vpc.autoDiscoverSubnets)
 // +kubebuilder:validation:XValidation:message=.spec.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone is not supported with .spec.region,rule=!(has(self.region) && self.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone)
-// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name must be specified",rule=has(self.serviceName) || (has(self.serviceNameRef) && has(self.serviceNameRef.name)) || (!has(self.serviceNameRef.valueFrom) || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef) || has(self.serviceNameRef.valueFrom.awsEndpointServiceRef.name))
+//
+// A VpcEndpoint must reference a VPC Endpoint Service via exactly one of:
+//  1. .spec.serviceName (direct service name string)
+//  2. .spec.serviceNameRef.name (named reference)
+//  3. .spec.serviceNameRef.valueFrom.awsEndpointServiceRef (lookup from an AwsEndpointService resource)
+//
+// The CEL rule below enforces this by requiring at least one of these paths to be present.
+// IMPORTANT: All branches must use positive assertions (has()), not negations (!has()). Using
+// !has() on a child of an absent optional parent returns true, which can silently bypass the rule.
+//
+// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name must be specified",rule=has(self.serviceName) || (has(self.serviceNameRef) && (has(self.serviceNameRef.name) || (has(self.serviceNameRef.valueFrom) && has(self.serviceNameRef.valueFrom.awsEndpointServiceRef))))
 
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
