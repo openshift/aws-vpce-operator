@@ -232,7 +232,7 @@ type AwsEndpointSelector struct {
 
 // +kubebuilder:validation:XValidation:message=.spec.vpc.autoDiscoverSubnets is not supported with .spec.region,rule=!(has(self.region) && self.vpc.autoDiscoverSubnets)
 // +kubebuilder:validation:XValidation:message=.spec.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone is not supported with .spec.region,rule=!(has(self.region) && self.customDns.route53PrivateHostedZone.autoDiscoverPrivateHostedZone)
-// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name must be specified",rule=has(self.serviceName) || (has(self.serviceNameRef) && has(self.serviceNameRef.name)) || (!has(self.serviceNameRef.valueFrom) || !has(self.serviceNameRef.valueFrom.awsEndpointServiceRef) || has(self.serviceNameRef.valueFrom.awsEndpointServiceRef.name))
+// +kubebuilder:validation:XValidation:message="one of .spec.serviceName, .spec.serviceNameRef.name, or .spec.serviceNameRef.valueFrom.awsEndpointServiceRef.name must be specified",rule=has(self.serviceName) || (has(self.serviceNameRef) && (has(self.serviceNameRef.name) || (has(self.serviceNameRef.valueFrom) && has(self.serviceNameRef.valueFrom.awsEndpointServiceRef))))
 
 // VpcEndpointSpec defines the desired state of VpcEndpoint
 type VpcEndpointSpec struct {
