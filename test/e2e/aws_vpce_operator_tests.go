@@ -262,8 +262,18 @@ func applyCRDYaml(ctx context.Context, c client.Client, yaml []byte) (*apiextens
 	}
 
 	crd := obj.(*apiextensionsv1.CustomResourceDefinition)
-	if err := c.Create(ctx, crd); err != nil && !kerr.IsAlreadyExists(err) {
-		return nil, fmt.Errorf("failed to apply CRD: %v", err)
+	if err := c.Create(ctx, crd); err != nil {
+		if !kerr.IsAlreadyExists(err) {
+			return nil, fmt.Errorf("failed to create CRD: %v", err)
+		}
+		existing := &apiextensionsv1.CustomResourceDefinition{}
+		if err := c.Get(ctx, client.ObjectKeyFromObject(crd), existing); err != nil {
+			return nil, fmt.Errorf("failed to get existing CRD: %v", err)
+		}
+		crd.ResourceVersion = existing.ResourceVersion
+		if err := c.Update(ctx, crd); err != nil {
+			return nil, fmt.Errorf("failed to update CRD: %v", err)
+		}
 	}
 
 	// Wait for CRDs to appear in discovery, otherwise you can get responses from the API server like:
