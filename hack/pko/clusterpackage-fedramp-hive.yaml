@@ -11,7 +11,7 @@ parameters:
   - name: IMAGE_TAG
     required: true
   - name: IMAGE_DIGEST
-    required: true
+    required: false
   - name: REPO_NAME
     value: aws-vpce-operator
     required: true
