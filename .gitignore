@@ -6,6 +6,7 @@
 *.so
 *.dylib
 bin
+build/aws-vpce-operator-test
 testbin/*
 
 # Test binary, build with `go test -c`
