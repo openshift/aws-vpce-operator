@@ -142,7 +142,7 @@ objects:
         apiVersion: v1
         metadata:
           name: avo-config
-          namespace: openshift-aws-vpce-operator
+          namespace: openshift-${REPO_NAME}
         data:
           avo_config.yaml: |-
             apiVersion: avo.openshift.io/v1alpha1
