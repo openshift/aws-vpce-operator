@@ -154,12 +154,13 @@ func (h *awsTestHelper) verifyAWSVpcEndpointExists(ctx context.Context, vpceId s
 func (h *awsTestHelper) verifyAWSVpcEndpointDeleted(ctx context.Context, vpceId string) {
 	Eventually(func(g Gomega) {
 		resp, err := h.awsClient.DescribeSingleVPCEndpointById(ctx, vpceId)
+		g.Expect(err).ToNot(HaveOccurred())
 		// DescribeSingleVPCEndpointById returns nil, nil when not found
-		if err == nil && resp == nil {
+		if resp == nil {
 			return
 		}
 		// Also handle the case where it's returned but in "deleted" state
-		if resp != nil && len(resp.VpcEndpoints) > 0 {
+		if len(resp.VpcEndpoints) > 0 {
 			g.Expect(string(resp.VpcEndpoints[0].State)).To(Equal("deleted"),
 				"VPC Endpoint %s still exists with state: %s", vpceId, resp.VpcEndpoints[0].State)
 		}
@@ -178,13 +179,12 @@ func (h *awsTestHelper) verifyAWSSecurityGroupExists(ctx context.Context, sgId s
 func (h *awsTestHelper) verifyAWSSecurityGroupDeleted(ctx context.Context, sgId string) {
 	Eventually(func(g Gomega) {
 		resp, err := h.awsClient.FilterSecurityGroupById(ctx, sgId)
+		g.Expect(err).ToNot(HaveOccurred())
 		// FilterSecurityGroupById returns nil, nil for InvalidGroup.NotFound
-		if err == nil && resp == nil {
+		if resp == nil {
 			return
 		}
-		if resp != nil {
-			g.Expect(resp.SecurityGroups).To(BeEmpty(), "Security group %s still exists", sgId)
-		}
+		g.Expect(resp.SecurityGroups).To(BeEmpty(), "Security group %s still exists", sgId)
 	}, vpceDeletedTimeout, pollingInterval).Should(Succeed(), "Security group %s was not deleted from AWS", sgId)
 }
 
@@ -195,7 +195,10 @@ func createTestNamespace(ctx context.Context, c client.Client, name string) {
 			Name: name,
 		},
 	}
-	Expect(c.Create(ctx, ns)).To(Succeed(), "failed to create test namespace %s", name)
+	err := c.Create(ctx, ns)
+	if err != nil && !kerr.IsAlreadyExists(err) {
+		Expect(err).ToNot(HaveOccurred(), "failed to create test namespace %s", name)
+	}
 	DeferCleanup(func(ctx context.Context) {
 		_ = c.Delete(ctx, ns)
 	})

@@ -283,13 +283,14 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 				obj := &avov1alpha2.VpcEndpoint{}
 				g.Expect(c.Get(ctx, client.ObjectKey{Name: vpceName, Namespace: ns}, obj)).To(Succeed())
 				g.Expect(obj.Status.VPCEndpointId).ToNot(BeEmpty())
-				// The new VPCE ID should differ from the deleted one, or at minimum exist in AWS
+				g.Expect(obj.Status.VPCEndpointId).ToNot(Equal(originalVpceId),
+					"operator has not replaced the deleted VPC endpoint yet")
 				resp, err := helper.awsClient.DescribeSingleVPCEndpointById(ctx, obj.Status.VPCEndpointId)
 				g.Expect(err).ToNot(HaveOccurred())
 				g.Expect(resp).ToNot(BeNil())
 				g.Expect(resp.VpcEndpoints).To(HaveLen(1))
-				g.Expect(string(resp.VpcEndpoints[0].State)).ToNot(Equal("deleted"),
-					"VPC endpoint %s is in deleted state", obj.Status.VPCEndpointId)
+				g.Expect(string(resp.VpcEndpoints[0].State)).To(Equal("available"),
+					"VPC endpoint %s is not yet available", obj.Status.VPCEndpointId)
 			}, vpceReadyTimeout, pollingInterval).Should(Succeed(), "operator did not recreate the VPC endpoint")
 		})
 	})
