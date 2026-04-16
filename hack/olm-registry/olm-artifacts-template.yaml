@@ -54,7 +54,7 @@ objects:
           operator: NotIn
           values:
             - "true"
-    resourceApplyMode: Sync
+    resourceApplyMode: Upsert
     applyBehavior: CreateOrUpdate
     resources:
     - kind: Namespace
@@ -302,7 +302,7 @@ objects:
         - key: api.openshift.com/fedramp
           operator: NotIn
           values: ["true"]
-    resourceApplyMode: Sync
+    resourceApplyMode: Upsert
     applyBehavior: CreateOrUpdate
     resources:
       - kind: ConfigMap
