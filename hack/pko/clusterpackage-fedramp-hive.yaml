@@ -39,8 +39,8 @@ objects:
       namespace: openshift-${REPO_NAME}
     spec:
       secretRef:
-         name: avo-aws-iam-user-creds
-         namespace: openshift-${REPO_NAME}
+        name: avo-aws-iam-user-creds
+        namespace: openshift-${REPO_NAME}
       providerSpec:
         apiVersion: cloudcredential.openshift.io/v1
         kind: AWSProviderSpec
