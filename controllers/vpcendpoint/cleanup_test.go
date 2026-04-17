@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
 )
 
 func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
@@ -83,6 +84,7 @@ func TestVpcEndpointReconciler_cleanupAwsResources(t *testing.T) {
 			r := &VpcEndpointReconciler{
 				Client:      client,
 				Scheme:      client.Scheme(),
+				Recorder:    record.NewFakeRecorder(10),
 				awsClient:   aws_client.NewMockedAwsClientWithSubnets(),
 				log:         testr.New(t),
 				clusterInfo: &clusterInfo{},

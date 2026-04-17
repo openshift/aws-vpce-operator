@@ -108,12 +108,27 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 					// VPC Endpoints take a bit of time to delete, so if there's a dependency error,
 					// we'll requeue the item, so we can try again later.
 					if ae.ErrorCode() == "DependencyViolation" {
-						r.log.V(0).Info("AWS dependency violation, requeueing", "error", ae.ErrorMessage())
+						r.log.V(0).Info("AWS dependency violation, requeueing",
+							"vpcEndpoint", vpce.Name,
+							"namespace", vpce.Namespace,
+							"error", ae.ErrorMessage(),
+						)
+						r.Recorder.Eventf(vpce, corev1.EventTypeWarning, "CleanupBlocked",
+							"AWS dependency violation during cleanup, retrying in 30s: %s", ae.ErrorMessage())
+						vpceCleanupFailure.WithLabelValues("DependencyViolation").Inc()
 						return ctrl.Result{RequeueAfter: time.Second * 30}, nil
 					}
 
 					awsUnauthorizedOperationMetricHandler(err)
 				}
+
+				r.log.V(0).Error(err, "Failed to clean up AWS resources",
+					"vpcEndpoint", vpce.Name,
+					"namespace", vpce.Namespace,
+				)
+				r.Recorder.Eventf(vpce, corev1.EventTypeWarning, "CleanupFailed",
+					"Failed to clean up AWS resources: %v", err)
+				vpceCleanupFailure.WithLabelValues("Error").Inc()
 
 				// Catch other errors and retry
 				return ctrl.Result{}, err
