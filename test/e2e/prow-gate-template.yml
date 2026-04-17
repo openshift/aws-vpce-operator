@@ -1,0 +1,121 @@
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: prow-e2e-gate
+parameters:
+  - name: PROW_JOB_NAME
+    value: "branch-ci-openshift-aws-vpce-operator-main-avo-e2e-stage"
+  - name: IMAGE_TAG
+    required: true
+    description: Commit SHA to match against the Prow postsubmit result.
+  - name: POLL_TIMEOUT
+    value: "3600"
+    description: Max seconds to wait for a passing Prow result.
+  - name: POLL_INTERVAL
+    value: "60"
+    description: Seconds between poll attempts.
+  - name: JOBID
+    generate: expression
+    from: "[0-9a-z]{7}"
+objects:
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: prow-e2e-gate-${IMAGE_TAG}-${JOBID}
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: ${{POLL_TIMEOUT}}
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: poll-prow
+              image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+              command:
+                - /bin/bash
+                - -c
+                - |
+                  set -euo pipefail
+
+                  GCS_BASE="https://storage.googleapis.com/test-platform-results"
+                  JOB_NAME="${PROW_JOB_NAME}"
+                  TARGET_SHA="${IMAGE_TAG}"
+                  TIMEOUT="${POLL_TIMEOUT}"
+                  INTERVAL="${POLL_INTERVAL}"
+
+                  echo "Waiting for Prow postsubmit result..."
+                  echo "  Job: ${JOB_NAME}"
+                  echo "  SHA: ${TARGET_SHA}"
+                  echo "  Timeout: ${TIMEOUT}s"
+
+                  elapsed=0
+                  while [[ ${elapsed} -lt ${TIMEOUT} ]]; do
+                    # Get latest build ID
+                    build_id=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/latest-build.txt" 2>/dev/null || true)
+                    if [[ -z "${build_id}" ]]; then
+                      echo "No builds found yet, waiting..."
+                      sleep "${INTERVAL}"
+                      elapsed=$((elapsed + INTERVAL))
+                      continue
+                    fi
+
+                    # Check the prowjob metadata for commit SHA
+                    prowjob=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/${build_id}/prowjob.json" 2>/dev/null || true)
+                    if [[ -z "${prowjob}" ]]; then
+                      echo "Build ${build_id}: no prowjob.json yet, waiting..."
+                      sleep "${INTERVAL}"
+                      elapsed=$((elapsed + INTERVAL))
+                      continue
+                    fi
+
+                    # Extract the commit SHA from the prowjob
+                    job_sha=$(echo "${prowjob}" | python3 -c "
+                  import sys, json
+                  pj = json.load(sys.stdin)
+                  refs = pj.get('spec', {}).get('extra_refs', [{}])[0]
+                  print(refs.get('base_sha', '')[:40])
+                  " 2>/dev/null || true)
+
+                    if [[ "${job_sha}" != "${TARGET_SHA}"* ]]; then
+                      echo "Build ${build_id}: SHA ${job_sha:0:8} does not match target ${TARGET_SHA:0:8}, waiting..."
+                      sleep "${INTERVAL}"
+                      elapsed=$((elapsed + INTERVAL))
+                      continue
+                    fi
+
+                    # SHA matches, check result
+                    finished=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/${build_id}/finished.json" 2>/dev/null || true)
+                    if [[ -z "${finished}" ]]; then
+                      echo "Build ${build_id}: SHA matches, job still running..."
+                      sleep "${INTERVAL}"
+                      elapsed=$((elapsed + INTERVAL))
+                      continue
+                    fi
+
+                    result=$(echo "${finished}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',''))" 2>/dev/null)
+
+                    if [[ "${result}" == "SUCCESS" ]]; then
+                      echo "Build ${build_id}: PASSED for SHA ${TARGET_SHA:0:8}"
+                      exit 0
+                    else
+                      echo "Build ${build_id}: FAILED (${result}) for SHA ${TARGET_SHA:0:8}"
+                      exit 1
+                    fi
+                  done
+
+                  echo "Timed out waiting for Prow result for SHA ${TARGET_SHA:0:8}"
+                  exit 1
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "200m"
+                  memory: "256Mi"
+              securityContext:
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
