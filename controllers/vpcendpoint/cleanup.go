@@ -24,6 +24,7 @@ import (
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
 	configv1 "github.com/openshift/api/config/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -34,6 +35,18 @@ import (
 
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
 func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	r.log.V(0).Info("Starting AWS resource cleanup",
+		"vpcEndpoint", resource.Name,
+		"namespace", resource.Namespace,
+		"vpceId", resource.Status.VPCEndpointId,
+		"securityGroupId", resource.Status.SecurityGroupId,
+		"hostedZoneId", resource.Status.HostedZoneId,
+		"resourceRecordSet", resource.Status.ResourceRecordSet,
+	)
+	r.Recorder.Eventf(resource, corev1.EventTypeNormal, "CleanupStarted",
+		"Starting cleanup of AWS resources (vpceId=%s, sgId=%s, hzId=%s)",
+		resource.Status.VPCEndpointId, resource.Status.SecurityGroupId, resource.Status.HostedZoneId)
+
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
 		// Ensure .status.hostedZoneId is populated
 		if err := r.validateR53PrivateHostedZone(ctx, resource); err != nil {
@@ -80,6 +93,8 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				r.log.V(0).Error(err, "failed to update status")
 				return err
 			}
+
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted Route53 record(s) in hosted zone %s", resource.Status.HostedZoneId)
 		}
 	}
 
@@ -102,7 +117,8 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 					if errors.As(err, &ae) {
 						switch ae.ErrorCode() {
 						case new(route53Types.NoSuchHostedZone).ErrorCode():
-							// If there's no such hosted zone, then it's already been deleted
+							r.log.V(0).Info("Route53 hosted zone already deleted", "hostedZoneId", resource.Status.HostedZoneId)
+							r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Route53 hosted zone already deleted: %s", resource.Status.HostedZoneId)
 							resource.Status.HostedZoneId = ""
 							if err := r.Status().Update(ctx, resource); err != nil {
 								r.log.V(0).Error(err, "failed to update status")
@@ -131,6 +147,9 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 									}
 								}
 							}
+
+							r.log.V(0).Info("Cleared remaining records from Route53 hosted zone, will retry zone deletion", "hostedZoneId", resource.Status.HostedZoneId)
+							r.Recorder.Eventf(resource, corev1.EventTypeNormal, "CleanupProgress", "Cleared remaining records from hosted zone %s, will retry zone deletion", resource.Status.HostedZoneId)
 						default:
 							return err
 						}
@@ -138,6 +157,9 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 						// Shouldn't happen
 						return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
 					}
+				} else {
+					r.log.V(0).Info("Deleted Route53 hosted zone", "hostedZoneId", resource.Status.HostedZoneId)
+					r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted Route53 hosted zone: %s", resource.Status.HostedZoneId)
 				}
 			}
 		}
@@ -148,11 +170,14 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 			return err
 		}
 
-		r.log.V(0).Info("Deleting AWS resources", "VpcEndpoint", resource.Status.VPCEndpointId)
-		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {
+		vpceId := resource.Status.VPCEndpointId
+		r.log.V(0).Info("Deleting VPC endpoint", "vpceId", vpceId)
+		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, vpceId); err != nil {
 			var ae smithy.APIError
 			if errors.As(err, &ae) {
 				if ae.ErrorCode() == "InvalidVpcEndpoint.NotFound" {
+					r.log.V(0).Info("VPC endpoint already deleted", "vpceId", vpceId)
+					r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "VPC endpoint already deleted: %s", vpceId)
 					resource.Status.VPCEndpointId = ""
 				} else {
 					return err
@@ -161,6 +186,8 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				// Shouldn't happen
 				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %v", err)
 			}
+		} else {
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted VPC endpoint: %s", vpceId)
 		}
 
 		resource.Status.Status = "deleting"
@@ -171,11 +198,14 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 	}
 
 	if resource.Status.SecurityGroupId != "" {
-		r.log.V(0).Info("Deleting AWS resources", "SecurityGroup", resource.Status.SecurityGroupId)
-		if _, err := r.awsClient.DeleteSecurityGroup(ctx, resource.Status.SecurityGroupId); err != nil {
+		sgId := resource.Status.SecurityGroupId
+		r.log.V(0).Info("Deleting security group", "securityGroupId", sgId)
+		if _, err := r.awsClient.DeleteSecurityGroup(ctx, sgId); err != nil {
 			var ae smithy.APIError
 			if errors.As(err, &ae) {
 				if ae.ErrorCode() == "InvalidGroup.NotFound" {
+					r.log.V(0).Info("Security group already deleted", "securityGroupId", sgId)
+					r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Security group already deleted: %s", sgId)
 					resource.Status.SecurityGroupId = ""
 					if err := r.Status().Update(ctx, resource); err != nil {
 						r.log.V(0).Error(err, "failed to update status")
@@ -188,10 +218,13 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				// Shouldn't happen
 				return fmt.Errorf("unexpected error while deleting security group: %v", err)
 			}
+		} else {
+			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted security group: %s", sgId)
 		}
 	}
 
-	r.log.V(0).Info("AWS cleanup complete")
+	r.log.V(0).Info("AWS cleanup complete", "vpcEndpoint", resource.Name, "namespace", resource.Namespace)
+	r.Recorder.Event(resource, corev1.EventTypeNormal, "CleanupComplete", "All AWS resources cleaned up successfully")
 	return nil
 }
 

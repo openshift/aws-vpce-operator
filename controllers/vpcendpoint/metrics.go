@@ -45,8 +45,19 @@ var (
 			"action",
 		},
 	)
+
+	vpceCleanupFailure = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_cleanup_failure_total",
+			Help:      "Count of VPC Endpoint cleanup failures during deletion, labeled by error type",
+		},
+		[]string{
+			"error_type",
+		},
+	)
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure)
 }
