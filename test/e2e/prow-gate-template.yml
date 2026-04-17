@@ -30,12 +30,13 @@ objects:
           restartPolicy: Never
           containers:
             - name: poll-prow
-              image: registry.access.redhat.com/ubi9/ubi-minimal:latest
+              image: registry.access.redhat.com/ubi9-minimal:9.5
               command:
                 - /bin/bash
                 - -c
                 - |
                   set -euo pipefail
+                  microdnf install -y jq > /dev/null 2>&1
 
                   GCS_BASE="https://storage.googleapis.com/test-platform-results"
                   JOB_NAME="${PROW_JOB_NAME}"
@@ -50,7 +51,6 @@ objects:
 
                   elapsed=0
                   while [[ ${elapsed} -lt ${TIMEOUT} ]]; do
-                    # Get latest build ID
                     build_id=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/latest-build.txt" 2>/dev/null || true)
                     if [[ -z "${build_id}" ]]; then
                       echo "No builds found yet, waiting..."
@@ -59,7 +59,6 @@ objects:
                       continue
                     fi
 
-                    # Check the prowjob metadata for commit SHA
                     prowjob=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/${build_id}/prowjob.json" 2>/dev/null || true)
                     if [[ -z "${prowjob}" ]]; then
                       echo "Build ${build_id}: no prowjob.json yet, waiting..."
@@ -68,13 +67,8 @@ objects:
                       continue
                     fi
 
-                    # Extract the commit SHA from the prowjob
-                    job_sha=$(echo "${prowjob}" | python3 -c "
-                  import sys, json
-                  pj = json.load(sys.stdin)
-                  refs = pj.get('spec', {}).get('extra_refs', [{}])[0]
-                  print(refs.get('base_sha', '')[:40])
-                  " 2>/dev/null || true)
+                    # Postsubmits use spec.refs.base_sha, periodics use spec.extra_refs[0].base_sha
+                    job_sha=$(echo "${prowjob}" | jq -r '(.spec.refs.base_sha // .spec.extra_refs[0].base_sha // "")[0:40]' 2>/dev/null || true)
 
                     if [[ "${job_sha}" != "${TARGET_SHA}"* ]]; then
                       echo "Build ${build_id}: SHA ${job_sha:0:8} does not match target ${TARGET_SHA:0:8}, waiting..."
@@ -83,7 +77,6 @@ objects:
                       continue
                     fi
 
-                    # SHA matches, check result
                     finished=$(curl -sf --max-time 10 "${GCS_BASE}/logs/${JOB_NAME}/${build_id}/finished.json" 2>/dev/null || true)
                     if [[ -z "${finished}" ]]; then
                       echo "Build ${build_id}: SHA matches, job still running..."
@@ -92,7 +85,7 @@ objects:
                       continue
                     fi
 
-                    result=$(echo "${finished}" | python3 -c "import sys,json; print(json.load(sys.stdin).get('result',''))" 2>/dev/null)
+                    result=$(echo "${finished}" | jq -r '.result // ""')
 
                     if [[ "${result}" == "SUCCESS" ]]; then
                       echo "Build ${build_id}: PASSED for SHA ${TARGET_SHA:0:8}"
