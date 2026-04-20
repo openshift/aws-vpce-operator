@@ -64,6 +64,8 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	if !isOperatorRunning() {
 		if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
 			startOperator(repoRoot)
+		} else {
+			By("Skipping local operator start: repository root not found, assuming operator pre-deployed")
 		}
 	}
 
