@@ -58,9 +58,13 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	_, err = applyCRDYaml(ctx, c, crds.VpcEndpointTemplateCRD)
 	Expect(err).ToNot(HaveOccurred(), "failed to apply VpcEndpointTemplate CRD")
 
-	// Build and start the operator if not already running
+	// Build and start the operator if not already running.
+	// In containerized environments (e.g., osde2e), the operator is pre-deployed
+	// to the cluster and source code is not available, so skip building from source.
 	if !isOperatorRunning() {
-		startOperator()
+		if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
+			startOperator(repoRoot)
+		}
 	}
 
 	DeferCleanup(func(ctx context.Context) {
@@ -82,9 +86,8 @@ func isOperatorRunning() bool {
 }
 
 // startOperator builds and starts the operator as a subprocess.
-func startOperator() {
+func startOperator(repoRoot string) {
 	By("building the operator binary")
-	repoRoot := findRepoRoot()
 	binaryPath := filepath.Join(repoRoot, "build", "aws-vpce-operator-test")
 
 	buildCmd := exec.Command("go", "build", "-o", binaryPath, "./main.go")
@@ -147,22 +150,26 @@ func stopOperator() {
 	operatorCmd = nil
 
 	// Clean up the test binary
-	repoRoot := findRepoRoot()
-	_ = os.Remove(filepath.Join(repoRoot, "build", "aws-vpce-operator-test"))
+	if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
+		_ = os.Remove(filepath.Join(repoRoot, "build", "aws-vpce-operator-test"))
+	}
 }
 
-// findRepoRoot walks up from the current working directory to find the repo root
-// by looking for go.mod.
-func findRepoRoot() string {
+// findRepoRootOrEmpty walks up from the current working directory to find the
+// repo root by looking for go.mod. Returns an empty string if no go.mod is found
+// (e.g., when running inside a container image).
+func findRepoRootOrEmpty() string {
 	dir, err := os.Getwd()
-	Expect(err).ToNot(HaveOccurred())
+	if err != nil {
+		return ""
+	}
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
 			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			Fail("could not find repo root (no go.mod found)")
+			return ""
 		}
 		dir = parent
 	}
