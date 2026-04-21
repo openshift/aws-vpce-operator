@@ -15,6 +15,8 @@ import (
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,6 +27,22 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 	)
 
 	BeforeEach(func(ctx context.Context) {
+		if operatorCmd == nil && !isOperatorRunning() {
+			dep := &unstructured.Unstructured{}
+			dep.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "apps",
+				Version: "v1",
+				Kind:    "Deployment",
+			})
+			err := c.Get(ctx, client.ObjectKey{
+				Name:      "aws-vpce-operator",
+				Namespace: "openshift-aws-vpce-operator",
+			}, dep)
+			if err != nil {
+				Skip("aws-vpce-operator deployment not found in openshift-aws-vpce-operator namespace")
+			}
+		}
+
 		helper = newAWSTestHelper(ctx, c)
 		ns = "default"
 	})
