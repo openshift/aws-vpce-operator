@@ -33,6 +33,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/dnses"
 )
 
+//nolint:gocyclo
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
 func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
 	r.log.V(0).Info("Starting AWS resource cleanup",
@@ -135,7 +136,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 							// Delete all records in the hosted zone except the default SOA and NS records
 							for _, resourceRecord := range listRRSResp.ResourceRecordSets {
 								rr := resourceRecord
-								switch rr.Type {
+								switch rr.Type { //nolint:exhaustive
 								case route53Types.RRTypeNs:
 									continue
 								case route53Types.RRTypeSoa:
@@ -155,7 +156,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 						}
 					} else {
 						// Shouldn't happen
-						return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
+						return fmt.Errorf("unexpected error while deleting hosted zone: %w", err)
 					}
 				} else {
 					r.log.V(0).Info("Deleted Route53 hosted zone", "hostedZoneId", resource.Status.HostedZoneId)
@@ -184,7 +185,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				}
 			} else {
 				// Shouldn't happen
-				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %v", err)
+				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %w", err)
 			}
 		} else {
 			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted VPC endpoint: %s", vpceId)
@@ -216,7 +217,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				}
 			} else {
 				// Shouldn't happen
-				return fmt.Errorf("unexpected error while deleting security group: %v", err)
+				return fmt.Errorf("unexpected error while deleting security group: %w", err)
 			}
 		} else {
 			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted security group: %s", sgId)

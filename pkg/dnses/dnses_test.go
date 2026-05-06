@@ -18,8 +18,9 @@ package dnses
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"

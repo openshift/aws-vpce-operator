@@ -19,11 +19,12 @@ package aws_client
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/openshift/aws-vpce-operator/pkg/util"
-	"time"
 )
 
 // GetDefaultPrivateHostedZoneId returns the cluster's Route53 private hosted zone

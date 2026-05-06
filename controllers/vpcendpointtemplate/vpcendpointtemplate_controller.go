@@ -116,6 +116,7 @@ func (r *VpcEndpointTemplateReconciler) Reconcile(ctx context.Context, req ctrl.
 	return ctrl.Result{}, nil
 }
 
+//nolint:gocyclo
 func (r *VpcEndpointTemplateReconciler) ValidateVpcEndpointForHostedControlPlanes(ctx context.Context, vpcet *avov1alpha2.VpcEndpointTemplate, hcpList []hyperv1beta1.HostedControlPlane) error {
 	// Any VpcEndpoint this controller creates should have this label selector
 	labelSelector, err := labels.Set(vpcet.Spec.Selector.MatchLabels).AsValidatedSelector()
@@ -242,7 +243,7 @@ type enquerequestForControlplane struct {
 	Client client.Client
 }
 
-func (e *enquerequestForControlplane) mapAndEnqueue(ctx context.Context, q workqueue.RateLimitingInterface, obj client.Object, reqs map[reconcile.Request]struct{}) {
+func (e *enquerequestForControlplane) mapAndEnqueue(ctx context.Context, q workqueue.RateLimitingInterface, _ client.Object, reqs map[reconcile.Request]struct{}) {
 	// TODO: We're currently not filtering this by only Private HostedControlPlanes, so it costs us approximately $87/year/VpcEndpoint
 	// Ref: https://aws.amazon.com/privatelink/pricing/
 	matches := []reconcile.Request{}
