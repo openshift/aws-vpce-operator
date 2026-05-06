@@ -95,6 +95,7 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 	return nil
 }
 
+//nolint:gocyclo
 // validateVPCEndpoint checks a VPC endpoint with what's expected and reconciles their state
 // returning an error if it cannot do so.
 func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
@@ -118,7 +119,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	// When this bug is fixed we can switch/case off of enums
 	// https://github.com/aws/aws-sdk/issues/116
-	switch vpce.State {
+	switch vpce.State { //nolint:exhaustive
 	case "pendingAcceptance":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(1)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted

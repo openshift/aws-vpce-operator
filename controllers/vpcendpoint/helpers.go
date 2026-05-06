@@ -43,6 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
+//nolint:gocyclo
 // parseClusterInfo fills in the clusterInfo struct values inside the VpcEndpointReconciler
 // and gets a new AWS session if refreshAWSSession is true.
 // Generally, refreshAWSSession is only set to false during testing to mock the AWS client.
@@ -62,7 +63,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
 			vpce.Status.InfraId = infraName
 			if err := r.Status().Update(ctx, vpce); err != nil {
-				return fmt.Errorf("failed to update status: %v", err)
+				return fmt.Errorf("failed to update status: %w", err)
 			}
 		}
 	} else {
@@ -75,7 +76,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 			r.log.V(1).Info("Found infrastructure name:", "name", vpce.Status.InfraId)
 			vpce.Status.InfraId = infraName
 			if err := r.Status().Update(ctx, vpce); err != nil {
-				return fmt.Errorf("failed to update status: %v", err)
+				return fmt.Errorf("failed to update status: %w", err)
 			}
 		}
 	}
@@ -174,7 +175,7 @@ func (r *VpcEndpointReconciler) parseClusterInfo(ctx context.Context, vpce *avov
 
 		vpce.Status.VPCId = vpcId
 		if err := r.Status().Update(ctx, vpce); err != nil {
-			return fmt.Errorf("failed to update status: %v", err)
+			return fmt.Errorf("failed to update status: %w", err)
 		}
 	}
 
@@ -227,7 +228,7 @@ func (r *VpcEndpointReconciler) getVpcEndpointServiceName(ctx context.Context, v
 
 	vpce.Status.VPCEndpointServiceName = vpceServiceName
 	if err := r.Status().Update(ctx, vpce); err != nil {
-		return fmt.Errorf("failed to update status: %v", err)
+		return fmt.Errorf("failed to update status: %w", err)
 	}
 
 	return nil
@@ -303,7 +304,7 @@ func (r *VpcEndpointReconciler) findOrCreateSecurityGroup(ctx context.Context, r
 func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Context, sg *ec2Types.SecurityGroup, resource *avov1alpha2.VpcEndpoint) error {
 	sgName, err := util.GenerateSecurityGroupName(resource.Status.InfraId, resource.Name)
 	if err != nil {
-		return fmt.Errorf("failed to generate security group name: %v", err)
+		return fmt.Errorf("failed to generate security group name: %w", err)
 	}
 
 	defaultTagsMap, err := util.GenerateAwsTagsAsMap(sgName, r.clusterInfo.clusterTag)
@@ -316,7 +317,7 @@ func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Conte
 		r.log.V(1).Info("Adding missing security group tags")
 		defaultTags, err := util.GenerateAwsTags(sgName, r.clusterInfo.clusterTag)
 		if err != nil {
-			return fmt.Errorf("failed to generate expected tags: %v", err)
+			return fmt.Errorf("failed to generate expected tags: %w", err)
 		}
 		if _, err := r.awsClient.CreateTags(ctx, &ec2.CreateTagsInput{
 			Resources: []string{*sg.GroupId},
@@ -331,6 +332,7 @@ func (r *VpcEndpointReconciler) createMissingSecurityGroupTags(ctx context.Conte
 	return nil
 }
 
+//nolint:gocyclo
 // generateMissingSecurityGroupRules ensures that the cluster's worker and master security groups are allowed ingresses
 // to the VPC Endpoint security group as well as and other configured rules from the CR.
 // It will not remove an extra security group rules and only create missing ones.
@@ -674,6 +676,7 @@ func (r *VpcEndpointReconciler) findOrCreateVpcEndpoint(ctx context.Context, res
 	return vpce, nil
 }
 
+//nolint:gocyclo
 // ensureVpcEndpointSubnets ensures that the subnets attached to the VPC Endpoint are the expected subnet ids
 func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
 	var (
@@ -763,10 +766,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSubnets(ctx context.Context, vp
 // ensureVpcEndpointSecurityGroups ensures that the security group associated with the VPC Endpoint
 // is only the expected one.
 func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Context, vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) error {
-	sgToAdd, sgToRemove, err := r.diffVpcEndpointSecurityGroups(vpce, resource)
-	if err != nil {
-		return err
-	}
+	sgToAdd, sgToRemove := r.diffVpcEndpointSecurityGroups(vpce, resource)
 
 	if len(sgToAdd) > 0 {
 		r.log.V(1).Info("Adding security group(s) to VPC Endpoint", "sgToAdd", sgToAdd)
@@ -794,7 +794,7 @@ func (r *VpcEndpointReconciler) ensureVpcEndpointSecurityGroups(ctx context.Cont
 // diffVpcEndpointSecurityGroups compares the security groups associated with the VPC Endpoint with
 // the security group ID recorded in the resource's status, returning security groups that need to be added
 // and security groups that need to be removed from the VPC Endpoint.
-func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) ([]string, []string, error) {
+func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.VpcEndpoint, resource *avov1alpha2.VpcEndpoint) ([]string, []string) {
 	vpceSgIds := make([]string, len(vpce.Groups))
 	for i := range vpce.Groups {
 		vpceSgIds[i] = *vpce.Groups[i].GroupId
@@ -805,9 +805,10 @@ func (r *VpcEndpointReconciler) diffVpcEndpointSecurityGroups(vpce *ec2Types.Vpc
 		[]string{resource.Status.SecurityGroupId},
 	)
 
-	return sgToAdd, sgToRemove, nil
+	return sgToAdd, sgToRemove
 }
 
+//nolint:gocyclo
 // findOrCreatePrivateHostedZone ensures the existence of a Route53 Private Hosted Zone given a custom domain name
 func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
 	if resource == nil {
@@ -918,7 +919,7 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 
 	// VPCEndpoint doesn't exist anymore for some reason
 	if vpceResp == nil || len(vpceResp.VpcEndpoints) == 0 {
-		return nil, nil
+		return nil, nil //nolint:nilnil
 	}
 
 	// DNSEntries won't be populated until the state is available
@@ -929,7 +930,7 @@ func (r *VpcEndpointReconciler) generateRoute53Record(ctx context.Context, resou
 	if len(vpceResp.VpcEndpoints[0].DnsEntries) == 0 {
 		if !resource.DeletionTimestamp.IsZero() {
 			// When we're deleting the VPC Endpoint, handle the edge case where it doesn't have any subnets attached anymore
-			return nil, nil
+			return nil, nil //nolint:nilnil
 		}
 
 		return nil, fmt.Errorf("VPCEndpoint has no DNS entries")
