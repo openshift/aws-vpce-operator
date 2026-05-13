@@ -75,7 +75,7 @@ The project uses the boilerplate system which provides:
 **Local Development**:
 - AWS credentials via environment variables or role assumption
 - Access to OpenShift/Kubernetes cluster with appropriate CRDs installed
-- Go 1.24+ (from go.mod)
+- Go 1.25+ (from go.mod)
 
 ## Important Notes
 
