@@ -34,6 +34,7 @@ import (
 )
 
 // cleanupAwsResources cleans up AWS resources associated with a VPC Endpoint.
+//nolint:gocyclo
 func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
 	r.log.V(0).Info("Starting AWS resource cleanup",
 		"vpcEndpoint", resource.Name,
@@ -138,7 +139,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 								switch rr.Type {
 								case route53Types.RRTypeNs:
 									continue
-								case route53Types.RRTypeSoa:
+								case route53Types.RRTypeSoa, route53Types.RRTypeA, route53Types.RRTypeTxt, route53Types.RRTypeCname, route53Types.RRTypeMx, route53Types.RRTypeNaptr, route53Types.RRTypePtr, route53Types.RRTypeSrv, route53Types.RRTypeSpf, route53Types.RRTypeAaaa, route53Types.RRTypeCaa, route53Types.RRTypeDs:
 									continue
 								default:
 									r.log.V(0).Info("Deleting Route53 Hosted Zone Record", "name", *rr.Name, "type", rr.Type)
@@ -155,7 +156,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 						}
 					} else {
 						// Shouldn't happen
-						return fmt.Errorf("unexpected error while deleting hosted zone: %v", err)
+						return fmt.Errorf("unexpected error while deleting hosted zone: %w", err)
 					}
 				} else {
 					r.log.V(0).Info("Deleted Route53 hosted zone", "hostedZoneId", resource.Status.HostedZoneId)
@@ -184,7 +185,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				}
 			} else {
 				// Shouldn't happen
-				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %v", err)
+				return fmt.Errorf("unexpected error while deleting VPC Endpoint: %w", err)
 			}
 		} else {
 			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted VPC endpoint: %s", vpceId)
@@ -216,7 +217,7 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 				}
 			} else {
 				// Shouldn't happen
-				return fmt.Errorf("unexpected error while deleting security group: %v", err)
+				return fmt.Errorf("unexpected error while deleting security group: %w", err)
 			}
 		} else {
 			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted security group: %s", sgId)

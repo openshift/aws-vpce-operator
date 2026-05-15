@@ -103,7 +103,7 @@ func (c *AWSClient) FilterSecurityGroupById(ctx context.Context, groupId string)
 		var ae smithy.APIError
 		if errors.As(err, &ae) {
 			if ae.ErrorCode() == "InvalidGroup.NotFound" {
-				return nil, nil
+				return nil, fmt.Errorf("security group not found: %w", err)
 			}
 		}
 		return nil, err

@@ -569,9 +569,8 @@ func TestVpcEndpointReconciler_diffVpcEndpointSecurityGroups(t *testing.T) {
 			clusterInfo: nil,
 		}
 		t.Run(test.name, func(t *testing.T) {
-			actualToAdd, actualToRemove, err := r.diffVpcEndpointSecurityGroups(test.vpce, test.resource)
+			actualToAdd, actualToRemove := r.diffVpcEndpointSecurityGroups(test.vpce, test.resource)
 
-			assert.NoError(t, err)
 			assert.Equalf(t, test.expectedNumToAdd, len(actualToAdd), "expected to add %d, got %d", test.expectedNumToAdd, len(actualToAdd))
 			assert.Equalf(t, test.expectedNumToRemove, len(actualToRemove), "expected to remove %d, got %d", test.expectedNumToRemove, len(actualToRemove))
 		})

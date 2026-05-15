@@ -118,6 +118,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	// When this bug is fixed we can switch/case off of enums
 	// https://github.com/aws/aws-sdk/issues/116
+	//nolint:exhaustive
 	switch vpce.State {
 	case "pendingAcceptance":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(1)
