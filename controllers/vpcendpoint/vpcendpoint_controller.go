@@ -156,8 +156,10 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, err
 	}
 
-	// Check again in fifteen minutes
-	return ctrl.Result{RequeueAfter: time.Minute * 15}, nil
+	// Check again in 10 minutes
+	// The ready of vpcendpoint still depends on the AWS side
+	// We just try to check it a bit more frequent here
+	return ctrl.Result{RequeueAfter: time.Minute * 10}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
