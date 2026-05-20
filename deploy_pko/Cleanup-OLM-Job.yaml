@@ -24,6 +24,7 @@ rules:
       - clusterserviceversions
       - subscriptions
       - operatorgroups
+      - catalogsources
     verbs:
       - list
       - get
@@ -78,6 +79,7 @@ spec:
               oc -n openshift-aws-vpce-operator delete csv -l "operators.coreos.com/aws-vpce-operator.openshift-aws-vpce-operator" || true
               oc -n openshift-aws-vpce-operator delete subscription --all || true
               oc -n openshift-aws-vpce-operator delete operatorgroup --all || true
+              oc -n openshift-aws-vpce-operator delete catalogsource --all || true
           resources:
             requests:
               cpu: 100m
