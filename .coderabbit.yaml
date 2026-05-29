@@ -1,0 +1,8 @@
+---
+# CodeRabbit Configuration File
+# Documentation: https://docs.coderabbit.ai
+
+# Enable inheritance of organization-level configuration
+# This allows the repository to use settings defined at the organization level
+# while still permitting repository-specific overrides when needed
+enable_inheritance: true
