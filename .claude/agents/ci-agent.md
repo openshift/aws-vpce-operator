@@ -21,12 +21,12 @@ CI/CD validation and workflow integrity for this operator.
 ### CI/CD Components
 
 **Tekton Pipelines** (`.tekton/`):
-- `this repository-pull-request.yaml`: PR validation
-- `this repository-push.yaml`: Main branch builds
-- `this repository-e2e-pull-request.yaml`: E2E tests on PR
-- `this repository-e2e-push.yaml`: E2E tests on merge
-- `this repository-pko-push.yaml`: PKO deployment
-- `this repository-pko-pull-request.yaml`: PKO validation
+- `aws-vpce-operator-pull-request.yaml`: PR validation
+- `aws-vpce-operator-push.yaml`: Main branch builds
+- `aws-vpce-operator-e2e-pull-request.yaml`: E2E tests on PR
+- `aws-vpce-operator-e2e-push.yaml`: E2E tests on merge
+- `aws-vpce-operator-pko-push.yaml`: PKO deployment
+- `aws-vpce-operator-pko-pull-request.yaml`: PKO validation
 
 **Pipeline Stages:**
 1. Checkout code
@@ -86,7 +86,7 @@ make go-build
 yamllint .tekton/*.yaml
 
 # Validate Tekton syntax (requires tkn CLI)
-# tkn pipeline validate -f .tekton/this repository-pull-request.yaml
+# tkn pipeline validate -f .tekton/aws-vpce-operator-pull-request.yaml
 
 # Check for missing required steps
 grep "pipelineRef:" .tekton/*.yaml
@@ -174,7 +174,7 @@ boilerplate/_lib/container-make
 
 ## Integration with Boilerplate
 
-this operator uses Red Hat boilerplate:
+This operator uses Red Hat boilerplate:
 - **Pipeline source**: `https://github.com/openshift/boilerplate`
 - **Pipeline path**: `pipelines/docker-build-oci-ta/pipeline.yaml`
 - **Updates**: `make boilerplate-update`
@@ -243,7 +243,7 @@ Escalate to human when:
 Report CI issues in this format:
 ```text
 CI Status: FAILING
-Pipeline: this repository-pull-request
+Pipeline: aws-vpce-operator-pull-request
 Stage: golangci-lint
 Error: Exit code 1
 
