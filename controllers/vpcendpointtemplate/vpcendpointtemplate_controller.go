@@ -242,7 +242,7 @@ type enquerequestForControlplane struct {
 	Client client.Client
 }
 
-func (e *enquerequestForControlplane) mapAndEnqueue(ctx context.Context, q workqueue.RateLimitingInterface, obj client.Object, reqs map[reconcile.Request]struct{}) {
+func (e *enquerequestForControlplane) mapAndEnqueue(ctx context.Context, q workqueue.RateLimitingInterface, _ client.Object, reqs map[reconcile.Request]struct{}) {
 	// TODO: We're currently not filtering this by only Private HostedControlPlanes, so it costs us approximately $87/year/VpcEndpoint
 	// Ref: https://aws.amazon.com/privatelink/pricing/
 	matches := []reconcile.Request{}
