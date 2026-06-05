@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the avo v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=avo.openshift.io
+// +kubebuilder:object:generate=true
+// +groupName=avo.openshift.io
 package v1alpha1
 
 import (

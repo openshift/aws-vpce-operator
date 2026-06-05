@@ -118,7 +118,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 
 	// When this bug is fixed we can switch/case off of enums
 	// https://github.com/aws/aws-sdk/issues/116
-	switch vpce.State {
+	switch vpce.State { //nolint:exhaustive
 	case "pendingAcceptance":
 		vpcePendingAcceptance.WithLabelValues(resource.Name, resource.Namespace, resource.Status.VPCEndpointId).Set(1)
 		// Nothing we can do at the moment, the VPC Endpoint needs to be accepted
@@ -376,6 +376,10 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	resourceRecord, err := r.generateRoute53Record(ctx, resource)
 	if err != nil {
 		r.log.V(0).Info("Skipping Route53 Record", "error", err.Error())
+		return nil
+	}
+	if resourceRecord == nil {
+		r.log.V(0).Info("Skipping Route53 Record: no resource record available")
 		return nil
 	}
 

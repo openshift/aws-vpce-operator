@@ -15,6 +15,8 @@ spec:
     metadata:
       labels:
         name: aws-vpce-operator
+      annotations:
+        openshift.io/required-scc: restricted-v2
     spec:
       serviceAccountName: aws-vpce-operator
       securityContext:
@@ -81,6 +83,7 @@ spec:
           periodSeconds: 10
         securityContext:
           allowPrivilegeEscalation: false
+        terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: openshift-sa-token
           mountPath: /var/run/secrets/openshift/serviceaccount
