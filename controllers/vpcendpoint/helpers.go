@@ -21,11 +21,14 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
 
@@ -819,7 +822,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 
 	switch {
 	case resource.Status.HostedZoneId != "":
-		resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+		resp, err := r.getHostedZoneCached(ctx, resource.Status.HostedZoneId)
 		if err != nil {
 			return err
 		}
@@ -1011,4 +1014,59 @@ func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context
 	}
 
 	return nil
+}
+
+// hostedZoneCacheEntry holds a cached GetHostedZone response with a TTL.
+type hostedZoneCacheEntry struct {
+	response  *route53.GetHostedZoneOutput
+	fetchedAt time.Time
+}
+
+// hostedZoneCacheTTL controls how long a cached GetHostedZone response is valid.
+// Within a single reconcile (which takes seconds), the cache will always be fresh.
+// Between reconciles, this TTL prevents stale data from persisting across the
+// 10-minute requeue interval.
+const hostedZoneCacheTTL = 2 * time.Minute
+
+var hostedZoneCacheMu sync.Mutex
+
+// getHostedZoneCached returns a cached GetHostedZone response if available and fresh,
+// otherwise fetches from AWS and caches the result.
+func (r *VpcEndpointReconciler) getHostedZoneCached(ctx context.Context, id string) (*route53.GetHostedZoneOutput, error) {
+	hostedZoneCacheMu.Lock()
+	defer hostedZoneCacheMu.Unlock()
+
+	if r.hostedZoneCache == nil {
+		r.hostedZoneCache = make(map[string]*hostedZoneCacheEntry)
+	}
+
+	if entry, ok := r.hostedZoneCache[id]; ok {
+		if time.Since(entry.fetchedAt) < hostedZoneCacheTTL {
+			return entry.response, nil
+		}
+		delete(r.hostedZoneCache, id)
+	}
+
+	resp, err := r.awsClient.GetHostedZone(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	r.hostedZoneCache[id] = &hostedZoneCacheEntry{
+		response:  resp,
+		fetchedAt: time.Now(),
+	}
+
+	return resp, nil
+}
+
+// invalidateHostedZoneCache removes a specific zone from the cache, useful after
+// mutations like AssociateVPCWithHostedZone.
+func (r *VpcEndpointReconciler) invalidateHostedZoneCache(id string) {
+	hostedZoneCacheMu.Lock()
+	defer hostedZoneCacheMu.Unlock()
+
+	if r.hostedZoneCache != nil {
+		delete(r.hostedZoneCache, id)
+	}
 }
