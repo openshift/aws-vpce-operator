@@ -56,8 +56,17 @@ var (
 			"error_type",
 		},
 	)
+
+	vpceRoute53ReadyDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_route53_ready_duration_seconds",
+			Help:      "Time in seconds from VpcEndpoint creation to Route53 record readiness",
+			Buckets:   []float64{30, 60, 120, 300, 600, 900, 1800, 3600, 5400, 7200},
+		},
+	)
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure, vpceRoute53ReadyDuration)
 }

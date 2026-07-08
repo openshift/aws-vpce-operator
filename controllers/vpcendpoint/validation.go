@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -397,6 +398,13 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return err
 	}
 	r.log.V(0).Info("Route53 Hosted Zone Record exists", "domainName", *input.Name)
+
+	// Record time-to-ready metric on first successful Route53 record creation
+	if !meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
+		duration := time.Since(resource.CreationTimestamp.Time).Seconds()
+		vpceRoute53ReadyDuration.Observe(duration)
+		r.log.V(0).Info("Route53 record ready", "durationSeconds", duration)
+	}
 
 	resource.Status.ResourceRecordSet = *input.Name
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
