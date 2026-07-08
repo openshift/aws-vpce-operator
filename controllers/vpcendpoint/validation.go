@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -280,7 +281,7 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 
 	if resource.Spec.CustomDns.Route53PrivateHostedZone.Id != "" {
 		r.log.V(0).Info("Searching for Route 53 Hosted Zone", "id", resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
-		resp, err := r.awsClient.GetHostedZone(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
+		resp, err := r.getHostedZoneCached(ctx, resource.Spec.CustomDns.Route53PrivateHostedZone.Id)
 		if err != nil {
 			return err
 		}
@@ -326,7 +327,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneAuthorization(ctx context.C
 	}
 
 	r.log.V(1).Info("Searching for Route53 Hosted Zone by id", "id", resource.Status.HostedZoneId)
-	resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+	resp, err := r.getHostedZoneCached(ctx, resource.Status.HostedZoneId)
 	if err != nil {
 		return err
 	}
@@ -355,6 +356,9 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneAuthorization(ctx context.C
 			if _, err := r.awsAssociatedVpcClient.AssociateVPCWithHostedZone(ctx, resource.Status.HostedZoneId, v.VpcId, v.Region); err != nil {
 				return err
 			}
+
+			// Invalidate cache since VPC associations have changed
+			r.invalidateHostedZoneCache(resource.Status.HostedZoneId)
 		}
 	}
 
@@ -368,7 +372,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return errors.New("resource must be specified")
 	}
 
-	resp, err := r.awsClient.GetHostedZone(ctx, resource.Status.HostedZoneId)
+	resp, err := r.getHostedZoneCached(ctx, resource.Status.HostedZoneId)
 	if err != nil {
 		return err
 	}
@@ -394,6 +398,13 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		return err
 	}
 	r.log.V(0).Info("Route53 Hosted Zone Record exists", "domainName", *input.Name)
+
+	// Record time-to-ready metric on first successful Route53 record creation
+	if !meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
+		duration := time.Since(resource.CreationTimestamp.Time).Seconds()
+		vpceRoute53ReadyDuration.Observe(duration)
+		r.log.V(0).Info("Route53 record ready", "durationSeconds", duration)
+	}
 
 	resource.Status.ResourceRecordSet = *input.Name
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{

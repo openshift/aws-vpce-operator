@@ -52,6 +52,10 @@ type VpcEndpointReconciler struct {
 	awsClient              *aws_client.AWSClient
 	awsAssociatedVpcClient *aws_client.VpcAssociationClient
 	clusterInfo            *clusterInfo
+
+	// hostedZoneCache stores GetHostedZone responses for the duration of a single reconcile
+	// to avoid duplicate Route53 API calls. Cleared at the start of each Reconcile().
+	hostedZoneCache map[string]*hostedZoneCacheEntry
 }
 
 // clusterInfo contains naming and AWS information unique to the cluster
