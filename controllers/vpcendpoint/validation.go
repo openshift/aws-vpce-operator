@@ -18,6 +18,7 @@ package vpcendpoint
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"strings"
@@ -365,6 +366,16 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneAuthorization(ctx context.C
 	return nil
 }
 
+// route53RecordFingerprint computes a deterministic fingerprint of all material
+// inputs to a Route 53 ChangeResourceRecordSets(UPSERT) call. When the fingerprint
+// matches the value persisted in status, the record is unchanged and the UPSERT
+// can be safely skipped.
+func route53RecordFingerprint(hostedZoneId, recordName string, recordType route53Types.RRType, ttl int64, target string) string {
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\n%s\n%s\n%d\n%s", hostedZoneId, recordName, string(recordType), ttl, target)
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
 // validateR53HostedZoneRecord ensures a DNS record exists for the given VPC Endpoint
 func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
 	if resource == nil {
@@ -394,6 +405,26 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 		Type:            route53Types.RRTypeCname,
 	}
 
+	desiredFingerprint := route53RecordFingerprint(
+		*resp.HostedZone.Id,
+		*input.Name,
+		input.Type,
+		*input.TTL,
+		*resourceRecord.Value,
+	)
+
+	// Skip the UPSERT if the record was previously applied successfully and nothing has changed.
+	// NOTE: This optimization means out-of-band Route 53 changes (manual record edits/deletions)
+	// will not be detected until the desired state changes or the status is cleared. This is
+	// acceptable because AVO is the sole owner of these records. Drift detection from external
+	// modifications is a separate concern.
+	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) &&
+		resource.Status.Route53RecordFingerprint == desiredFingerprint {
+		r.log.V(1).Info("Route53 record unchanged, skipping UPSERT",
+			"record", *input.Name, "hostedZoneId", *resp.HostedZone.Id)
+		return nil
+	}
+
 	if _, err := r.awsClient.UpsertResourceRecordSet(ctx, input, *resp.HostedZone.Id); err != nil {
 		return err
 	}
@@ -407,6 +438,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	}
 
 	resource.Status.ResourceRecordSet = *input.Name
+	resource.Status.Route53RecordFingerprint = desiredFingerprint
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 		Type:    avov1alpha2.AWSRoute53RecordCondition,
 		Status:  metav1.ConditionTrue,
