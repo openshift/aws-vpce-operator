@@ -420,8 +420,7 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	// modifications is a separate concern.
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) &&
 		resource.Status.Route53RecordFingerprint == desiredFingerprint {
-		r.log.V(1).Info("Route53 record unchanged, skipping UPSERT",
-			"record", *input.Name, "hostedZoneId", *resp.HostedZone.Id)
+		r.log.V(1).Info("Route53 record unchanged, skipping UPSERT")
 		return nil
 	}
 
