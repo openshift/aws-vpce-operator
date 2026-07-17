@@ -82,6 +82,12 @@ func (r *VpcEndpointReconciler) validateSecurityGroup(ctx context.Context, resou
 		return err
 	}
 
+	if !meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSSecurityGroupCondition) {
+		duration := time.Since(resource.CreationTimestamp.Time).Seconds()
+		vpceSecurityGroupReadyDuration.Observe(duration)
+		r.log.V(0).Info("Security group ready", "durationSeconds", duration)
+	}
+
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
 		Type:    avov1alpha2.AWSSecurityGroupCondition,
 		Status:  metav1.ConditionTrue,
@@ -211,6 +217,12 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	err = r.ensureVpcEndpointSecurityGroups(ctx, vpce, resource)
 	if err != nil {
 		return fmt.Errorf("failed to reconcile VPC Endpoint security groups: %w", err)
+	}
+
+	if !meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition) {
+		duration := time.Since(resource.CreationTimestamp.Time).Seconds()
+		vpceEndpointReadyDuration.Observe(duration)
+		r.log.V(0).Info("VPC Endpoint ready", "durationSeconds", duration)
 	}
 
 	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
