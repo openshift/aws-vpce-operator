@@ -29,23 +29,19 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 
 	BeforeEach(func(ctx context.Context) {
 		if operatorDeployed == nil {
-			deployed := operatorCmd != nil || isOperatorRunning()
-			if !deployed {
-				dep := &unstructured.Unstructured{}
-				dep.SetGroupVersionKind(schema.GroupVersionKind{
-					Group:   "apps",
-					Version: "v1",
-					Kind:    "Deployment",
-				})
-				err := c.Get(ctx, client.ObjectKey{
-					Name:      "aws-vpce-operator",
-					Namespace: "openshift-aws-vpce-operator",
-				}, dep)
-				if err == nil {
-					deployed = true
-				} else if !kerr.IsNotFound(err) {
-					Expect(err).ToNot(HaveOccurred(), "failed to check for operator deployment")
-				}
+			dep := &unstructured.Unstructured{}
+			dep.SetGroupVersionKind(schema.GroupVersionKind{
+				Group:   "apps",
+				Version: "v1",
+				Kind:    "Deployment",
+			})
+			err := c.Get(ctx, client.ObjectKey{
+				Name:      "aws-vpce-operator",
+				Namespace: "openshift-aws-vpce-operator",
+			}, dep)
+			deployed := err == nil
+			if err != nil && !kerr.IsNotFound(err) {
+				Expect(err).ToNot(HaveOccurred(), "failed to check for operator deployment")
 			}
 			operatorDeployed = &deployed
 		}
