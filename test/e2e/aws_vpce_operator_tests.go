@@ -7,13 +7,8 @@ package osde2etests
 import (
 	"context"
 	"fmt"
-	"net/http"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"time"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -31,10 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var (
-	c           client.Client
-	operatorCmd *exec.Cmd
-)
+var c client.Client
 
 var _ = BeforeSuite(func(ctx context.Context) {
 	log.SetLogger(GinkgoLogr)
@@ -56,127 +48,7 @@ var _ = BeforeSuite(func(ctx context.Context) {
 
 	_, err = applyCRDYaml(ctx, c, crds.VpcEndpointTemplateCRD)
 	Expect(err).ToNot(HaveOccurred(), "failed to apply VpcEndpointTemplate CRD")
-
-	// Build and start the operator if not already running.
-	// In CI (osde2e, Prow), the operator is pre-deployed to the cluster via PKO,
-	// so skip building from source. Detect CI by checking for the Go toolchain.
-	if !isOperatorRunning() {
-		if _, err := exec.LookPath("go"); err != nil {
-			By("Skipping local operator start: Go toolchain not available, assuming operator pre-deployed via PKO")
-		} else if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
-			startOperator(repoRoot)
-		} else {
-			By("Skipping local operator start: repository root not found, assuming operator pre-deployed")
-		}
-	}
-
-	DeferCleanup(func(ctx context.Context) {
-		// Stop the operator subprocess. CRDs are left in place intentionally —
-		// they are idempotent and removing them causes cascading failures if
-		// any VpcEndpoint resources still exist or if the operator is mid-reconcile.
-		stopOperator()
-	})
 })
-
-// isOperatorRunning checks if the operator health endpoint is responding.
-func isOperatorRunning() bool {
-	resp, err := http.Get("http://localhost:8081/healthz")
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	return resp.StatusCode == http.StatusOK
-}
-
-// startOperator builds and starts the operator as a subprocess.
-func startOperator(repoRoot string) {
-	By("building the operator binary")
-	binaryPath := filepath.Join(repoRoot, "build", "aws-vpce-operator-test")
-
-	buildCmd := exec.Command("go", "build", "-o", binaryPath, "./main.go")
-	buildCmd.Dir = repoRoot
-	buildCmd.Stdout = GinkgoWriter
-	buildCmd.Stderr = GinkgoWriter
-	Expect(buildCmd.Run()).To(Succeed(), "failed to build operator binary")
-
-	By("starting the operator")
-	operatorCmd = exec.Command(binaryPath)
-	operatorCmd.Dir = repoRoot
-	operatorCmd.Stdout = GinkgoWriter
-	operatorCmd.Stderr = GinkgoWriter
-	// Inherit the current environment (KUBECONFIG, AWS_PROFILE, etc.)
-	operatorCmd.Env = os.Environ()
-
-	// The operator's healthz check requires AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
-	// as env vars. If using AWS_PROFILE, resolve the credentials and inject them.
-	if os.Getenv("AWS_ACCESS_KEY_ID") == "" || os.Getenv("AWS_SECRET_ACCESS_KEY") == "" {
-		profile := os.Getenv("AWS_PROFILE")
-		if profile == "" {
-			profile = "default"
-		}
-		cfg, err := awsconfig.LoadSharedConfigProfile(context.Background(), profile)
-		if err == nil && cfg.Credentials.AccessKeyID != "" && cfg.Credentials.SecretAccessKey != "" {
-			operatorCmd.Env = append(operatorCmd.Env,
-				"AWS_ACCESS_KEY_ID="+cfg.Credentials.AccessKeyID,
-				"AWS_SECRET_ACCESS_KEY="+cfg.Credentials.SecretAccessKey,
-			)
-		}
-	}
-
-	Expect(operatorCmd.Start()).To(Succeed(), "failed to start operator")
-
-	By("waiting for operator health endpoint")
-	Eventually(func() error {
-		resp, err := http.Get("http://localhost:8081/healthz")
-		if err != nil {
-			return err
-		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("health endpoint returned %d", resp.StatusCode)
-		}
-		return nil
-	}, 60*time.Second, 1*time.Second).Should(Succeed(), "operator did not become healthy")
-}
-
-// stopOperator stops the operator subprocess if it was started by the test suite.
-func stopOperator() {
-	if operatorCmd == nil || operatorCmd.Process == nil {
-		return
-	}
-	By("stopping the operator")
-	if err := operatorCmd.Process.Kill(); err != nil {
-		GinkgoLogr.Error(err, "failed to kill operator process")
-	}
-	// Wait to avoid zombie processes
-	_ = operatorCmd.Wait()
-	operatorCmd = nil
-
-	// Clean up the test binary
-	if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
-		_ = os.Remove(filepath.Join(repoRoot, "build", "aws-vpce-operator-test"))
-	}
-}
-
-// findRepoRootOrEmpty walks up from the current working directory to find the
-// repo root by looking for go.mod. Returns an empty string if no go.mod is found
-// (e.g., when running inside a container image).
-func findRepoRootOrEmpty() string {
-	dir, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return ""
-		}
-		dir = parent
-	}
-}
 
 var _ = Describe("aws-vpce-operator CEL validation", func() {
 	It("accepts a valid VpcEndpoint", func(ctx context.Context) {
