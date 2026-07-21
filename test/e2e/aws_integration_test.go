@@ -6,6 +6,7 @@ package osde2etests
 
 import (
 	"context"
+	"os"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -28,6 +29,11 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 	)
 
 	BeforeEach(func(ctx context.Context) {
+		// Skip when AWS credentials are not available (e.g. Prow e2e)
+		if os.Getenv("AWS_ACCESS_KEY_ID") == "" && os.Getenv("AWS_PROFILE") == "" && os.Getenv("AWS_SHARED_CREDENTIALS_FILE") == "" {
+			Skip("AWS credentials not available, skipping integration tests")
+		}
+
 		if operatorDeployed == nil {
 			dep := &unstructured.Unstructured{}
 			dep.SetGroupVersionKind(schema.GroupVersionKind{
