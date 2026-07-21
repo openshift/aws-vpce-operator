@@ -58,10 +58,12 @@ var _ = BeforeSuite(func(ctx context.Context) {
 	Expect(err).ToNot(HaveOccurred(), "failed to apply VpcEndpointTemplate CRD")
 
 	// Build and start the operator if not already running.
-	// In containerized environments (e.g., osde2e), the operator is pre-deployed
-	// to the cluster and source code is not available, so skip building from source.
+	// In CI (osde2e, Prow), the operator is pre-deployed to the cluster via PKO,
+	// so skip building from source. Detect CI by checking for the Go toolchain.
 	if !isOperatorRunning() {
-		if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
+		if _, err := exec.LookPath("go"); err != nil {
+			By("Skipping local operator start: Go toolchain not available, assuming operator pre-deployed via PKO")
+		} else if repoRoot := findRepoRootOrEmpty(); repoRoot != "" {
 			startOperator(repoRoot)
 		} else {
 			By("Skipping local operator start: repository root not found, assuming operator pre-deployed")
