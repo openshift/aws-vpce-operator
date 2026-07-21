@@ -57,6 +57,24 @@ var (
 		},
 	)
 
+	vpceSecurityGroupReadyDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_security_group_ready_duration_seconds",
+			Help:      "Time in seconds from VpcEndpoint creation to security group readiness",
+			Buckets:   []float64{5, 10, 30, 60, 120, 300, 600, 900, 1800, 3600},
+		},
+	)
+
+	vpceEndpointReadyDuration = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_endpoint_ready_duration_seconds",
+			Help:      "Time in seconds from VpcEndpoint creation to VPC Endpoint readiness",
+			Buckets:   []float64{30, 60, 120, 300, 600, 900, 1800, 3600, 5400, 7200},
+		},
+	)
+
 	vpceRoute53ReadyDuration = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: "aws_vpce_operator",
@@ -68,5 +86,5 @@ var (
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure, vpceRoute53ReadyDuration)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure, vpceSecurityGroupReadyDuration, vpceEndpointReadyDuration, vpceRoute53ReadyDuration)
 }
