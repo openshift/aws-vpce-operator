@@ -28,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -373,15 +372,20 @@ func applyCRDYaml(ctx context.Context, c client.Client, yaml []byte) (*apiextens
 		}
 	}
 
-	// Wait for CRDs to appear in discovery, otherwise you can get responses from the API server like:
-	// no matches for kind "VpcEndpoint" in version "avo.openshift.io/v1alpha2"
-	envtest.WaitForCRDs(
-		ctrl.GetConfigOrDie(),
-		[]*apiextensionsv1.CustomResourceDefinition{crd},
-		envtest.CRDInstallOptions{
-			MaxTime:      60 * time.Second,
-			PollInterval: 500 * time.Millisecond,
-		})
+	// Wait for CRD to be established in the API server
+	Eventually(func() bool {
+		current := &apiextensionsv1.CustomResourceDefinition{}
+		if err := c.Get(ctx, client.ObjectKeyFromObject(crd), current); err != nil {
+			return false
+		}
+		for _, cond := range current.Status.Conditions {
+			if cond.Type == apiextensionsv1.Established && cond.Status == apiextensionsv1.ConditionTrue {
+				return true
+			}
+		}
+		return false
+	}, 60*time.Second, 500*time.Millisecond).Should(BeTrue(),
+		fmt.Sprintf("CRD %s not established", crd.Name))
 
 	return crd, nil
 }
