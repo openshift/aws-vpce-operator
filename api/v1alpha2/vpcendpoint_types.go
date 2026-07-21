@@ -336,6 +336,11 @@ type VpcEndpointStatus struct {
 	// +kubebuilder:validation:Optional
 	ResourceRecordSet string `json:"resourceRecordSet,omitempty"`
 
+	// A fingerprint of the last successfully applied Route 53 record, used to
+	// skip unnecessary ChangeResourceRecordSets calls when the record is unchanged.
+	// +kubebuilder:validation:Optional
+	Route53RecordFingerprint string `json:"route53RecordFingerprint,omitempty"`
+
 	// The Infra Id of the cluster, used for naming and tagging purposes
 	// +kubebuilder:validation:Optional
 	InfraId string `json:"infraId,omitempty"`

@@ -18,8 +18,10 @@ package vpcendpoint
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/go-logr/logr/testr"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
@@ -284,24 +286,354 @@ func TestVPCEndpointReconciler_validateCustomDns_privateDns(t *testing.T) {
 				},
 			}
 
-			if test.expectSkipRoute53 {
-				err := r.validateCustomDns(context.TODO(), resource)
-				assert.NoError(t, err)
+			err := r.validateCustomDns(context.TODO(), resource)
+			assert.NoError(t, err)
 
+			condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+			if test.expectSkipRoute53 {
 				// No Route53 condition should be set since AVO doesn't manage Route53 resources
-				condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
 				assert.Nil(t, condition, "Route53 condition should not be set when private DNS is enabled")
 			} else {
 				// When private DNS is not active, the code proceeds into Route53 validation.
-				// With the minimal mock setup, validateR53PrivateHostedZone returns nil (all fields
-				// are zero) and validateR53HostedZoneRecord calls GetHostedZone which panics on the
-				// mock. Verify the code enters the Route53 path by catching the panic.
-				assert.Panics(t, func() {
-					_ = r.validateCustomDns(context.TODO(), resource)
-				}, "expected Route53 validation to be entered (panics on unimplemented mock)")
+				// With the minimal mock setup (no VPCEndpointId), generateRoute53Record returns
+				// an error and the record validation is skipped gracefully without setting the
+				// Route53 condition. The important assertion is that the function doesn't panic
+				// or error out — it enters the Route53 path and handles the missing VPCE ID.
+				assert.Nil(t, condition, "Route53 condition should not be set when VPCEndpointId is missing")
 			}
 		})
 	}
+}
+
+// mockHostedZoneFullId is the full hosted zone ID as returned by the GetHostedZone mock
+const mockHostedZoneFullId = "/hostedzone/" + aws_client.MockHostedZoneId
+
+// newR53TestReconciler creates a VpcEndpointReconciler wired to the given MockedRoute53 and fake K8s client
+// with the resource registered for status subresource updates.
+func newR53TestReconciler(t *testing.T, r53mock *MockedRoute53, resource *avov1alpha2.VpcEndpoint) *VpcEndpointReconciler {
+	t.Helper()
+	client := testutil.NewTestMock(t, resource).Client
+	return &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: aws_client.NewMockedAwsClientWithRoute53(r53mock),
+		log:       testr.New(t),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+		},
+		Recorder: record.NewFakeRecorder(1),
+	}
+}
+
+// MockedRoute53 is a type alias for test readability
+type MockedRoute53 = aws_client.MockedRoute53
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_firstCreation(t *testing.T) {
+	r53mock := &MockedRoute53{}
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+			HostedZoneId:  aws_client.MockHostedZoneId,
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"ChangeResourceRecordSets should be called exactly once on first creation")
+
+	condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+	assert.NotNil(t, condition)
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+
+	expectedName := fmt.Sprintf("api.%s", testutil.MockDomainName)
+	assert.Equal(t, expectedName, resource.Status.ResourceRecordSet)
+	assert.NotEmpty(t, resource.Status.Route53RecordFingerprint,
+		"fingerprint should be set after successful UPSERT")
+}
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_unchangedSkipsUpsert(t *testing.T) {
+	r53mock := &MockedRoute53{}
+
+	expectedName := fmt.Sprintf("api.%s", testutil.MockDomainName)
+	expectedFingerprint := route53RecordFingerprint(
+		mockHostedZoneFullId,
+		expectedName,
+		route53Types.RRTypeCname,
+		300,
+		testutil.MockVpcEndpointDnsName,
+	)
+
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId:            testutil.MockVpcEndpointId,
+			HostedZoneId:             aws_client.MockHostedZoneId,
+			ResourceRecordSet:        expectedName,
+			Route53RecordFingerprint: expectedFingerprint,
+			Conditions: []metav1.Condition{
+				{
+					Type:               avov1alpha2.AWSRoute53RecordCondition,
+					Status:             metav1.ConditionTrue,
+					Reason:             "Created",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 0, r53mock.ChangeResourceRecordSetsCalled,
+		"ChangeResourceRecordSets should NOT be called when record is unchanged")
+
+	condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+	assert.NotNil(t, condition)
+	assert.Equal(t, metav1.ConditionTrue, condition.Status)
+}
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_targetChanged(t *testing.T) {
+	r53mock := &MockedRoute53{}
+
+	expectedName := fmt.Sprintf("api.%s", testutil.MockDomainName)
+	// Fingerprint with an OLD target to simulate a target change
+	oldFingerprint := route53RecordFingerprint(
+		mockHostedZoneFullId,
+		expectedName,
+		route53Types.RRTypeCname,
+		300,
+		"old-vpce-dns.amazonaws.com",
+	)
+
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId:            testutil.MockVpcEndpointId,
+			HostedZoneId:             aws_client.MockHostedZoneId,
+			ResourceRecordSet:        expectedName,
+			Route53RecordFingerprint: oldFingerprint,
+			Conditions: []metav1.Condition{
+				{
+					Type:               avov1alpha2.AWSRoute53RecordCondition,
+					Status:             metav1.ConditionTrue,
+					Reason:             "Created",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"ChangeResourceRecordSets should be called when target changed")
+
+	newFingerprint := route53RecordFingerprint(
+		mockHostedZoneFullId,
+		expectedName,
+		route53Types.RRTypeCname,
+		300,
+		testutil.MockVpcEndpointDnsName,
+	)
+	assert.Equal(t, newFingerprint, resource.Status.Route53RecordFingerprint,
+		"fingerprint should be updated after successful UPSERT")
+}
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_hostnameChanged(t *testing.T) {
+	r53mock := &MockedRoute53{}
+
+	// Fingerprint computed for OLD hostname "old-api"
+	oldName := fmt.Sprintf("old-api.%s", testutil.MockDomainName)
+	oldFingerprint := route53RecordFingerprint(
+		mockHostedZoneFullId,
+		oldName,
+		route53Types.RRTypeCname,
+		300,
+		testutil.MockVpcEndpointDnsName,
+	)
+
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "new-api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId:            testutil.MockVpcEndpointId,
+			HostedZoneId:             aws_client.MockHostedZoneId,
+			ResourceRecordSet:        oldName,
+			Route53RecordFingerprint: oldFingerprint,
+			Conditions: []metav1.Condition{
+				{
+					Type:               avov1alpha2.AWSRoute53RecordCondition,
+					Status:             metav1.ConditionTrue,
+					Reason:             "Created",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"ChangeResourceRecordSets should be called when hostname changed")
+}
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_errorPreservesState(t *testing.T) {
+	r53mock := &MockedRoute53{
+		ChangeResourceRecordSetsError: fmt.Errorf("ThrottlingException: Rate exceeded"),
+	}
+
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+			HostedZoneId:  aws_client.MockHostedZoneId,
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.Error(t, err)
+
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"ChangeResourceRecordSets should be attempted once")
+
+	assert.Empty(t, resource.Status.Route53RecordFingerprint,
+		"fingerprint must not be set when UPSERT fails")
+
+	condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+	assert.Nil(t, condition,
+		"Route53 condition must not be set when UPSERT fails")
+}
+
+func TestVPCEndpointReconciler_validateR53HostedZoneRecord_backwardCompatibility(t *testing.T) {
+	r53mock := &MockedRoute53{}
+
+	expectedName := fmt.Sprintf("api.%s", testutil.MockDomainName)
+
+	// Simulate an existing CR with Route53 condition True but no fingerprint (pre-upgrade)
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-vpce",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					Record: avov1alpha2.Route53HostedZoneRecord{
+						Hostname: "api",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId:     testutil.MockVpcEndpointId,
+			HostedZoneId:      aws_client.MockHostedZoneId,
+			ResourceRecordSet: expectedName,
+			// Route53RecordFingerprint is intentionally empty (pre-upgrade CR)
+			Conditions: []metav1.Condition{
+				{
+					Type:               avov1alpha2.AWSRoute53RecordCondition,
+					Status:             metav1.ConditionTrue,
+					Reason:             "Created",
+					LastTransitionTime: metav1.Now(),
+				},
+			},
+		},
+	}
+
+	r := newR53TestReconciler(t, r53mock, resource)
+
+	// First reconcile after upgrade: fingerprint is empty so UPSERT must execute
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"first reconcile after upgrade should UPSERT to populate fingerprint")
+	assert.NotEmpty(t, resource.Status.Route53RecordFingerprint,
+		"fingerprint should be populated after first reconcile")
+
+	savedFingerprint := resource.Status.Route53RecordFingerprint
+
+	// Second reconcile: fingerprint now matches, should skip
+	err = r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, r53mock.ChangeResourceRecordSetsCalled,
+		"second reconcile should skip UPSERT since fingerprint matches")
+	assert.Equal(t, savedFingerprint, resource.Status.Route53RecordFingerprint,
+		"fingerprint should remain unchanged")
+}
+
+func TestRoute53RecordFingerprint_deterministic(t *testing.T) {
+	fp1 := route53RecordFingerprint("/hostedzone/Z123", "api.example.com", route53Types.RRTypeCname, 300, "vpce.amazonaws.com")
+	fp2 := route53RecordFingerprint("/hostedzone/Z123", "api.example.com", route53Types.RRTypeCname, 300, "vpce.amazonaws.com")
+	assert.Equal(t, fp1, fp2, "identical inputs must produce identical fingerprint")
+
+	fp3 := route53RecordFingerprint("/hostedzone/Z123", "api.example.com", route53Types.RRTypeCname, 300, "different-target.amazonaws.com")
+	assert.NotEqual(t, fp1, fp3, "different target must produce different fingerprint")
+
+	fp4 := route53RecordFingerprint("/hostedzone/Z999", "api.example.com", route53Types.RRTypeCname, 300, "vpce.amazonaws.com")
+	assert.NotEqual(t, fp1, fp4, "different hosted zone must produce different fingerprint")
 }
 
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {

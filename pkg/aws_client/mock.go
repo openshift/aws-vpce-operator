@@ -53,6 +53,11 @@ type MockedEC2 struct {
 
 type MockedRoute53 struct {
 	AvoRoute53API
+
+	// ChangeResourceRecordSetsCalled tracks how many times ChangeResourceRecordSets was called
+	ChangeResourceRecordSetsCalled int
+	// ChangeResourceRecordSetsError, when non-nil, is returned by ChangeResourceRecordSets
+	ChangeResourceRecordSetsError error
 }
 
 var mockResourceRecordSet = &route53Types.ResourceRecordSet{
@@ -96,6 +101,12 @@ func NewMockedEC2WithSubnets() *MockedEC2 {
 
 func NewMockedAwsClient() *AWSClient {
 	return NewAwsClientWithServiceClients(&MockedEC2{}, &MockedRoute53{})
+}
+
+// NewMockedAwsClientWithRoute53 returns an AWSClient with a MockedRoute53 that the caller
+// can inspect for call counts and configure for error injection.
+func NewMockedAwsClientWithRoute53(r53 *MockedRoute53) *AWSClient {
+	return NewAwsClientWithServiceClients(NewMockedEC2WithSubnets(), r53)
 }
 
 func NewMockedVpceAcceptanceAwsClient() *VpcEndpointAcceptanceAWSClient {
@@ -391,6 +402,19 @@ func (m *MockedRoute53) ListResourceRecordSets(ctx context.Context, params *rout
 	}, nil
 }
 
+func (m *MockedRoute53) GetHostedZone(ctx context.Context, params *route53.GetHostedZoneInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneOutput, error) {
+	return &route53.GetHostedZoneOutput{
+		HostedZone: &route53Types.HostedZone{
+			Id:   params.Id,
+			Name: aws.String(testutil.MockDomainName + "."),
+		},
+	}, nil
+}
+
 func (m *MockedRoute53) ChangeResourceRecordSets(ctx context.Context, params *route53.ChangeResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ChangeResourceRecordSetsOutput, error) {
+	m.ChangeResourceRecordSetsCalled++
+	if m.ChangeResourceRecordSetsError != nil {
+		return nil, m.ChangeResourceRecordSetsError
+	}
 	return &route53.ChangeResourceRecordSetsOutput{}, nil
 }

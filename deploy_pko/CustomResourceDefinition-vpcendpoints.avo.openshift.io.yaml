@@ -636,6 +636,11 @@ spec:
                 resourceRecordSet:
                   description: The FQDN of a Route 53 Hosted Zone record that has been created
                   type: string
+                route53RecordFingerprint:
+                  description: |-
+                    A fingerprint of the last successfully applied Route 53 record, used to
+                    skip unnecessary ChangeResourceRecordSets calls when the record is unchanged.
+                  type: string
                 securityGroupId:
                   description: The AWS ID of the managed security group
                   type: string
