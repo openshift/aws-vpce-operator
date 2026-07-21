@@ -7,7 +7,6 @@ package osde2etests
 import (
 	"context"
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -258,7 +257,7 @@ func applyCRDYaml(ctx context.Context, c client.Client, yaml []byte) (*apiextens
 			}
 		}
 		return false
-	}, 60*time.Second, 500*time.Millisecond).Should(BeTrue(),
+	}, crdEstablishTimeout, crdEstablishInterval).Should(BeTrue(),
 		fmt.Sprintf("CRD %s not established", crd.Name))
 
 	return crd, nil

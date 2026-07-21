@@ -25,9 +25,12 @@ import (
 )
 
 const (
-	vpceReadyTimeout   = 10 * time.Minute
-	vpceDeletedTimeout = 5 * time.Minute
-	pollingInterval    = 5 * time.Second
+	vpceReadyTimeout      = 10 * time.Minute
+	vpceDeletedTimeout    = 5 * time.Minute
+	crdEstablishTimeout   = 60 * time.Second
+	crdEstablishInterval  = 500 * time.Millisecond
+	negativeTestTimeout   = 30 * time.Second
+	pollingInterval       = 5 * time.Second
 )
 
 // awsTestHelper provides AWS SDK access for verifying resources created by the operator.

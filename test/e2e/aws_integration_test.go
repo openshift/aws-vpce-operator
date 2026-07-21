@@ -402,7 +402,7 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 					g.Expect(cond.Status).ToNot(Equal(metav1.ConditionTrue),
 						"VPC Endpoint should not become ready with invalid service name")
 				}
-			}, "30s", pollingInterval).Should(Succeed())
+			}, negativeTestTimeout, pollingInterval).Should(Succeed())
 		})
 
 		It("should report VPC Endpoint status transitions", func(ctx context.Context) {
