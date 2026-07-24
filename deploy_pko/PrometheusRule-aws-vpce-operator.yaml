@@ -1,0 +1,60 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    name: aws-vpce-operator
+  name: aws-vpce-operator
+  namespace: openshift-aws-vpce-operator
+  annotations:
+    package-operator.run/phase: deploy
+    package-operator.run/collision-protection: IfNoController
+spec:
+  groups:
+  - name: aws-vpce-operator
+    rules:
+    # Fires when an individual VpcEndpoint CR has not become fully ready
+    # within 30 minutes of creation. The metric is only present
+    # for CRs that are not yet ready, and is removed once ready.
+    - alert: AVOVPCEndpointNotReady
+      expr: aws_vpce_operator_vpce_not_ready_seconds > 1800
+      for: 10m
+      labels:
+        severity: warning
+        namespace: "{{ $labels.namespace }}"
+      annotations:
+        message: "VpcEndpoint {{ $labels.namespace }}/{{ $labels.name }} has not reached ready state after 30 minutes."
+    # Fires when the 95th percentile of security group provisioning time
+    # over the last hour exceeds 10 minutes. This tracks the time
+    # from VpcEndpoint CR creation to the security group being created.
+    - alert: AVOSecurityGroupSlowProvisioning
+      expr: histogram_quantile(0.95, rate(aws_vpce_operator_vpce_security_group_ready_duration_seconds_bucket[1h])) > 600
+      for: 5m
+      labels:
+        severity: warning
+        namespace: openshift-aws-vpce-operator
+      annotations:
+        message: "p95 security group provisioning time exceeds 10 minutes over the last hour."
+    # Fires when the 95th percentile of VPC Endpoint provisioning time
+    # over the last hour exceeds 20 minutes. This tracks the time
+    # from VpcEndpoint CR creation to the AWS VPC Endpoint reaching
+    # "available" state.
+    - alert: AVOVPCEndpointSlowProvisioning
+      expr: histogram_quantile(0.95, rate(aws_vpce_operator_vpce_endpoint_ready_duration_seconds_bucket[1h])) > 1200
+      for: 10m
+      labels:
+        severity: warning
+        namespace: openshift-aws-vpce-operator
+      annotations:
+        message: "p95 VPC Endpoint provisioning time exceeds 20 minutes over the last hour."
+    # Fires when the 95th percentile of Route53 record creation time
+    # over the last hour exceeds 30 minutes. This tracks the time
+    # from VpcEndpoint CR creation to the Route53 CNAME record being
+    # successfully upserted in the private hosted zone.
+    - alert: AVORoute53RecordSlowProvisioning
+      expr: histogram_quantile(0.95, rate(aws_vpce_operator_vpce_route53_ready_duration_seconds_bucket[1h])) > 1800
+      for: 10m
+      labels:
+        severity: warning
+        namespace: openshift-aws-vpce-operator
+      annotations:
+        message: "p95 Route53 record creation time exceeds 30 minutes over the last hour."
