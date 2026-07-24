@@ -83,8 +83,17 @@ var (
 			Buckets:   []float64{30, 60, 120, 300, 600, 900, 1800, 3600, 5400, 7200},
 		},
 	)
+
+	vpceNotReadySeconds = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "aws_vpce_operator",
+			Name:      "vpce_not_ready_seconds",
+			Help:      "Seconds since creation for VpcEndpoint CRs that are not fully ready. Removed when ready.",
+		},
+		[]string{"name", "namespace"},
+	)
 )
 
 func init() {
-	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure, vpceSecurityGroupReadyDuration, vpceEndpointReadyDuration, vpceRoute53ReadyDuration)
+	metrics.Registry.MustRegister(vpcePendingAcceptance, awsUnauthorizedOperation, vpceCleanupFailure, vpceSecurityGroupReadyDuration, vpceEndpointReadyDuration, vpceRoute53ReadyDuration, vpceNotReadySeconds)
 }
