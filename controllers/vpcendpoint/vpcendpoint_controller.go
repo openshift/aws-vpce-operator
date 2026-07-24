@@ -146,6 +146,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}
 
 		// Stop reconciliation as the item is being deleted
+		vpceNotReadySeconds.DeleteLabelValues(vpce.Name, vpce.Namespace)
 		return ctrl.Result{}, nil
 	}
 
@@ -156,8 +157,15 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 			r.validateCustomDns,
 		}); err != nil {
 		awsUnauthorizedOperationMetricHandler(err)
+		vpceNotReadySeconds.WithLabelValues(vpce.Name, vpce.Namespace).Set(time.Since(vpce.CreationTimestamp.Time).Seconds())
 
 		return ctrl.Result{}, err
+	}
+
+	if isVpcEndpointReady(vpce) {
+		vpceNotReadySeconds.DeleteLabelValues(vpce.Name, vpce.Namespace)
+	} else {
+		vpceNotReadySeconds.WithLabelValues(vpce.Name, vpce.Namespace).Set(time.Since(vpce.CreationTimestamp.Time).Seconds())
 	}
 
 	// Check again in 10 minutes

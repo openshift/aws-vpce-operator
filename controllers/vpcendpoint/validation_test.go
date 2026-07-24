@@ -304,6 +304,101 @@ func TestVPCEndpointReconciler_validateCustomDns_privateDns(t *testing.T) {
 	}
 }
 
+func Test_isVpcEndpointReady(t *testing.T) {
+	tests := []struct {
+		name     string
+		resource *avov1alpha2.VpcEndpoint
+		expected bool
+	}{
+		{
+			name: "no conditions",
+			resource: &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{},
+			},
+			expected: false,
+		},
+		{
+			name: "all conditions true",
+			resource: &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   avov1alpha2.AWSSecurityGroupCondition,
+							Status: metav1.ConditionTrue,
+						},
+						{
+							Type:   avov1alpha2.AWSVpcEndpointCondition,
+							Status: metav1.ConditionTrue,
+						},
+						{
+							Type:   avov1alpha2.AWSRoute53RecordCondition,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "vpce pending acceptance",
+			resource: &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   avov1alpha2.AWSSecurityGroupCondition,
+							Status: metav1.ConditionTrue,
+						},
+						{
+							Type:   avov1alpha2.AWSVpcEndpointCondition,
+							Status: metav1.ConditionFalse,
+							Reason: "pendingAcceptance",
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "security group not ready",
+			resource: &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   avov1alpha2.AWSSecurityGroupCondition,
+							Status: metav1.ConditionFalse,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name: "all conditions true without route53",
+			resource: &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{
+					Conditions: []metav1.Condition{
+						{
+							Type:   avov1alpha2.AWSSecurityGroupCondition,
+							Status: metav1.ConditionTrue,
+						},
+						{
+							Type:   avov1alpha2.AWSVpcEndpointCondition,
+							Status: metav1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assert.Equal(t, test.expected, isVpcEndpointReady(test.resource))
+		})
+	}
+}
+
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {
 //	tests := []struct {
 //		name       string

@@ -41,6 +41,19 @@ import (
 
 type Validation func(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error
 
+// isVpcEndpointReady returns true if all status conditions on the VpcEndpoint CR are True.
+func isVpcEndpointReady(resource *avov1alpha2.VpcEndpoint) bool {
+	if len(resource.Status.Conditions) == 0 {
+		return false
+	}
+	for _, c := range resource.Status.Conditions {
+		if c.Status != metav1.ConditionTrue {
+			return false
+		}
+	}
+	return true
+}
+
 func (r *VpcEndpointReconciler) validateResources(ctx context.Context, resource *avov1alpha2.VpcEndpoint, validations []Validation) error {
 	for _, validation := range validations {
 		if err := validation(ctx, resource); err != nil {
