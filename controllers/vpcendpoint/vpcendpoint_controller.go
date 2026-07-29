@@ -168,10 +168,7 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		vpceNotReadySeconds.WithLabelValues(vpce.Name, vpce.Namespace).Set(time.Since(vpce.CreationTimestamp.Time).Seconds())
 	}
 
-	// Check again in 10 minutes
-	// The ready of vpcendpoint still depends on the AWS side
-	// We just try to check it a bit more frequent here
-	return ctrl.Result{RequeueAfter: time.Minute * 10}, nil
+	return ctrl.Result{RequeueAfter: time.Minute * 15}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

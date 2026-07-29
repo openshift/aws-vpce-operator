@@ -41,6 +41,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/util"
 	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -1025,7 +1026,7 @@ type hostedZoneCacheEntry struct {
 // hostedZoneCacheTTL controls how long a cached GetHostedZone response is valid.
 // Within a single reconcile (which takes seconds), the cache will always be fresh.
 // Between reconciles, this TTL prevents stale data from persisting across the
-// 10-minute requeue interval.
+// 15-minute requeue interval.
 const hostedZoneCacheTTL = 2 * time.Minute
 
 var hostedZoneCacheMu sync.Mutex
@@ -1068,5 +1069,19 @@ func (r *VpcEndpointReconciler) invalidateHostedZoneCache(id string) {
 
 	if r.hostedZoneCache != nil {
 		delete(r.hostedZoneCache, id)
+	}
+}
+
+// invalidateRoute53RecordCondition resets the AWSRoute53RecordReady condition so
+// that the next reconcile re-creates the DNS record. Called when the VPC endpoint
+// transitions to a non-available state (recreated, rejected, etc.).
+func (r *VpcEndpointReconciler) invalidateRoute53RecordCondition(resource *avov1alpha2.VpcEndpoint) {
+	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:    avov1alpha2.AWSRoute53RecordCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  "VpcEndpointChanged",
+			Message: "VPC endpoint is no longer available, Route53 record will be re-created",
+		})
 	}
 }
