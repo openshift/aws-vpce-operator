@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/smithy-go"
@@ -148,8 +149,17 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 								}
 							}
 
-							r.log.V(0).Info("Cleared remaining records from Route53 hosted zone, will retry zone deletion", "hostedZoneId", resource.Status.HostedZoneId)
-							r.Recorder.Eventf(resource, corev1.EventTypeNormal, "CleanupProgress", "Cleared remaining records from hosted zone %s, will retry zone deletion", resource.Status.HostedZoneId)
+							r.log.V(0).Info("Cleared remaining records from Route53 hosted zone, retrying zone deletion", "hostedZoneId", resource.Status.HostedZoneId)
+							if _, retryErr := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); retryErr != nil {
+								return fmt.Errorf("failed to delete hosted zone %s after clearing records: %w", resource.Status.HostedZoneId, retryErr)
+							}
+							r.log.V(0).Info("Deleted Route53 hosted zone after clearing records", "hostedZoneId", resource.Status.HostedZoneId)
+							r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted Route53 hosted zone after clearing records: %s", resource.Status.HostedZoneId)
+							resource.Status.HostedZoneId = ""
+							if err := r.Status().Update(ctx, resource); err != nil {
+								r.log.V(0).Error(err, "failed to update status")
+								return err
+							}
 						default:
 							return err
 						}
@@ -188,6 +198,49 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 			}
 		} else {
 			r.Recorder.Eventf(resource, corev1.EventTypeNormal, "Deleted", "Deleted VPC endpoint: %s", vpceId)
+
+			// Poll until the VPCE is fully deleted so the security group can be
+			// removed in the same reconcile loop. During pod shutdown, requeued
+			// reconcile events are never processed by controller-runtime.
+			r.log.V(0).Info("Waiting for VPC endpoint deletion to complete", "vpceId", vpceId)
+			pollInterval := 5 * time.Second
+			pollTimeout := 3 * time.Minute
+			deadline := time.Now().Add(pollTimeout)
+
+			for time.Now().Before(deadline) {
+				resp, err := r.awsClient.DescribeSingleVPCEndpointById(ctx, vpceId)
+				if err != nil {
+					return fmt.Errorf("error polling VPC endpoint deletion status: %w", err)
+				}
+
+				if resp == nil || len(resp.VpcEndpoints) == 0 {
+					r.log.V(0).Info("VPC endpoint deletion confirmed", "vpceId", vpceId)
+					resource.Status.VPCEndpointId = ""
+					break
+				}
+
+				state := string(resp.VpcEndpoints[0].State)
+				if state == "deleted" {
+					r.log.V(0).Info("VPC endpoint deletion confirmed", "vpceId", vpceId)
+					resource.Status.VPCEndpointId = ""
+					break
+				}
+
+				if state != "deleting" {
+					return fmt.Errorf("VPC endpoint %s in unexpected state %q during deletion", vpceId, state)
+				}
+
+				r.log.V(1).Info("VPC endpoint still deleting", "vpceId", vpceId)
+				select {
+				case <-ctx.Done():
+					return fmt.Errorf("context cancelled while waiting for VPC endpoint deletion: %w", ctx.Err())
+				case <-time.After(pollInterval):
+				}
+			}
+
+			if resource.Status.VPCEndpointId != "" {
+				return fmt.Errorf("timed out waiting for VPC endpoint %s to delete", vpceId)
+			}
 		}
 
 		resource.Status.Status = "deleting"

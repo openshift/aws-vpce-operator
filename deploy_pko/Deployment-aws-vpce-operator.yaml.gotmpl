@@ -18,6 +18,7 @@ spec:
       annotations:
         openshift.io/required-scc: restricted-v2
     spec:
+      terminationGracePeriodSeconds: 300
       serviceAccountName: aws-vpce-operator
       securityContext:
         runAsNonRoot: true

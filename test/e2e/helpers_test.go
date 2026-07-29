@@ -64,6 +64,7 @@ var testServiceNames = map[string]string{
 	"sg-update":        "kms",
 	"drift-vpce":       "kinesis-streams",
 	"tagging":          "ecr.api",
+	"cleanup-atomic":   "logs",
 }
 
 // testServiceName returns an AWS interface endpoint service name for the given test key and region.

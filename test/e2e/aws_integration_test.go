@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -376,7 +377,64 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 		})
 	})
 
-	// Test Suite 7: Error scenarios
+	// Test Suite 7: Deployment configuration
+	Describe("Deployment configuration", func() {
+		It("should have terminationGracePeriodSeconds set to 300", func(ctx context.Context) {
+			dep := &appsv1.Deployment{}
+			err := c.Get(ctx, client.ObjectKey{
+				Name:      "aws-vpce-operator",
+				Namespace: "openshift-aws-vpce-operator",
+			}, dep)
+			if kerr.IsNotFound(err) {
+				Skip("operator deployment not found")
+			}
+			Expect(err).ToNot(HaveOccurred())
+
+			tgps := dep.Spec.Template.Spec.TerminationGracePeriodSeconds
+			Expect(tgps).ToNot(BeNil(), "terminationGracePeriodSeconds should be set")
+			Expect(*tgps).To(Equal(int64(300)),
+				"terminationGracePeriodSeconds should be 300 to allow cleanup polling to complete")
+		})
+	})
+
+	// Test Suite 8: Atomic cleanup (ROSAENG-1487)
+	Describe("Atomic cleanup", Ordered, func() {
+		const vpceName = "e2e-cleanup-atomic"
+		var (
+			vpceId string
+			sgId   string
+		)
+
+		It("should clean up both VPCE and security group in a single reconcile", func(ctx context.Context) {
+			cleanupLeftover(ctx, c, vpceName, ns)
+			vpce := buildVpcEndpoint(vpceName, ns, testServiceName(helper.region, "cleanup-atomic"))
+			Expect(c.Create(ctx, vpce)).To(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				deleteVpceAndWait(ctx, c, vpceName, ns)
+			})
+
+			By("waiting for VPCE to become ready")
+			readyVpce := waitForVpceReady(ctx, c, vpceName, ns)
+			vpceId = readyVpce.Status.VPCEndpointId
+			sgId = readyVpce.Status.SecurityGroupId
+			Expect(vpceId).ToNot(BeEmpty())
+			Expect(sgId).ToNot(BeEmpty())
+
+			By("deleting the VpcEndpoint CR")
+			Expect(c.Delete(ctx, readyVpce)).To(Succeed())
+
+			By("waiting for the CR to be fully removed")
+			waitForVpceDeleted(ctx, c, vpceName, ns)
+
+			By("verifying VPC endpoint is deleted from AWS")
+			helper.verifyAWSVpcEndpointDeleted(ctx, vpceId)
+
+			By("verifying security group is deleted from AWS")
+			helper.verifyAWSSecurityGroupDeleted(ctx, sgId)
+		})
+	})
+
+	// Test Suite 9: Error scenarios
 	Describe("Error scenarios", func() {
 		It("should handle an invalid VPC Endpoint Service name gracefully", func(ctx context.Context) {
 			const vpceName = "e2e-invalid-svc"

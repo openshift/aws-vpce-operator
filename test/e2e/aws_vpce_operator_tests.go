@@ -14,6 +14,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/deploy/crds"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsv1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +31,7 @@ var c client.Client
 var _ = BeforeSuite(func(ctx context.Context) {
 	log.SetLogger(GinkgoLogr)
 	s := runtime.NewScheme()
+	Expect(appsv1.AddToScheme(s)).Should(Succeed(), "unable to register appsv1")
 	Expect(corev1.AddToScheme(s)).Should(Succeed(), "unable to register corev1")
 	Expect(apiextensionsv1.AddToScheme(s)).Should(Succeed(), "unable to register apiextensions")
 	Expect(avov1alpha2.AddToScheme(s)).Should(Succeed(), "unable to register avov1alpha2")
