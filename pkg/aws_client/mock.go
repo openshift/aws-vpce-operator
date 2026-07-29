@@ -25,6 +25,7 @@ import (
 	ec2Types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"github.com/aws/smithy-go"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
 )
 
@@ -49,6 +50,10 @@ type MockedEC2 struct {
 
 	// LastCreateVpcEndpointInput captures the most recent CreateVpcEndpoint call input for test assertions
 	LastCreateVpcEndpointInput *ec2.CreateVpcEndpointInput
+
+	// deletedVpceIds tracks VPCE IDs that have been deleted via DeleteVpcEndpoints,
+	// so DescribeVpcEndpoints can return NotFound for them.
+	deletedVpceIds map[string]bool
 }
 
 type MockedRoute53 struct {
@@ -315,13 +320,24 @@ func (m *MockedEC2) DescribeVpcEndpointConnections(ctx context.Context, params *
 }
 
 func (m *MockedEC2) DeleteVpcEndpoints(ctx context.Context, params *ec2.DeleteVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DeleteVpcEndpointsOutput, error) {
-	// TODO: This is a no-op
+	if m.deletedVpceIds == nil {
+		m.deletedVpceIds = make(map[string]bool)
+	}
+	for _, id := range params.VpcEndpointIds {
+		m.deletedVpceIds[id] = true
+	}
 	return &ec2.DeleteVpcEndpointsOutput{}, nil
 }
 
 func (m *MockedEC2) DescribeVpcEndpoints(ctx context.Context, params *ec2.DescribeVpcEndpointsInput, optFns ...func(*ec2.Options)) (*ec2.DescribeVpcEndpointsOutput, error) {
 	// Mock a VPC Endpoint if an ID is supplied
 	if len(params.VpcEndpointIds) > 0 {
+		if m.deletedVpceIds[params.VpcEndpointIds[0]] {
+			return nil, &smithy.GenericAPIError{
+				Code:    "InvalidVpcEndpointId.NotFound",
+				Message: fmt.Sprintf("VpcEndpointId '%s' does not exist", params.VpcEndpointIds[0]),
+			}
+		}
 		return &ec2.DescribeVpcEndpointsOutput{
 			VpcEndpoints: []ec2Types.VpcEndpoint{
 				{
