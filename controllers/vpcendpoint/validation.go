@@ -129,6 +129,9 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 	}
 
 	if resource.Status.VPCEndpointId != *vpce.VpcEndpointId {
+		r.log.V(0).Info("VPC Endpoint ID changed, invalidating Route53 record condition",
+			"old", resource.Status.VPCEndpointId, "new", *vpce.VpcEndpointId)
+		r.invalidateRoute53RecordCondition(resource)
 		resource.Status.VPCEndpointId = *vpce.VpcEndpointId
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
@@ -148,6 +151,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		r.invalidateRoute53RecordCondition(resource)
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
 			return err
@@ -163,6 +167,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		r.invalidateRoute53RecordCondition(resource)
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
 			return err
@@ -188,6 +193,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 		}
 	case "rejected":
 		r.log.V(0).Info("VPC Endpoint rejected, starting deletion", "id", resource.Status.VPCEndpointId)
+		r.invalidateRoute53RecordCondition(resource)
 		if _, err := r.awsClient.DeleteVPCEndpoint(ctx, resource.Status.VPCEndpointId); err != nil {
 			var ae smithy.APIError
 			if errors.As(err, &ae) {
@@ -214,6 +220,7 @@ func (r *VpcEndpointReconciler) validateVPCEndpoint(ctx context.Context, resourc
 			Status: metav1.ConditionFalse,
 			Reason: string(vpce.State),
 		})
+		r.invalidateRoute53RecordCondition(resource)
 		if err := r.Status().Update(ctx, resource); err != nil {
 			r.log.V(0).Error(err, "failed to update status")
 			return err
@@ -395,6 +402,16 @@ func (r *VpcEndpointReconciler) validateR53HostedZoneRecord(ctx context.Context,
 	if resource == nil {
 		// Should never happen
 		return errors.New("resource must be specified")
+	}
+
+	// Skip the Route53 UPSERT when the record was already created and the VPC endpoint
+	// hasn't changed. This avoids a ChangeResourceRecordSets API call on every reconcile,
+	// which is the primary contributor to Route 53 throttling on MCs with many private HCPs.
+	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) &&
+		meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition) {
+		r.log.V(1).Info("Route53 record already created and VPC endpoint unchanged, skipping UPSERT",
+			"vpcEndpoint", resource.Name, "namespace", resource.Namespace)
+		return nil
 	}
 
 	resp, err := r.getHostedZoneCached(ctx, resource.Status.HostedZoneId)

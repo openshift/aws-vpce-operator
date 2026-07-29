@@ -60,6 +60,23 @@ type MockedRoute53 struct {
 	AvoRoute53API
 }
 
+// MockedThrottlingRoute53 returns Throttling errors for ChangeResourceRecordSets
+// to simulate Route 53 API rate limiting.
+type MockedThrottlingRoute53 struct {
+	MockedRoute53
+}
+
+func (m *MockedThrottlingRoute53) ChangeResourceRecordSets(ctx context.Context, params *route53.ChangeResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ChangeResourceRecordSetsOutput, error) {
+	return nil, &smithy.GenericAPIError{
+		Code:    "Throttling",
+		Message: "Rate exceeded",
+	}
+}
+
+func NewMockedThrottlingAwsClient() *AWSClient {
+	return NewAwsClientWithServiceClients(&MockedEC2{}, &MockedThrottlingRoute53{})
+}
+
 var mockResourceRecordSet = &route53Types.ResourceRecordSet{
 	Name: aws.String("mock"),
 	ResourceRecords: []route53Types.ResourceRecord{
@@ -386,6 +403,15 @@ func (m *MockedEC2) DescribeVpcEndpoints(ctx context.Context, params *ec2.Descri
 func (m *MockedEC2) ModifyVpcEndpoint(ctx context.Context, params *ec2.ModifyVpcEndpointInput, optFns ...func(*ec2.Options)) (*ec2.ModifyVpcEndpointOutput, error) {
 	// TODO: This is a no-op
 	return &ec2.ModifyVpcEndpointOutput{}, nil
+}
+
+func (m *MockedRoute53) GetHostedZone(ctx context.Context, params *route53.GetHostedZoneInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneOutput, error) {
+	return &route53.GetHostedZoneOutput{
+		HostedZone: &route53Types.HostedZone{
+			Id:   aws.String(MockHostedZoneId),
+			Name: aws.String("example.com."),
+		},
+	}, nil
 }
 
 func (m *MockedRoute53) ListHostedZonesByName(ctx context.Context, params *route53.ListHostedZonesByNameInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByNameOutput, error) {

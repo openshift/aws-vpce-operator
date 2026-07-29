@@ -293,12 +293,11 @@ func TestVPCEndpointReconciler_validateCustomDns_privateDns(t *testing.T) {
 				assert.Nil(t, condition, "Route53 condition should not be set when private DNS is enabled")
 			} else {
 				// When private DNS is not active, the code proceeds into Route53 validation.
-				// With the minimal mock setup, validateR53PrivateHostedZone returns nil (all fields
-				// are zero) and validateR53HostedZoneRecord calls GetHostedZone which panics on the
-				// mock. Verify the code enters the Route53 path by catching the panic.
-				assert.Panics(t, func() {
-					_ = r.validateCustomDns(context.TODO(), resource)
-				}, "expected Route53 validation to be entered (panics on unimplemented mock)")
+				// With the minimal mock setup (all spec fields zero), validateCustomDns returns
+				// nil without entering any R53 sub-path. This verifies the function doesn't
+				// short-circuit via the private DNS skip path.
+				err := r.validateCustomDns(context.TODO(), resource)
+				assert.NoError(t, err)
 			}
 		})
 	}
@@ -395,6 +394,162 @@ func Test_isVpcEndpointReady(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			assert.Equal(t, test.expected, isVpcEndpointReady(test.resource))
+		})
+	}
+}
+
+func TestValidateR53HostedZoneRecord_SkipsUpsertWhenConditionsTrue(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+			HostedZoneId:  "Z12345",
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Created",
+				},
+				{
+					Type:   avov1alpha2.AWSVpcEndpointCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "available",
+				},
+			},
+		},
+	}
+
+	r := &VpcEndpointReconciler{
+		awsClient: aws_client.NewMockedThrottlingAwsClient(),
+		log:       testr.New(t),
+	}
+
+	// Using the throttling mock: if the guard is removed, this would error with "Throttling".
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.NoError(t, err)
+}
+
+func TestValidateR53HostedZoneRecord_DoesNotSkipWhenRecordConditionFalse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+			HostedZoneId:  "Z12345",
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionFalse,
+					Reason: "VpcEndpointChanged",
+				},
+				{
+					Type:   avov1alpha2.AWSVpcEndpointCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "available",
+				},
+			},
+		},
+	}
+
+	r := &VpcEndpointReconciler{
+		awsClient: aws_client.NewMockedThrottlingAwsClient(),
+		log:       testr.New(t),
+	}
+
+	// When the record condition is False, the function should NOT skip.
+	// It proceeds to the R53 call, which returns a throttling error from the mock.
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.Error(t, err, "expected throttling error, proving skip path was not taken")
+	assert.Contains(t, err.Error(), "Throttling")
+}
+
+func TestValidateR53HostedZoneRecord_DoesNotSkipWhenVpceConditionFalse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCEndpointId: testutil.MockVpcEndpointId,
+			HostedZoneId:  "Z12345",
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Created",
+				},
+				{
+					Type:   avov1alpha2.AWSVpcEndpointCondition,
+					Status: metav1.ConditionFalse,
+					Reason: "pending",
+				},
+			},
+		},
+	}
+
+	r := &VpcEndpointReconciler{
+		awsClient: aws_client.NewMockedThrottlingAwsClient(),
+		log:       testr.New(t),
+	}
+
+	err := r.validateR53HostedZoneRecord(context.TODO(), resource)
+	assert.Error(t, err, "expected throttling error, proving skip path was not taken")
+	assert.Contains(t, err.Error(), "Throttling")
+}
+
+func TestInvalidateRoute53RecordCondition(t *testing.T) {
+	tests := []struct {
+		name        string
+		conditions  []metav1.Condition
+		expectReset bool
+	}{
+		{
+			name: "resets True condition to False",
+			conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Created",
+				},
+			},
+			expectReset: true,
+		},
+		{
+			name: "no-op when condition is already False",
+			conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionFalse,
+					Reason: "VpcEndpointChanged",
+				},
+			},
+			expectReset: false,
+		},
+		{
+			name:        "no-op when no conditions exist",
+			conditions:  []metav1.Condition{},
+			expectReset: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resource := &avov1alpha2.VpcEndpoint{
+				Status: avov1alpha2.VpcEndpointStatus{
+					Conditions: test.conditions,
+				},
+			}
+
+			r := &VpcEndpointReconciler{
+				log: testr.New(t),
+			}
+
+			r.invalidateRoute53RecordCondition(resource)
+
+			condition := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+			if test.expectReset {
+				assert.NotNil(t, condition)
+				assert.Equal(t, metav1.ConditionFalse, condition.Status)
+				assert.Equal(t, "VpcEndpointChanged", condition.Reason)
+			} else if len(test.conditions) > 0 {
+				assert.NotNil(t, condition, "existing condition should not be removed")
+				assert.Equal(t, test.conditions[0].Status, condition.Status, "condition status should be unchanged")
+			} else {
+				assert.Nil(t, condition, "no condition should be created when none existed")
+			}
 		})
 	}
 }
