@@ -986,15 +986,16 @@ func tagsContains(tags []ec2Types.Tag, tagsToCheck map[string]string) bool {
 	return true
 }
 
-// createMissingPrivateZoneTags will compare existing tags to the required set and apply if missing
-func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, id string) error {
-	// Find existing tags
+// createMissingPrivateZoneTags compares existing tags to the required set and applies if missing.
+// Sets AWSRoute53TagsCondition to True on success so subsequent reconciles skip the check.
+func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context, resource *avov1alpha2.VpcEndpoint) error {
+	id := resource.Status.HostedZoneId
+
 	listTagsOut, err := r.awsClient.FetchPrivateZoneTags(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to list zone's tags %w", err)
 	}
 
-	// Generate default tags to compare against
 	generatedDefaultTagInput, err := r.awsClient.GenerateDefaultTagsForHostedZoneInput(id, r.clusterInfo.clusterTag)
 	if err != nil {
 		return fmt.Errorf("failed to generate hosted zone's default tags %w", err)
@@ -1012,6 +1013,17 @@ func (r *VpcEndpointReconciler) createMissingPrivateZoneTags(ctx context.Context
 				return fmt.Errorf("failed tag hosted zone with default tags %w", err)
 			}
 		}
+	}
+
+	meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+		Type:    avov1alpha2.AWSRoute53TagsCondition,
+		Status:  metav1.ConditionTrue,
+		Reason:  "TagsVerified",
+		Message: "Route53 hosted zone tags are correct",
+	})
+	if err := r.Status().Update(ctx, resource); err != nil {
+		r.log.V(0).Error(err, "failed to update tags condition status")
+		return err
 	}
 
 	return nil
@@ -1082,6 +1094,14 @@ func (r *VpcEndpointReconciler) invalidateRoute53RecordCondition(resource *avov1
 			Status:  metav1.ConditionFalse,
 			Reason:  "VpcEndpointChanged",
 			Message: "VPC endpoint is no longer available, Route53 record will be re-created",
+		})
+	}
+	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53TagsCondition) {
+		meta.SetStatusCondition(&resource.Status.Conditions, metav1.Condition{
+			Type:    avov1alpha2.AWSRoute53TagsCondition,
+			Status:  metav1.ConditionFalse,
+			Reason:  "VpcEndpointChanged",
+			Message: "VPC endpoint is no longer available, tags will be re-verified",
 		})
 	}
 }

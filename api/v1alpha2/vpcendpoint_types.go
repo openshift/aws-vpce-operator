@@ -305,6 +305,7 @@ const (
 	AWSSecurityGroupCondition    = "AWSSecurityGroupReady"
 	ExternalNameServiceCondition = "ExternalNameServiceReady"
 	AWSRoute53RecordCondition    = "AWSRoute53RecordReady"
+	AWSRoute53TagsCondition      = "AWSRoute53TagsReady"
 )
 
 // VpcEndpointStatus defines the observed state of VpcEndpoint
