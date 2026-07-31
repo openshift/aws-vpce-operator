@@ -29,6 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+	ctrlclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestVPCEndpointReconciler_validateSecurityGroup(t *testing.T) {
@@ -552,6 +553,132 @@ func TestInvalidateRoute53RecordCondition(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInvalidateRoute53RecordCondition_AlsoResetsTagsCondition(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		Status: avov1alpha2.VpcEndpointStatus{
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53RecordCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "Created",
+				},
+				{
+					Type:   avov1alpha2.AWSRoute53TagsCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "TagsVerified",
+				},
+			},
+		},
+	}
+
+	r := &VpcEndpointReconciler{
+		log: testr.New(t),
+	}
+
+	r.invalidateRoute53RecordCondition(resource)
+
+	recordCond := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+	assert.NotNil(t, recordCond)
+	assert.Equal(t, metav1.ConditionFalse, recordCond.Status)
+
+	tagsCond := meta.FindStatusCondition(resource.Status.Conditions, avov1alpha2.AWSRoute53TagsCondition)
+	assert.NotNil(t, tagsCond)
+	assert.Equal(t, metav1.ConditionFalse, tagsCond.Status)
+	assert.Equal(t, "VpcEndpointChanged", tagsCond.Reason)
+}
+
+func TestValidateR53PrivateHostedZone_SkipsTagsWhenConditionTrue(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-tags-skip",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainName: "example.com",
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			HostedZoneId: aws_client.MockHostedZoneId,
+			VPCId:        aws_client.MockVpcId,
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53TagsCondition,
+					Status: metav1.ConditionTrue,
+					Reason: "TagsVerified",
+				},
+			},
+		},
+	}
+
+	r := &VpcEndpointReconciler{
+		awsClient: aws_client.NewMockedThrottlingAwsClient(),
+		log:       testr.New(t),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	// DomainName path with AWSRoute53TagsCondition=True should skip
+	// createMissingPrivateZoneTags entirely. The throttling mock's
+	// ListTagsForResource would error if called, proving the skip works.
+	err := r.validateR53PrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+}
+
+func TestValidateR53PrivateHostedZone_CallsTagsWhenConditionFalse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-tags-noskip",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainName: "example.com",
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			HostedZoneId: aws_client.MockHostedZoneId,
+			VPCId:        aws_client.MockVpcId,
+			Conditions: []metav1.Condition{
+				{
+					Type:   avov1alpha2.AWSRoute53TagsCondition,
+					Status: metav1.ConditionFalse,
+					Reason: "VpcEndpointChanged",
+				},
+			},
+		},
+	}
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: aws_client.NewMockedAwsClient(),
+		log:       testr.New(t),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	// DomainName path with AWSRoute53TagsCondition=False should call
+	// createMissingPrivateZoneTags and set the condition to True.
+	err := r.validateR53PrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	// Re-read from the fake API server to get the updated status
+	updated := &avov1alpha2.VpcEndpoint{}
+	assert.NoError(t, r.Get(context.TODO(), ctrlclient.ObjectKeyFromObject(resource), updated))
+
+	tagsCond := meta.FindStatusCondition(updated.Status.Conditions, avov1alpha2.AWSRoute53TagsCondition)
+	assert.NotNil(t, tagsCond)
+	assert.Equal(t, metav1.ConditionTrue, tagsCond.Status, "AWSRoute53TagsCondition should be set to True after tag verification")
 }
 
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {

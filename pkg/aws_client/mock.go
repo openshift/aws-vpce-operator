@@ -408,7 +408,7 @@ func (m *MockedEC2) ModifyVpcEndpoint(ctx context.Context, params *ec2.ModifyVpc
 func (m *MockedRoute53) GetHostedZone(ctx context.Context, params *route53.GetHostedZoneInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneOutput, error) {
 	return &route53.GetHostedZoneOutput{
 		HostedZone: &route53Types.HostedZone{
-			Id:   aws.String(MockHostedZoneId),
+			Id:   aws.String("/hostedzone/" + MockHostedZoneId),
 			Name: aws.String("example.com."),
 		},
 	}, nil
@@ -435,4 +435,27 @@ func (m *MockedRoute53) ListResourceRecordSets(ctx context.Context, params *rout
 
 func (m *MockedRoute53) ChangeResourceRecordSets(ctx context.Context, params *route53.ChangeResourceRecordSetsInput, optFns ...func(*route53.Options)) (*route53.ChangeResourceRecordSetsOutput, error) {
 	return &route53.ChangeResourceRecordSetsOutput{}, nil
+}
+
+func (m *MockedRoute53) ListTagsForResource(ctx context.Context, params *route53.ListTagsForResourceInput, optFns ...func(*route53.Options)) (*route53.ListTagsForResourceOutput, error) {
+	return &route53.ListTagsForResourceOutput{
+		ResourceTagSet: &route53Types.ResourceTagSet{
+			Tags: []route53Types.Tag{},
+		},
+	}, nil
+}
+
+func (m *MockedRoute53) ListHostedZonesByVPC(ctx context.Context, params *route53.ListHostedZonesByVPCInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByVPCOutput, error) {
+	return &route53.ListHostedZonesByVPCOutput{
+		HostedZoneSummaries: []route53Types.HostedZoneSummary{
+			{
+				HostedZoneId: aws.String(MockHostedZoneId),
+				Name:         aws.String("example.com."),
+			},
+		},
+	}, nil
+}
+
+func (m *MockedRoute53) ChangeTagsForResource(ctx context.Context, params *route53.ChangeTagsForResourceInput, optFns ...func(*route53.Options)) (*route53.ChangeTagsForResourceOutput, error) {
+	return &route53.ChangeTagsForResourceOutput{}, nil
 }

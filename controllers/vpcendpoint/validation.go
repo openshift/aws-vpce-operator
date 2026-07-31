@@ -334,8 +334,10 @@ func (r *VpcEndpointReconciler) validateR53PrivateHostedZone(ctx context.Context
 			return err
 		}
 
-		if err := r.createMissingPrivateZoneTags(ctx, resource.Status.HostedZoneId); err != nil {
-			return err
+		if !meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53TagsCondition) {
+			if err := r.createMissingPrivateZoneTags(ctx, resource); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

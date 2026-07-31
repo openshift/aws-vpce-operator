@@ -28,6 +28,7 @@ import (
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -158,6 +159,17 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		}); err != nil {
 		awsUnauthorizedOperationMetricHandler(err)
 		vpceNotReadySeconds.WithLabelValues(vpce.Name, vpce.Namespace).Set(time.Since(vpce.CreationTimestamp.Time).Seconds())
+
+		// When the VPC endpoint is available but the DNS record hasn't been created yet,
+		// use a fixed 1-minute retry instead of exponential backoff (which grows to 83 minutes).
+		// This only applies when the failure is in the DNS/R53 validation stage, not when
+		// security group or VPC endpoint creation itself has failed.
+		if meta.IsStatusConditionTrue(vpce.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition) &&
+			!meta.IsStatusConditionTrue(vpce.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
+			r.log.V(0).Info("VPC endpoint ready but DNS record not yet created, retrying in 1 minute",
+				"vpcEndpoint", vpce.Name, "namespace", vpce.Namespace, "error", err.Error())
+			return ctrl.Result{RequeueAfter: time.Minute}, nil
+		}
 
 		return ctrl.Result{}, err
 	}

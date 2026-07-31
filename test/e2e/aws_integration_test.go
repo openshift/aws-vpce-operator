@@ -6,7 +6,9 @@ package osde2etests
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -487,6 +489,69 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 			By("verifying all expected conditions are set")
 			Expect(meta.FindStatusCondition(readyVpce.Status.Conditions, avov1alpha2.AWSVpcEndpointCondition)).ToNot(BeNil())
 			Expect(meta.FindStatusCondition(readyVpce.Status.Conditions, avov1alpha2.AWSSecurityGroupCondition)).ToNot(BeNil())
+		})
+	})
+
+	// Test Suite 10: Route53 condition caching (ROSAENG-62993)
+	Describe("Route53 condition caching", Ordered, func() {
+		const vpceName = "e2e-r53-caching"
+		var readyVpce *avov1alpha2.VpcEndpoint
+
+		BeforeAll(func(ctx context.Context) {
+			cleanupLeftover(ctx, c, vpceName, ns)
+			vpce := buildVpcEndpoint(vpceName, ns, testServiceName(helper.region, "r53cache"))
+			Expect(c.Create(ctx, vpce)).To(Succeed())
+		})
+
+		AfterAll(func(ctx context.Context) {
+			deleteVpceAndWait(ctx, c, vpceName, ns)
+		})
+
+		It("should set Route53 conditions after initial reconciliation", func(ctx context.Context) {
+			readyVpce = waitForVpceReady(ctx, c, vpceName, ns)
+
+			By("verifying AWSRoute53TagsReady condition is set")
+			waitForConditionTrue(ctx, c, vpceName, ns, avov1alpha2.AWSRoute53TagsCondition)
+
+			By("verifying AWSRoute53RecordReady condition is set")
+			waitForConditionTrue(ctx, c, vpceName, ns, avov1alpha2.AWSRoute53RecordCondition)
+		})
+
+		It("should preserve Route53 conditions across re-reconcile", func(ctx context.Context) {
+			Expect(readyVpce).ToNot(BeNil(), "readyVpce must be set from previous test")
+
+			By("recording resourceVersion before triggering re-reconcile")
+			current := &avov1alpha2.VpcEndpoint{}
+			Expect(c.Get(ctx, client.ObjectKey{Name: vpceName, Namespace: ns}, current)).To(Succeed())
+			rvBefore := current.ResourceVersion
+
+			By("triggering a re-reconcile via annotation (preserving existing annotations)")
+			if current.Annotations == nil {
+				current.Annotations = map[string]string{}
+			}
+			current.Annotations["e2e-reconcile-trigger"] = fmt.Sprintf("%d", time.Now().Unix())
+			Expect(c.Update(ctx, current)).To(Succeed())
+
+			By("waiting for reconciliation to complete (resourceVersion changes)")
+			Eventually(func(g Gomega) {
+				obj := &avov1alpha2.VpcEndpoint{}
+				g.Expect(c.Get(ctx, client.ObjectKey{Name: vpceName, Namespace: ns}, obj)).To(Succeed())
+				g.Expect(obj.ResourceVersion).ToNot(Equal(rvBefore), "resourceVersion should change after reconcile")
+			}, 2*time.Minute, 5*time.Second).Should(Succeed())
+
+			By("verifying conditions remain True")
+			after := &avov1alpha2.VpcEndpoint{}
+			Expect(c.Get(ctx, client.ObjectKey{Name: vpceName, Namespace: ns}, after)).To(Succeed())
+
+			recordCond := meta.FindStatusCondition(after.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition)
+			Expect(recordCond).ToNot(BeNil())
+			Expect(recordCond.Status).To(Equal(metav1.ConditionTrue),
+				"AWSRoute53RecordReady should remain True after re-reconcile")
+
+			tagsCond := meta.FindStatusCondition(after.Status.Conditions, avov1alpha2.AWSRoute53TagsCondition)
+			Expect(tagsCond).ToNot(BeNil())
+			Expect(tagsCond.Status).To(Equal(metav1.ConditionTrue),
+				"AWSRoute53TagsReady should remain True after re-reconcile")
 		})
 	})
 })
