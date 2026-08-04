@@ -681,6 +681,45 @@ func TestValidateR53PrivateHostedZone_CallsTagsWhenConditionFalse(t *testing.T) 
 	assert.Equal(t, metav1.ConditionTrue, tagsCond.Status, "AWSRoute53TagsCondition should be set to True after tag verification")
 }
 
+func TestFindOrCreatePrivateHostedZone_ReusesExistingZone(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-duplicate-zone",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainName: "example.com",
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCId: aws_client.MockVpcId,
+		},
+	}
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: aws_client.NewMockedAwsClient(),
+		log:       testr.New(t),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	// The mock's ListHostedZonesByVPC returns no matching zone (different name),
+	// but ListHostedZonesByName returns an existing zone with the same domain.
+	// The function should detect the duplicate and reuse instead of creating.
+	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+
+	// The zone ID should be set from the existing zone found by ListHostedZonesByName
+	assert.NotEmpty(t, resource.Status.HostedZoneId, "HostedZoneId should be set from existing zone")
+}
+
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {
 //	tests := []struct {
 //		name       string

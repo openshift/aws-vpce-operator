@@ -884,7 +884,28 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 			}
 		}
 
-		// Otherwise, create one
+		// Before creating, check if a zone with the same domain name already exists
+		// (from a previous cluster that wasn't cleaned up). ListHostedZonesByName
+		// finds zones regardless of VPC association, unlike ListHostedZonesByVPC.
+		existingZones, err := r.awsClient.ListHostedZonesByName(ctx, domainName)
+		if err != nil {
+			return fmt.Errorf("failed to check for existing hosted zones by name: %w", err)
+		}
+		for _, hz := range existingZones.HostedZones {
+			if strings.TrimRight(*hz.Name, ".") == domainName && hz.Config != nil && hz.Config.PrivateZone {
+				r.log.V(0).Info("Found existing private hosted zone with same domain name, reusing instead of creating duplicate",
+					"hostedZoneId", *hz.Id, "domainName", domainName)
+				if _, err := fmt.Sscanf(*hz.Id, "/hostedzone/%s", &resource.Status.HostedZoneId); err != nil {
+					resource.Status.HostedZoneId = *hz.Id
+				}
+				if err := r.Status().Update(ctx, resource); err != nil {
+					return fmt.Errorf("failed to update status: %w", err)
+				}
+				return nil
+			}
+		}
+
+		// No existing zone found, create one
 		createResp, err := r.awsClient.CreateHostedZone(ctx, domainName, resource.Status.VPCId, r.clusterInfo.region)
 		if err != nil {
 			return fmt.Errorf("failed to create hosted zone: %w", err)

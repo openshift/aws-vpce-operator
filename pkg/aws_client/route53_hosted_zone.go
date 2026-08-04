@@ -61,6 +61,14 @@ func (c *AWSClient) ListHostedZonesByVPC(ctx context.Context, vpc, region string
 	return c.route53Client.ListHostedZonesByVPC(ctx, input)
 }
 
+// ListHostedZonesByName returns hosted zones that match a given DNS name.
+// Used to detect duplicate zones for the same domain before creating a new one.
+func (c *AWSClient) ListHostedZonesByName(ctx context.Context, dnsName string) (*route53.ListHostedZonesByNameOutput, error) {
+	return c.route53Client.ListHostedZonesByName(ctx, &route53.ListHostedZonesByNameInput{
+		DNSName: aws.String(dnsName),
+	})
+}
+
 // ListResourceRecordSets returns a list of records for a given hosted zone ID
 func (c *AWSClient) ListResourceRecordSets(ctx context.Context, hostedZoneId string) (*route53.ListResourceRecordSetsOutput, error) {
 	input := &route53.ListResourceRecordSetsInput{

@@ -19,6 +19,7 @@ package vpcendpoint
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/aws/smithy-go"
@@ -26,6 +27,7 @@ import (
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/controllers/util"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
+	"github.com/openshift/aws-vpce-operator/pkg/secrets"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -81,6 +83,8 @@ type clusterInfo struct {
 func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	r.log = ctrllog.FromContext(ctx).WithName("controller").WithName(ControllerName)
 
+	r.awsClient = nil
+
 	vpce := new(avov1alpha2.VpcEndpoint)
 	if err := r.Get(ctx, req.NamespacedName, vpce); err != nil {
 		// Ignore not-found errors, since they can't be fixed by an immediate
@@ -88,9 +92,41 @@ func (r *VpcEndpointReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	isDeleting := !vpce.DeletionTimestamp.IsZero()
 	if err := r.parseClusterInfo(ctx, vpce, true); err != nil {
-		awsUnauthorizedOperationMetricHandler(err)
-		return ctrl.Result{}, err
+		if isDeleting {
+			// During deletion, HCP resources (HostedControlPlane, AWSEndpointService) may
+			// already be torn down. Attempt cleanup with cached status values if the AWS
+			// client was successfully established.
+			r.log.V(0).Info("parseClusterInfo failed during deletion, attempting cleanup with cached values",
+				"vpcEndpoint", vpce.Name, "namespace", vpce.Namespace, "error", err.Error())
+			vpceCleanupFailure.WithLabelValues("ParseClusterInfoDegraded").Inc()
+			// Re-establish AWS client for this resource if parseClusterInfo failed
+			// before creating one. Cannot reuse a client from a previous reconcile
+			// as it may target a different AWS account or region.
+			if vpce.Spec.AWSCredentialOverrideRef != nil {
+				region := vpce.Spec.Region
+				if region == "" {
+					r.log.V(0).Error(err, "Cannot determine region for AWS client during cleanup: Spec.Region is empty and Infrastructure CR is unavailable")
+					vpceCleanupFailure.WithLabelValues("AWSClientNotEstablished").Inc()
+					return ctrl.Result{}, fmt.Errorf("cannot establish AWS client for cleanup: region unavailable (Infrastructure CR gone and .spec.region not set)")
+				}
+				cfg, credErr := secrets.ParseAWSCredentialOverride(ctx, r.APIReader, region, vpce.Spec.AWSCredentialOverrideRef)
+				if credErr != nil {
+					r.log.V(0).Error(credErr, "Cannot establish AWS client for cleanup")
+					vpceCleanupFailure.WithLabelValues("AWSClientNotEstablished").Inc()
+					return ctrl.Result{}, credErr
+				}
+				r.awsClient = aws_client.NewAwsClient(cfg)
+			} else if r.awsClient == nil {
+				r.log.V(0).Error(err, "Cannot clean up AWS resources: AWS client not established")
+				vpceCleanupFailure.WithLabelValues("AWSClientNotEstablished").Inc()
+				return ctrl.Result{}, err
+			}
+		} else {
+			awsUnauthorizedOperationMetricHandler(err)
+			return ctrl.Result{}, err
+		}
 	}
 
 	if vpce.DeletionTimestamp.IsZero() {
