@@ -49,9 +49,14 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 		resource.Status.VPCEndpointId, resource.Status.SecurityGroupId, resource.Status.HostedZoneId)
 
 	if meta.IsStatusConditionTrue(resource.Status.Conditions, avov1alpha2.AWSRoute53RecordCondition) {
-		// Ensure .status.hostedZoneId is populated
-		if err := r.validateR53PrivateHostedZone(ctx, resource); err != nil {
-			return err
+		// Ensure .status.hostedZoneId is populated. During deletion, skip the live
+		// validation if the hosted zone ID is already cached in status, since the
+		// HostedControlPlane resources needed by validateR53PrivateHostedZone may
+		// already be torn down.
+		if resource.Status.HostedZoneId == "" {
+			if err := r.validateR53PrivateHostedZone(ctx, resource); err != nil {
+				return err
+			}
 		}
 
 		// HostedZoneId and resourceRecord are required if we want to clean up a ResourceRecordSet
@@ -106,13 +111,27 @@ func (r *VpcEndpointReconciler) cleanupAwsResources(ctx context.Context, resourc
 			dnsConfig := &configv1.DNS{}
 			err := r.Get(ctx, client.ObjectKey{Name: dnses.DefaultDnsesName}, dnsConfig)
 			if err != nil {
-				return err
+				// During HCP cluster deletion, the DNS CR may be unavailable.
+				// For HCP VpcEndpoints (DomainNameRef set), the domain is always
+				// cluster-specific and safe to delete. For DomainName-based CRs,
+				// we can't verify safety without the DNS CR, so skip deletion.
+				if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef != nil &&
+					resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil &&
+					resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.HostedControlPlaneRef != nil {
+					r.log.V(0).Info("DNS CR unavailable during HCP deletion, proceeding with zone cleanup",
+						"hostedZoneId", resource.Status.HostedZoneId)
+				} else {
+					return err
+				}
 			}
 
 			// Safeguard against users supplying the cluster's domain name in a VPCE. We do not want to delete this
 			// Route53 Hosted Zone in this case, even though the "correct" usage of the API would be to use
 			// autoDiscoverPrivateHostedZone: true
-			if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName != dnsConfig.Spec.BaseDomain {
+			if err == nil && resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName == dnsConfig.Spec.BaseDomain {
+				r.log.V(0).Info("Skipping hosted zone deletion: domain matches cluster base domain",
+					"hostedZoneId", resource.Status.HostedZoneId)
+			} else {
 				if _, err := r.awsClient.DeleteHostedZone(ctx, resource.Status.HostedZoneId); err != nil {
 					var ae smithy.APIError
 					if errors.As(err, &ae) {
