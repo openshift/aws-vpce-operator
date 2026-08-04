@@ -8,7 +8,7 @@ COPY . .
 RUN make go-build
 
 ###
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.8-1785777232
+FROM registry.access.redhat.com/ubi9/ubi-minimal:1785339196
 
 ENV USER_UID=1001 \
     USER_NAME=aws-vpce-operator
