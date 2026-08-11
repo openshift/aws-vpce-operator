@@ -148,6 +148,9 @@ func buildMCHCP(clusterID, name, namespace string, endpointAccess hyperv1beta1.A
 					EndpointAccess: endpointAccess,
 				},
 			},
+			Networking: hyperv1beta1.ClusterNetworking{
+				NetworkType: hyperv1beta1.OVNKubernetes,
+			},
 			IssuerURL:  "https://kubernetes.default.svc",
 			PullSecret: corev1.LocalObjectReference{Name: "pull-secret"},
 			SSHKey:     corev1.LocalObjectReference{Name: "ssh-key"},
