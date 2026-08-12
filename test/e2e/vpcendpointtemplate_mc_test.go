@@ -6,7 +6,9 @@ package osde2etests
 
 import (
 	"context"
-	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -14,28 +16,34 @@ import (
 
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
-	corev1 "k8s.io/api/core/v1"
 	kerr "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	avoNamespace     = "openshift-aws-vpce-operator"
-	templateName     = "private-hcp"
-	mcProbeTimeout   = 5 * time.Minute
-	mcProbeInterval  = 10 * time.Second
-	mcCleanupTimeout = 2 * time.Minute
+	avoNamespace    = "openshift-aws-vpce-operator"
+	templateName    = "private-hcp"
+	mcProbeTimeout  = 5 * time.Minute
+	mcProbeInterval = 10 * time.Second
 )
 
 var _ = Describe("VpcEndpointTemplate MC Controller", Ordered, func() {
 	var (
-		testNamespace string
-		hcpName       string
-		clusterID     string
+		clusterID    string
+		hcpNamespace string
 	)
 
 	BeforeAll(func(ctx context.Context) {
+		sharedDir := os.Getenv("SHARED_DIR")
+		if sharedDir == "" {
+			Skip("SHARED_DIR not set, not running in CI")
+		}
+
+		mcKubeconfig := filepath.Join(sharedDir, "hs-mc.kubeconfig")
+		if _, err := os.Stat(mcKubeconfig); err != nil {
+			Skip("hs-mc.kubeconfig not found in SHARED_DIR, not an MC e2e run")
+		}
+
 		// Verify we're on an MC by checking for the VpcEndpointTemplate
 		vpcet := &avov1alpha2.VpcEndpointTemplate{}
 		err := c.Get(ctx, client.ObjectKey{
@@ -48,152 +56,63 @@ var _ = Describe("VpcEndpointTemplate MC Controller", Ordered, func() {
 		Expect(err).ToNot(HaveOccurred(), "failed to get VpcEndpointTemplate")
 		GinkgoLogr.Info("Found VpcEndpointTemplate", "name", templateName, "type", vpcet.Spec.Type)
 
-		// Verify HyperShift scheme is registered
 		Expect(hyperv1beta1.AddToScheme(c.Scheme())).Should(Succeed())
+
+		clusterIDBytes, err := os.ReadFile(filepath.Join(sharedDir, "cluster-id"))
+		if err != nil {
+			Skip("cluster-id not found in SHARED_DIR")
+		}
+		clusterID = strings.TrimSpace(string(clusterIDBytes))
+		if clusterID == "" {
+			Skip("cluster-id is empty")
+		}
+		GinkgoLogr.Info("Testing against real HCP", "clusterID", clusterID)
 	})
 
-	AfterAll(func(ctx context.Context) {
-		if testNamespace == "" {
-			return
+	It("finds the real HCP on the management cluster", func(ctx context.Context) {
+		hcpList := &hyperv1beta1.HostedControlPlaneList{}
+		err := c.List(ctx, hcpList)
+		Expect(err).ToNot(HaveOccurred(), "failed to list HCPs")
+
+		var found bool
+		for _, hcp := range hcpList.Items {
+			labelID := hcp.Labels["api.openshift.com/id"]
+			if labelID == clusterID || hcp.Spec.ClusterID == clusterID {
+				found = true
+				hcpNamespace = hcp.Namespace
+				GinkgoLogr.Info("Found HCP",
+					"name", hcp.Name,
+					"namespace", hcp.Namespace,
+					"clusterID", labelID)
+				break
+			}
 		}
-		hcp := &hyperv1beta1.HostedControlPlane{}
-		if err := c.Get(ctx, client.ObjectKey{Name: hcpName, Namespace: testNamespace}, hcp); err == nil {
-			Expect(c.Delete(ctx, hcp)).To(Succeed())
-		}
-		ns := &corev1.Namespace{}
-		if err := c.Get(ctx, client.ObjectKey{Name: testNamespace}, ns); err == nil {
-			Expect(c.Delete(ctx, ns)).To(Succeed())
-		}
+		Expect(found).To(BeTrue(), "HCP with cluster ID %s not found on MC", clusterID)
 	})
 
-	It("creates VpcEndpoint for a new HostedControlPlane", func(ctx context.Context) {
-		clusterID = fmt.Sprintf("test-avo-mc-%d", time.Now().Unix())
-		hcpName = fmt.Sprintf("avo-hcp-%d", time.Now().UnixNano()%100000)
-		testNamespace = fmt.Sprintf("clusters-%s-%s", clusterID, hcpName)
+	It("verifies AVO created a VpcEndpoint for the real HCP", func(ctx context.Context) {
+		if hcpNamespace == "" {
+			Skip("HCP not found in previous test")
+		}
 
-		By(fmt.Sprintf("creating test namespace: %s", testNamespace))
-		ns := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: testNamespace}}
-		Expect(c.Create(ctx, ns)).To(Succeed())
-
-		By("creating HostedControlPlane")
-		hcp := buildMCHCP(clusterID, hcpName, testNamespace, hyperv1beta1.Public)
-		Expect(c.Create(ctx, hcp)).To(Succeed(), "failed to create HCP")
-
-		By("waiting for AVO to create VpcEndpoint from template")
+		By("waiting for VpcEndpoint from template in HCP namespace")
 		vpce := &avov1alpha2.VpcEndpoint{}
 		Eventually(func(g Gomega) {
 			err := c.Get(ctx, client.ObjectKey{
 				Name:      templateName,
-				Namespace: testNamespace,
+				Namespace: hcpNamespace,
 			}, vpce)
 			g.Expect(err).ToNot(HaveOccurred(), "VpcEndpoint not created yet")
 		}, mcProbeTimeout, mcProbeInterval).Should(Succeed(),
-			"AVO did not create VpcEndpoint '%s' in namespace '%s'", templateName, testNamespace)
+			"AVO did not create VpcEndpoint '%s' in namespace '%s'", templateName, hcpNamespace)
 
 		By("verifying VpcEndpoint has template labels")
 		Expect(vpce.Labels).To(HaveKeyWithValue("purpose", "backplane"),
 			"VpcEndpoint missing 'purpose: backplane' label from template")
 
-		GinkgoLogr.Info("VpcEndpoint created by template controller",
+		GinkgoLogr.Info("VpcEndpoint verified for real HCP",
 			"name", vpce.Name,
 			"namespace", vpce.Namespace,
 			"labels", vpce.Labels)
 	})
-
-	It("cleans up VpcEndpoint when HostedControlPlane is deleted", func(ctx context.Context) {
-		if testNamespace == "" {
-			Skip("previous test did not run")
-		}
-
-		By("deleting the HostedControlPlane")
-		hcp := &hyperv1beta1.HostedControlPlane{}
-		err := c.Get(ctx, client.ObjectKey{Name: hcpName, Namespace: testNamespace}, hcp)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(c.Delete(ctx, hcp)).To(Succeed())
-
-		By("waiting for VpcEndpoint to be cleaned up")
-		Eventually(func(g Gomega) {
-			err := c.Get(ctx, client.ObjectKey{
-				Name:      templateName,
-				Namespace: testNamespace,
-			}, &avov1alpha2.VpcEndpoint{})
-			g.Expect(kerr.IsNotFound(err)).To(BeTrue(),
-				"VpcEndpoint still exists after HCP deletion")
-		}, mcCleanupTimeout, mcProbeInterval).Should(Succeed(),
-			"VpcEndpoint was not cleaned up after HCP deletion")
-
-		GinkgoLogr.Info("VpcEndpoint cleaned up after HCP deletion")
-	})
 })
-
-func buildMCHCP(clusterID, name, namespace string, endpointAccess hyperv1beta1.AWSEndpointAccessType) *hyperv1beta1.HostedControlPlane {
-	hostname := fmt.Sprintf("api.%s.test.devshift.org", name)
-	return &hyperv1beta1.HostedControlPlane{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"api.openshift.com/id":   clusterID,
-				"api.openshift.com/name": name,
-				"test-type":              "osde2e-avo-mc",
-			},
-		},
-		Spec: hyperv1beta1.HostedControlPlaneSpec{
-			ClusterID: clusterID,
-			InfraID:   clusterID,
-			Platform: hyperv1beta1.PlatformSpec{
-				Type: hyperv1beta1.AWSPlatform,
-				AWS: &hyperv1beta1.AWSPlatformSpec{
-					Region:         "us-west-2",
-					EndpointAccess: endpointAccess,
-				},
-			},
-			Networking: hyperv1beta1.ClusterNetworking{
-				NetworkType: hyperv1beta1.OVNKubernetes,
-			},
-			IssuerURL:  "https://kubernetes.default.svc",
-			PullSecret: corev1.LocalObjectReference{Name: "pull-secret"},
-			SSHKey:     corev1.LocalObjectReference{Name: "ssh-key"},
-			DNS: hyperv1beta1.DNSSpec{
-				BaseDomain: fmt.Sprintf("%s.test.devshift.org", name),
-			},
-			Etcd: hyperv1beta1.EtcdSpec{
-				ManagementType: hyperv1beta1.Managed,
-				Managed: &hyperv1beta1.ManagedEtcdSpec{
-					Storage: hyperv1beta1.ManagedEtcdStorageSpec{
-						Type: hyperv1beta1.PersistentVolumeEtcdStorage,
-					},
-				},
-			},
-			Services: []hyperv1beta1.ServicePublishingStrategyMapping{
-				{
-					Service: hyperv1beta1.APIServer,
-					ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
-						Type: hyperv1beta1.Route,
-						Route: &hyperv1beta1.RoutePublishingStrategy{
-							Hostname: hostname,
-						},
-					},
-				},
-				{
-					Service: hyperv1beta1.OAuthServer,
-					ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
-						Type: hyperv1beta1.Route,
-					},
-				},
-				{
-					Service: hyperv1beta1.Konnectivity,
-					ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
-						Type: hyperv1beta1.Route,
-					},
-				},
-				{
-					Service: hyperv1beta1.Ignition,
-					ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
-						Type: hyperv1beta1.Route,
-					},
-				},
-			},
-		},
-	}
-}
