@@ -131,7 +131,7 @@ spec:
 
 ## FedRAMP Cluster Deployments
 
-AVO is currently deployed to all FedRAMP clusters through App Interface using the template in this repo and OLM. To ensure clusters are automatically configured for Splunk log forwarding, a VPC Endpoint is created on all clusters using [Managed Cluster Config](https://github.com/openshift/managed-cluster-config/tree/master/deploy/osd-avo-resources/fedramp-vpc-endpoints).
+AVO is deployed to FedRAMP/GovCloud through Package Operator (PKO), using Hives and App Interface separate from the commercial environment. The legacy OLM `SelectorSyncSet` path is no longer used for FedRAMP/GovCloud operator delivery. To ensure clusters are automatically configured for Splunk log forwarding, a VPC Endpoint is created on all clusters using [Managed Cluster Config](https://github.com/openshift/managed-cluster-config/tree/master/deploy/osd-avo-resources/fedramp-vpc-endpoints).
 
 Tangentially, AVO has a Namespace file in the FedRAMP App Interface to manage other crucial configurations:
 
