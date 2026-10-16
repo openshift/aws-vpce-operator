@@ -1,10 +1,8 @@
 reviewers:
-- dustman9000
-- robotmaxtron
-- sam-nguyen7
-- theautoroboto
-- srep-functional-team-aurora
-approvers:
-- dustman9000
-- srep-functional-team-aurora
 - rosa-staff-engineers
+- rosa-hcp-platform-staff-engineers
+- rosa-hcp-platform-core-team
+approvers:
+- rosa-staff-engineers
+- rosa-hcp-platform-staff-engineers
+- rosa-hcp-platform-core-team
