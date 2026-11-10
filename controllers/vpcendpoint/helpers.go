@@ -887,21 +887,32 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		// Before creating, check if a zone with the same domain name already exists
 		// (from a previous cluster that wasn't cleaned up). ListHostedZonesByName
 		// finds zones regardless of VPC association, unlike ListHostedZonesByVPC.
-		existingZones, err := r.awsClient.ListHostedZonesByName(ctx, domainName)
-		if err != nil {
-			return fmt.Errorf("failed to check for existing hosted zones by name: %w", err)
-		}
-		for _, hz := range existingZones.HostedZones {
-			if strings.TrimRight(*hz.Name, ".") == domainName && hz.Config != nil && hz.Config.PrivateZone {
-				r.log.V(0).Info("Found existing private hosted zone with same domain name, reusing instead of creating duplicate",
-					"hostedZoneId", *hz.Id, "domainName", domainName)
-				if _, err := fmt.Sscanf(*hz.Id, "/hostedzone/%s", &resource.Status.HostedZoneId); err != nil {
-					resource.Status.HostedZoneId = *hz.Id
+		//
+		// This by-name reuse is only safe when the domain was derived from DomainNameRef
+		// (HCP HostedControlPlaneRef or DnsRef), which yields a cluster-unique domain that
+		// cannot collide across clusters in the same AWS account. For the literal
+		// spec...DomainName field, a shared service domain (e.g. FedRAMP/GovCloud
+		// PrivateLink endpoints) can legitimately exist once per cluster/VPC within a single
+		// account. Reusing one by name alone would hijack a sibling cluster's zone (and
+		// never associates this cluster's VPC, so the adopted zone wouldn't even be usable).
+		// In that case, skip reuse and fall through to create our own VPC-associated zone.
+		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName == "" {
+			existingZones, err := r.awsClient.ListHostedZonesByName(ctx, domainName)
+			if err != nil {
+				return fmt.Errorf("failed to check for existing hosted zones by name: %w", err)
+			}
+			for _, hz := range existingZones.HostedZones {
+				if strings.TrimRight(*hz.Name, ".") == domainName && hz.Config != nil && hz.Config.PrivateZone {
+					r.log.V(0).Info("Found existing private hosted zone with same domain name, reusing instead of creating duplicate",
+						"hostedZoneId", *hz.Id, "domainName", domainName)
+					if _, err := fmt.Sscanf(*hz.Id, "/hostedzone/%s", &resource.Status.HostedZoneId); err != nil {
+						resource.Status.HostedZoneId = *hz.Id
+					}
+					if err := r.Status().Update(ctx, resource); err != nil {
+						return fmt.Errorf("failed to update status: %w", err)
+					}
+					return nil
 				}
-				if err := r.Status().Update(ctx, resource); err != nil {
-					return fmt.Errorf("failed to update status: %w", err)
-				}
-				return nil
 			}
 		}
 
