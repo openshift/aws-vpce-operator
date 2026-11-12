@@ -554,4 +554,71 @@ var _ = Describe("aws-vpce-operator AWS integration", func() {
 				"AWSRoute53TagsReady should remain True after re-reconcile")
 		})
 	})
+
+	// Test Suite 11: Shared-domain zone hijack guard (ROSAENG-75237)
+	//
+	// A same-named private hosted zone owned by a *different* VPC must not be adopted.
+	// The operator must resolve/create its own zone, associated with the cluster's VPC,
+	// and must never write into the decoy.
+	Describe("Shared-domain zone hijack guard", Ordered, func() {
+		// assertDecoyNotAdopted runs the full decoy-hijack scenario for a CR that targets
+		// domainName via some spec field. The hijack is independent of which field supplied
+		// the domain, so the same invariant is asserted for every input shape
+		assertDecoyNotAdopted := func(ctx context.Context, vpceName, domainName string, vpce *avov1alpha2.VpcEndpoint) {
+			cleanupLeftover(ctx, c, vpceName, ns)
+
+			By("pre-creating a sibling decoy private hosted zone on a non-cluster VPC")
+			decoyVpc := helper.createThrowawayVPC(ctx)
+			decoyZoneId := helper.createDecoyPrivateZone(ctx, domainName, decoyVpc)
+
+			By("creating the VpcEndpoint CR targeting the same domain")
+			Expect(c.Create(ctx, vpce)).To(Succeed())
+			DeferCleanup(func(ctx context.Context) {
+				deleteVpceAndWait(ctx, c, vpceName, ns)
+			})
+
+			By("waiting for the operator to resolve a hosted zone into status")
+			var resolvedZoneId, clusterVpc string
+			Eventually(func(g Gomega) {
+				obj := &avov1alpha2.VpcEndpoint{}
+				g.Expect(c.Get(ctx, client.ObjectKey{Name: vpceName, Namespace: ns}, obj)).To(Succeed())
+				g.Expect(obj.Status.HostedZoneId).ToNot(BeEmpty(), "status.hostedZoneId not set yet")
+				resolvedZoneId = obj.Status.HostedZoneId
+				clusterVpc = obj.Status.VPCId
+			}, vpceReadyTimeout, pollingInterval).Should(Succeed())
+
+			By("asserting the decoy zone was not adopted")
+			Expect(resolvedZoneId).ToNot(Equal(decoyZoneId), "operator adopted the sibling decoy zone (hijack)")
+
+			By("asserting the operator's zone is associated with the cluster VPC")
+			Expect(clusterVpc).ToNot(BeEmpty(), "status.vpcId should be set")
+			Expect(helper.zoneAssociatedWithVPC(ctx, resolvedZoneId, clusterVpc)).To(BeTrue(),
+				"operator's hosted zone %s is not associated with the cluster VPC %s", resolvedZoneId, clusterVpc)
+
+			By("asserting the decoy zone's records were left untouched")
+			decoyRecords := helper.zoneRecordNames(ctx, decoyZoneId)
+			Expect(decoyRecords).To(ContainElement(fmt.Sprintf("sentinel.%s.", domainName)),
+				"decoy sentinel record is missing (operator mutated the sibling zone)")
+			Expect(decoyRecords).ToNot(ContainElement(fmt.Sprintf("endpoint.%s.", domainName)),
+				"operator wrote its record into the sibling decoy zone (hijack)")
+		}
+
+		It("must not adopt a sibling's same-named zone (literal domainName)", func(ctx context.Context) {
+			const vpceName = "e2e-decoy-zone"
+			domainName := fmt.Sprintf("decoy-%d.e2e.avo.local", time.Now().UnixNano())
+			vpce := buildVpcEndpointWithDomain(vpceName, ns, testServiceName(helper.region, "decoy-zone"), domainName)
+			assertDecoyNotAdopted(ctx, vpceName, domainName, vpce)
+		})
+
+		// domainNameRef.name is a literal user-supplied string too (not a cluster-unique
+		// valueFrom ref), so it carries the same hijack risk. This scenario fails against a
+		// gate that keys on the spec field of origin and only passes once the fix gates on
+		// zone ownership rather than which field supplied the domain.
+		It("must not adopt a sibling's same-named zone (domainNameRef.name)", func(ctx context.Context) {
+			const vpceName = "e2e-decoy-zone-ref"
+			domainName := fmt.Sprintf("decoy-ref-%d.e2e.avo.local", time.Now().UnixNano())
+			vpce := buildVpcEndpointWithDomainNameRef(vpceName, ns, testServiceName(helper.region, "decoy-zone-ref"), domainName)
+			assertDecoyNotAdopted(ctx, vpceName, domainName, vpce)
+		})
+	})
 })

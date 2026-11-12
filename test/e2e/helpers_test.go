@@ -8,9 +8,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	route53types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -25,17 +30,20 @@ import (
 )
 
 const (
-	vpceReadyTimeout      = 10 * time.Minute
-	vpceDeletedTimeout    = 5 * time.Minute
-	crdEstablishTimeout   = 60 * time.Second
-	crdEstablishInterval  = 500 * time.Millisecond
-	negativeTestTimeout   = 30 * time.Second
-	pollingInterval       = 5 * time.Second
+	vpceReadyTimeout     = 10 * time.Minute
+	vpceDeletedTimeout   = 5 * time.Minute
+	crdEstablishTimeout  = 60 * time.Second
+	crdEstablishInterval = 500 * time.Millisecond
+	negativeTestTimeout  = 30 * time.Second
+	pollingInterval      = 5 * time.Second
 )
 
 // awsTestHelper provides AWS SDK access for verifying resources created by the operator.
 type awsTestHelper struct {
 	awsClient *aws_client.AWSClient
+	// ec2Client is a raw EC2 client for operations the operator's AWSClient doesn't expose
+	// (e.g. creating the throwaway VPC needed to host a decoy hosted zone).
+	ec2Client *ec2.Client
 	region    string
 }
 
@@ -49,6 +57,7 @@ func newAWSTestHelper(ctx context.Context, c client.Client) *awsTestHelper {
 
 	return &awsTestHelper{
 		awsClient: aws_client.NewAwsClient(cfg),
+		ec2Client: ec2.NewFromConfig(cfg),
 		region:    region,
 	}
 }
@@ -65,6 +74,8 @@ var testServiceNames = map[string]string{
 	"drift-vpce":       "kinesis-streams",
 	"tagging":          "ecr.api",
 	"cleanup-atomic":   "logs",
+	"decoy-zone":       "ec2messages",
+	"decoy-zone-ref":   "elasticloadbalancing",
 }
 
 // testServiceName returns an AWS interface endpoint service name for the given test key and region.
@@ -100,6 +111,143 @@ func buildVpcEndpoint(name, namespace, serviceName string) *avov1alpha2.VpcEndpo
 			},
 		},
 	}
+}
+
+// buildVpcEndpointWithDomain returns a VpcEndpoint CR that drives the literal
+// spec.customDns.route53PrivateHostedZone.domainName path, so the operator creates (or
+// resolves) a Route53 private hosted zone for domainName.
+func buildVpcEndpointWithDomain(name, namespace, serviceName, domainName string) *avov1alpha2.VpcEndpoint {
+	vpce := buildVpcEndpoint(name, namespace, serviceName)
+	vpce.Spec.CustomDns = avov1alpha2.CustomDns{
+		Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+			DomainName: domainName,
+			Record: avov1alpha2.Route53HostedZoneRecord{
+				Hostname: "endpoint",
+				ExternalNameService: avov1alpha2.ExternalNameService{
+					Name: name + "-svc",
+				},
+			},
+		},
+	}
+	return vpce
+}
+
+// buildVpcEndpointWithDomainNameRef returns a VpcEndpoint CR that drives the
+// spec.customDns.route53PrivateHostedZone.domainNameRef.name path. Per the API, .name is a
+// literal user-supplied string (api/v1alpha2/vpcendpoint_types.go: "Name specifies the base
+// domain name directly") — unlike the cluster-unique valueFrom.dnsRef /
+// valueFrom.hostedControlPlaneRef sources — so it carries the same shared-domain hijack risk
+// as the literal domainName field and must be guarded identically.
+func buildVpcEndpointWithDomainNameRef(name, namespace, serviceName, domainName string) *avov1alpha2.VpcEndpoint {
+	vpce := buildVpcEndpoint(name, namespace, serviceName)
+	vpce.Spec.CustomDns = avov1alpha2.CustomDns{
+		Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+			DomainNameRef: &avov1alpha2.DomainName{
+				Name: domainName,
+			},
+			Record: avov1alpha2.Route53HostedZoneRecord{
+				Hostname: "endpoint",
+				ExternalNameService: avov1alpha2.ExternalNameService{
+					Name: name + "-svc",
+				},
+			},
+		},
+	}
+	return vpce
+}
+
+// createThrowawayVPC creates a minimal VPC to host the decoy "sibling" hosted zone. A
+// Route53 private hosted zone must be associated with at least one VPC, and to represent a
+// sibling cluster the decoy must be associated with a VPC *other* than the cluster's. The
+// operator's AWSClient can't create VPCs, so a raw EC2 client is used. Cleanup is registered
+// via DeferCleanup (runs after the decoy zone is torn down, per LIFO ordering).
+func (h *awsTestHelper) createThrowawayVPC(ctx context.Context) string {
+	out, err := h.ec2Client.CreateVpc(ctx, &ec2.CreateVpcInput{
+		CidrBlock: aws.String("10.253.0.0/28"),
+		TagSpecifications: []ec2types.TagSpecification{
+			{
+				ResourceType: ec2types.ResourceTypeVpc,
+				Tags: []ec2types.Tag{
+					{Key: aws.String("Name"), Value: aws.String("avo-e2e-decoy-sibling")},
+				},
+			},
+		},
+	})
+	Expect(err).ToNot(HaveOccurred(), "failed to create throwaway VPC for decoy zone")
+	vpcId := *out.Vpc.VpcId
+	DeferCleanup(func(ctx context.Context) {
+		if _, err := h.ec2Client.DeleteVpc(ctx, &ec2.DeleteVpcInput{VpcId: aws.String(vpcId)}); err != nil {
+			GinkgoLogr.Error(err, "failed to delete throwaway VPC", "vpcId", vpcId)
+		}
+	})
+	return vpcId
+}
+
+// createDecoyPrivateZone creates a private hosted zone for domain associated only with the
+// provided (non-cluster) VPC and carrying no cluster ownership tag — a stand-in for a
+// sibling cluster's zone. It seeds a sentinel record so the test can prove the operator
+// never writes into it. Returns the bare hosted zone id. Cleanup via DeferCleanup.
+func (h *awsTestHelper) createDecoyPrivateZone(ctx context.Context, domain, vpcId string) string {
+	out, err := h.awsClient.CreateHostedZone(ctx, domain, vpcId, h.region)
+	Expect(err).ToNot(HaveOccurred(), "failed to create decoy hosted zone")
+	zoneId := strings.TrimPrefix(*out.HostedZone.Id, "/hostedzone/")
+
+	// Seed a sentinel record that only the decoy owns, so the test can assert the operator
+	// neither overwrote nor removed the decoy's records.
+	sentinel := &route53types.ResourceRecordSet{
+		Name:            aws.String(fmt.Sprintf("sentinel.%s.", domain)),
+		Type:            route53types.RRTypeCname,
+		TTL:             aws.Int64(300),
+		ResourceRecords: []route53types.ResourceRecord{{Value: aws.String("decoy-owner.invalid")}},
+	}
+	_, err = h.awsClient.UpsertResourceRecordSet(ctx, sentinel, zoneId)
+	Expect(err).ToNot(HaveOccurred(), "failed to seed decoy sentinel record")
+
+	DeferCleanup(func(ctx context.Context) {
+		h.cleanupHostedZone(ctx, zoneId)
+	})
+	return zoneId
+}
+
+// cleanupHostedZone best-effort deletes all non-SOA/NS records in a zone, then the zone.
+func (h *awsTestHelper) cleanupHostedZone(ctx context.Context, zoneId string) {
+	if resp, err := h.awsClient.ListResourceRecordSets(ctx, zoneId); err == nil && resp != nil {
+		for i := range resp.ResourceRecordSets {
+			rr := resp.ResourceRecordSets[i]
+			if rr.Type == route53types.RRTypeNs || rr.Type == route53types.RRTypeSoa {
+				continue
+			}
+			if _, err := h.awsClient.DeleteResourceRecordSet(ctx, &rr, zoneId); err != nil {
+				GinkgoLogr.Error(err, "failed to delete record during decoy cleanup", "zoneId", zoneId, "record", *rr.Name)
+			}
+		}
+	}
+	if _, err := h.awsClient.DeleteHostedZone(ctx, zoneId); err != nil {
+		GinkgoLogr.Error(err, "failed to delete decoy hosted zone", "zoneId", zoneId)
+	}
+}
+
+// zoneAssociatedWithVPC reports whether the hosted zone is associated with vpcId.
+func (h *awsTestHelper) zoneAssociatedWithVPC(ctx context.Context, zoneId, vpcId string) bool {
+	resp, err := h.awsClient.GetHostedZone(ctx, zoneId)
+	Expect(err).ToNot(HaveOccurred(), "failed to GetHostedZone %s", zoneId)
+	for _, v := range resp.VPCs {
+		if v.VPCId != nil && *v.VPCId == vpcId {
+			return true
+		}
+	}
+	return false
+}
+
+// zoneRecordNames returns the record names present in a hosted zone.
+func (h *awsTestHelper) zoneRecordNames(ctx context.Context, zoneId string) []string {
+	resp, err := h.awsClient.ListResourceRecordSets(ctx, zoneId)
+	Expect(err).ToNot(HaveOccurred(), "failed to list records for zone %s", zoneId)
+	names := make([]string, 0, len(resp.ResourceRecordSets))
+	for _, rr := range resp.ResourceRecordSets {
+		names = append(names, *rr.Name)
+	}
+	return names
 }
 
 // waitForVpceReady polls the VpcEndpoint CR until AWSVpcEndpointCondition is True
