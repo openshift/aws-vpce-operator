@@ -885,18 +885,26 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		}
 
 		// Before creating, check if a zone with the same domain name already exists
-		// (from a previous cluster that wasn't cleaned up). ListHostedZonesByName
-		// finds zones regardless of VPC association, unlike ListHostedZonesByVPC.
+		// (an orphan left by a previous incarnation of this cluster that wasn't cleaned up).
+		// ListHostedZonesByName finds zones regardless of VPC association, unlike
+		// ListHostedZonesByVPC.
 		//
-		// This by-name reuse is only safe when the domain was derived from DomainNameRef
-		// (HCP HostedControlPlaneRef or DnsRef), which yields a cluster-unique domain that
-		// cannot collide across clusters in the same AWS account. For the literal
-		// spec...DomainName field, a shared service domain (e.g. FedRAMP/GovCloud
-		// PrivateLink endpoints) can legitimately exist once per cluster/VPC within a single
-		// account. Reusing one by name alone would hijack a sibling cluster's zone (and
-		// never associates this cluster's VPC, so the adopted zone wouldn't even be usable).
-		// In that case, skip reuse and fall through to create our own VPC-associated zone.
-		if resource.Spec.CustomDns.Route53PrivateHostedZone.DomainName == "" {
+		// This by-name reuse is only safe when the domain is guaranteed cluster-unique, i.e.
+		// resolved from a DomainNameRef.valueFrom source (dnsRef -> the cluster's DNS CR
+		// baseDomain, or hostedControlPlaneRef -> the hosted cluster's API base domain).
+		// Those cannot collide across clusters in one AWS account, so a same-named zone can
+		// only be this cluster's own orphan.
+		//
+		// A domain supplied as a literal string -- spec...DomainName OR
+		// spec...DomainNameRef.name (per the API, ".name specifies the base domain name
+		// directly") -- can be SHARED across clusters in a single account.
+		// Reusing one of those by name alone would
+		// hijack a sibling cluster's zone (and never associates this cluster's VPC, so the
+		// adopted zone wouldn't even be usable). In that case, skip reuse and fall through to
+		// create our own VPC-associated zone.
+		r53 := resource.Spec.CustomDns.Route53PrivateHostedZone
+		domainIsClusterUnique := r53.DomainNameRef != nil && r53.DomainNameRef.ValueFrom != nil
+		if domainIsClusterUnique {
 			existingZones, err := r.awsClient.ListHostedZonesByName(ctx, domainName)
 			if err != nil {
 				return fmt.Errorf("failed to check for existing hosted zones by name: %w", err)
