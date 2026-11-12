@@ -819,6 +819,13 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 	var (
 		domainName string
 		err        error
+		// domainResolvedFromValueFrom records that domainName was derived from a
+		// DomainNameRef.valueFrom source (dnsRef / hostedControlPlaneRef), which guarantees a
+		// cluster-unique domain. It is tied to the branch the resolution switch actually takes
+		// because the CRD permits valueFrom alongside a literal DomainName or DomainNameRef.name,
+		// and the switch prefers the literal. Only a genuinely valueFrom-derived domain is safe
+		// for by-name zone reuse.
+		domainResolvedFromValueFrom bool
 	)
 
 	switch {
@@ -839,6 +846,7 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.Name != "":
 			domainName = resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.Name
 		case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom != nil:
+			domainResolvedFromValueFrom = true
 			switch {
 			case resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.DnsRef != nil:
 				domainName, err = dnses.GetPrivateHostedZoneDomainName(ctx, r.Client, resource.Spec.CustomDns.Route53PrivateHostedZone.DomainNameRef.ValueFrom.DnsRef.Name)
@@ -890,21 +898,19 @@ func (r *VpcEndpointReconciler) findOrCreatePrivateHostedZone(ctx context.Contex
 		// ListHostedZonesByVPC.
 		//
 		// This by-name reuse is only safe when the domain is guaranteed cluster-unique, i.e.
-		// resolved from a DomainNameRef.valueFrom source (dnsRef -> the cluster's DNS CR
-		// baseDomain, or hostedControlPlaneRef -> the hosted cluster's API base domain).
+		// it was resolved from a DomainNameRef.valueFrom source (dnsRef -> the cluster's DNS
+		// CR baseDomain, or hostedControlPlaneRef -> the hosted cluster's API base domain).
 		// Those cannot collide across clusters in one AWS account, so a same-named zone can
 		// only be this cluster's own orphan.
 		//
 		// A domain supplied as a literal string -- spec...DomainName OR
-		// spec...DomainNameRef.name (per the API, ".name specifies the base domain name
-		// directly") -- can be SHARED across clusters in a single account.
-		// Reusing one of those by name alone would
-		// hijack a sibling cluster's zone (and never associates this cluster's VPC, so the
-		// adopted zone wouldn't even be usable). In that case, skip reuse and fall through to
-		// create our own VPC-associated zone.
-		r53 := resource.Spec.CustomDns.Route53PrivateHostedZone
-		domainIsClusterUnique := r53.DomainNameRef != nil && r53.DomainNameRef.ValueFrom != nil
-		if domainIsClusterUnique {
+		// spec...DomainNameRef.name can be SHARED across clusters in a single account. Reusing one of
+		// those by name alone would hijack a sibling cluster's zone (and never associates this
+		// cluster's VPC, so the adopted zone wouldn't even be usable).
+		//
+		// Gate on domainResolvedFromValueFrom -- the branch the resolution switch above
+		// actually took
+		if domainResolvedFromValueFrom {
 			existingZones, err := r.awsClient.ListHostedZonesByName(ctx, domainName)
 			if err != nil {
 				return fmt.Errorf("failed to check for existing hosted zones by name: %w", err)
