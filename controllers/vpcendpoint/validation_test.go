@@ -693,12 +693,12 @@ func TestValidateR53PrivateHostedZone_CallsTagsWhenConditionFalse(t *testing.T) 
 func TestFindOrCreatePrivateHostedZone_DomainName_DoesNotAdoptSibling(t *testing.T) {
 	resource := &avov1alpha2.VpcEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "mock-govcloud-cluster",
+			Name: "mock-shared-domain-cluster",
 		},
 		Spec: avov1alpha2.VpcEndpointSpec{
 			CustomDns: avov1alpha2.CustomDns{
 				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
-					DomainName: "goalert.shared.p1.openshiftusgov.com",
+					DomainName: "shared-service.example.com",
 				},
 			},
 		},
@@ -714,7 +714,7 @@ func TestFindOrCreatePrivateHostedZone_DomainName_DoesNotAdoptSibling(t *testing
 		ListByNameZones: []route53Types.HostedZone{
 			{
 				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
-				Name:   aws.String("goalert.shared.p1.openshiftusgov.com."),
+				Name:   aws.String("shared-service.example.com."),
 				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
 			},
 		},
@@ -730,7 +730,7 @@ func TestFindOrCreatePrivateHostedZone_DomainName_DoesNotAdoptSibling(t *testing
 		Recorder:  record.NewFakeRecorder(5),
 		clusterInfo: &clusterInfo{
 			clusterTag: aws_client.MockLegacyClusterTag,
-			region:     "us-gov-west-1",
+			region:     "us-east-1",
 		},
 	}
 
@@ -755,7 +755,7 @@ func TestFindOrCreatePrivateHostedZone_DomainNameRefName_DoesNotReuse(t *testing
 			CustomDns: avov1alpha2.CustomDns{
 				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
 					DomainNameRef: &avov1alpha2.DomainName{
-						Name: "goalert.shared.p1.openshiftusgov.com",
+						Name: "shared-service.example.com",
 					},
 				},
 			},
@@ -772,7 +772,7 @@ func TestFindOrCreatePrivateHostedZone_DomainNameRefName_DoesNotReuse(t *testing
 		ListByNameZones: []route53Types.HostedZone{
 			{
 				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
-				Name:   aws.String("goalert.shared.p1.openshiftusgov.com."),
+				Name:   aws.String("shared-service.example.com."),
 				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
 			},
 		},
@@ -788,7 +788,7 @@ func TestFindOrCreatePrivateHostedZone_DomainNameRefName_DoesNotReuse(t *testing
 		Recorder:  record.NewFakeRecorder(5),
 		clusterInfo: &clusterInfo{
 			clusterTag: aws_client.MockLegacyClusterTag,
-			region:     "us-gov-west-1",
+			region:     "us-east-1",
 		},
 	}
 
