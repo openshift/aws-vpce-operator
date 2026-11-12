@@ -20,7 +20,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	route53Types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/go-logr/logr/testr"
+	hyperv1beta1 "github.com/openshift/hypershift/api/hypershift/v1beta1"
+
 	avov1alpha2 "github.com/openshift/aws-vpce-operator/api/v1alpha2"
 	"github.com/openshift/aws-vpce-operator/pkg/aws_client"
 	"github.com/openshift/aws-vpce-operator/pkg/testutil"
@@ -681,15 +685,20 @@ func TestValidateR53PrivateHostedZone_CallsTagsWhenConditionFalse(t *testing.T) 
 	assert.Equal(t, metav1.ConditionTrue, tagsCond.Status, "AWSRoute53TagsCondition should be set to True after tag verification")
 }
 
-func TestFindOrCreatePrivateHostedZone_ReusesExistingZone(t *testing.T) {
+// TestFindOrCreatePrivateHostedZone_DomainName_DoesNotAdoptSibling verifies that
+// when the domain comes from the literal spec...DomainName field
+// (a shared service domain), and the cluster's VPC has no associated zone, AVO must NOT
+// adopt a same-named zone owned by a sibling cluster. It must create its own
+// VPC-associated zone instead.
+func TestFindOrCreatePrivateHostedZone_DomainName_DoesNotAdoptSibling(t *testing.T) {
 	resource := &avov1alpha2.VpcEndpoint{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: "mock-duplicate-zone",
+			Name: "mock-shared-domain-cluster",
 		},
 		Spec: avov1alpha2.VpcEndpointSpec{
 			CustomDns: avov1alpha2.CustomDns{
 				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
-					DomainName: "example.com",
+					DomainName: "shared-service.example.com",
 				},
 			},
 		},
@@ -698,26 +707,310 @@ func TestFindOrCreatePrivateHostedZone_ReusesExistingZone(t *testing.T) {
 		},
 	}
 
+	r53 := &aws_client.MockedRoute53{
+		// Our VPC has no associated zone for this domain...
+		ListByVPCZones: []route53Types.HostedZoneSummary{},
+		// ...but a sibling cluster's same-named private zone exists in the account.
+		ListByNameZones: []route53Types.HostedZone{
+			{
+				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
+				Name:   aws.String("shared-service.example.com."),
+				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
+			},
+		},
+	}
+	awsClient := aws_client.NewAwsClientWithServiceClients(&aws_client.MockedEC2{}, r53)
+
 	client := testutil.NewTestMock(t, resource).Client
 	r := &VpcEndpointReconciler{
 		Client:    client,
 		Scheme:    client.Scheme(),
-		awsClient: aws_client.NewMockedAwsClient(),
+		awsClient: awsClient,
 		log:       testr.New(t),
+		Recorder:  record.NewFakeRecorder(5),
 		clusterInfo: &clusterInfo{
 			clusterTag: aws_client.MockLegacyClusterTag,
 			region:     "us-east-1",
 		},
 	}
 
-	// The mock's ListHostedZonesByVPC returns no matching zone (different name),
-	// but ListHostedZonesByName returns an existing zone with the same domain.
-	// The function should detect the duplicate and reuse instead of creating.
 	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
 	assert.NoError(t, err)
+	assert.True(t, r53.CreateHostedZoneCalled, "must create its own zone rather than adopt the sibling's")
+	assert.NotEqual(t, "SIBLINGZONE123", resource.Status.HostedZoneId, "must not adopt a sibling cluster's zone by name")
+	assert.Equal(t, aws_client.MockCreatedHostedZoneId, resource.Status.HostedZoneId)
+}
 
-	// The zone ID should be set from the existing zone found by ListHostedZonesByName
-	assert.NotEmpty(t, resource.Status.HostedZoneId, "HostedZoneId should be set from existing zone")
+// TestFindOrCreatePrivateHostedZone_DomainNameRefName_DoesNotReuse verifies that a domain
+// supplied via spec...DomainNameRef.name is treated as a literal string (the API: ".name
+// specifies the base domain name directly"), NOT as a cluster-unique value. Like the literal
+// DomainName field it can be shared across clusters, so a same-named sibling zone must NOT be
+// adopted by name; AVO must create its own VPC-associated zone instead.
+func TestFindOrCreatePrivateHostedZone_DomainNameRefName_DoesNotReuse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-static-ref-cluster",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainNameRef: &avov1alpha2.DomainName{
+						Name: "shared-service.example.com",
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCId: aws_client.MockVpcId,
+		},
+	}
+
+	r53 := &aws_client.MockedRoute53{
+		// Our VPC has no associated zone for this domain...
+		ListByVPCZones: []route53Types.HostedZoneSummary{},
+		// ...but a sibling cluster's same-named private zone exists in the account.
+		ListByNameZones: []route53Types.HostedZone{
+			{
+				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
+				Name:   aws.String("shared-service.example.com."),
+				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
+			},
+		},
+	}
+	awsClient := aws_client.NewAwsClientWithServiceClients(&aws_client.MockedEC2{}, r53)
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: awsClient,
+		log:       testr.New(t),
+		Recorder:  record.NewFakeRecorder(5),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.True(t, r53.CreateHostedZoneCalled, "DomainNameRef.name is a literal; must create its own zone, not adopt the sibling's")
+	assert.NotEqual(t, "SIBLINGZONE123", resource.Status.HostedZoneId, "must not adopt a sibling cluster's zone by name")
+	assert.Equal(t, aws_client.MockCreatedHostedZoneId, resource.Status.HostedZoneId)
+}
+
+// TestFindOrCreatePrivateHostedZone_DomainNameRefValueFrom_ReusesByName verifies that
+// by-name reuse IS preserved for domains resolved from a cluster-unique
+// valueFrom source. Here the HCP path (hostedControlPlaneRef) derives the domain from the
+// hosted cluster's own HostedControlPlane, so a same-named zone can only be this cluster's
+// own orphan and is safely reused instead of duplicated.
+func TestFindOrCreatePrivateHostedZone_DomainNameRefValueFrom_ReusesByName(t *testing.T) {
+	const hcpNamespace = "ocm-test-hcp"
+
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mock-hcp-cluster",
+			Namespace: hcpNamespace,
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainNameRef: &avov1alpha2.DomainName{
+						ValueFrom: &avov1alpha2.DomainNameSource{
+							HostedControlPlaneRef: &avov1alpha2.HostedControlPlaneSelector{
+								NamespaceFieldRef: &avov1alpha2.ObjectFieldSelector{
+									FieldPath: ".metadata.namespace",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCId: aws_client.MockVpcId,
+		},
+	}
+
+	// The HostedControlPlane whose APIServer route hostname yields the cluster-unique domain
+	// "my-hcp.abcd.hypershift.local" (api. prefix stripped).
+	hcp := &hyperv1beta1.HostedControlPlane{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "my-hcp",
+			Namespace: hcpNamespace,
+		},
+		Spec: hyperv1beta1.HostedControlPlaneSpec{
+			Services: []hyperv1beta1.ServicePublishingStrategyMapping{
+				{
+					Service: hyperv1beta1.APIServer,
+					ServicePublishingStrategy: hyperv1beta1.ServicePublishingStrategy{
+						Type:  hyperv1beta1.Route,
+						Route: &hyperv1beta1.RoutePublishingStrategy{Hostname: "api.my-hcp.abcd.hypershift.local"},
+					},
+				},
+			},
+		},
+	}
+
+	r53 := &aws_client.MockedRoute53{
+		// Not associated with our VPC...
+		ListByVPCZones: []route53Types.HostedZoneSummary{},
+		// ...but this same cluster's own (cluster-unique) orphan zone exists by name.
+		ListByNameZones: []route53Types.HostedZone{
+			{
+				Id:     aws.String("/hostedzone/OWNZONE123"),
+				Name:   aws.String("my-hcp.abcd.hypershift.local."),
+				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
+			},
+		},
+	}
+	awsClient := aws_client.NewAwsClientWithServiceClients(&aws_client.MockedEC2{}, r53)
+
+	client := testutil.NewTestMock(t, resource, hcp).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: awsClient,
+		log:       testr.New(t),
+		Recorder:  record.NewFakeRecorder(5),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.False(t, r53.CreateHostedZoneCalled, "valueFrom-derived (cluster-unique) domain should reuse the existing same-named zone, not create a duplicate")
+	assert.Equal(t, "OWNZONE123", resource.Status.HostedZoneId, "should reuse the existing cluster-unique zone found by name")
+}
+
+// TestFindOrCreatePrivateHostedZone_LiteralDomainNameWithValueFrom_DoesNotReuse guards the
+// mixed-field case: the CRD permits a literal spec...DomainName to be set alongside a
+// DomainNameRef.valueFrom source. The resolution switch prefers the literal, so the resolved
+// domain is the (shareable) literal and by-name reuse must NOT fire merely because valueFrom
+// is also present. Otherwise a sibling's same-named zone could be hijacked.
+func TestFindOrCreatePrivateHostedZone_LiteralDomainNameWithValueFrom_DoesNotReuse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-mixed-literal-domainname",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					// Literal (shareable) domain wins in the resolution switch...
+					DomainName: "shared-service.example.com",
+					// ...even though a valueFrom source is also present on the spec.
+					DomainNameRef: &avov1alpha2.DomainName{
+						ValueFrom: &avov1alpha2.DomainNameSource{
+							HostedControlPlaneRef: &avov1alpha2.HostedControlPlaneSelector{
+								NamespaceFieldRef: &avov1alpha2.ObjectFieldSelector{
+									FieldPath: ".metadata.namespace",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCId: aws_client.MockVpcId,
+		},
+	}
+
+	r53 := &aws_client.MockedRoute53{
+		ListByVPCZones: []route53Types.HostedZoneSummary{},
+		ListByNameZones: []route53Types.HostedZone{
+			{
+				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
+				Name:   aws.String("shared-service.example.com."),
+				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
+			},
+		},
+	}
+	awsClient := aws_client.NewAwsClientWithServiceClients(&aws_client.MockedEC2{}, r53)
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: awsClient,
+		log:       testr.New(t),
+		Recorder:  record.NewFakeRecorder(5),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.True(t, r53.CreateHostedZoneCalled, "literal DomainName wins; presence of valueFrom must not enable by-name reuse")
+	assert.NotEqual(t, "SIBLINGZONE123", resource.Status.HostedZoneId, "must not adopt a sibling cluster's zone in the mixed-field case")
+	assert.Equal(t, aws_client.MockCreatedHostedZoneId, resource.Status.HostedZoneId)
+}
+
+// TestFindOrCreatePrivateHostedZone_DomainNameRefNameWithValueFrom_DoesNotReuse guards the
+// other mixed-field case: DomainNameRef.name (a literal) set alongside DomainNameRef.valueFrom.
+// The inner switch prefers .name, so the resolved domain is the shareable literal and by-name
+// reuse must NOT fire despite valueFrom being present.
+func TestFindOrCreatePrivateHostedZone_DomainNameRefNameWithValueFrom_DoesNotReuse(t *testing.T) {
+	resource := &avov1alpha2.VpcEndpoint{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "mock-mixed-ref-name",
+		},
+		Spec: avov1alpha2.VpcEndpointSpec{
+			CustomDns: avov1alpha2.CustomDns{
+				Route53PrivateHostedZone: avov1alpha2.Route53PrivateHostedZone{
+					DomainNameRef: &avov1alpha2.DomainName{
+						// Literal .name wins over valueFrom in the inner switch.
+						Name: "shared-service.example.com",
+						ValueFrom: &avov1alpha2.DomainNameSource{
+							HostedControlPlaneRef: &avov1alpha2.HostedControlPlaneSelector{
+								NamespaceFieldRef: &avov1alpha2.ObjectFieldSelector{
+									FieldPath: ".metadata.namespace",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		Status: avov1alpha2.VpcEndpointStatus{
+			VPCId: aws_client.MockVpcId,
+		},
+	}
+
+	r53 := &aws_client.MockedRoute53{
+		ListByVPCZones: []route53Types.HostedZoneSummary{},
+		ListByNameZones: []route53Types.HostedZone{
+			{
+				Id:     aws.String("/hostedzone/SIBLINGZONE123"),
+				Name:   aws.String("shared-service.example.com."),
+				Config: &route53Types.HostedZoneConfig{PrivateZone: true},
+			},
+		},
+	}
+	awsClient := aws_client.NewAwsClientWithServiceClients(&aws_client.MockedEC2{}, r53)
+
+	client := testutil.NewTestMock(t, resource).Client
+	r := &VpcEndpointReconciler{
+		Client:    client,
+		Scheme:    client.Scheme(),
+		awsClient: awsClient,
+		log:       testr.New(t),
+		Recorder:  record.NewFakeRecorder(5),
+		clusterInfo: &clusterInfo{
+			clusterTag: aws_client.MockLegacyClusterTag,
+			region:     "us-east-1",
+		},
+	}
+
+	err := r.findOrCreatePrivateHostedZone(context.TODO(), resource)
+	assert.NoError(t, err)
+	assert.True(t, r53.CreateHostedZoneCalled, "DomainNameRef.name wins; presence of valueFrom must not enable by-name reuse")
+	assert.NotEqual(t, "SIBLINGZONE123", resource.Status.HostedZoneId, "must not adopt a sibling cluster's zone in the mixed-field case")
+	assert.Equal(t, aws_client.MockCreatedHostedZoneId, resource.Status.HostedZoneId)
 }
 
 //func TestVPCEndpointReconciler_validateR53HostedZoneRecord(t *testing.T) {
