@@ -13,19 +13,19 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.19.0
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/api v0.0.0-20240228005710-4511c790cc60
-	github.com/openshift/aws-account-operator/api v0.0.0-20230314175018-7eaa90bb6606
+	github.com/openshift/api 79858fbdabf8
+	github.com/openshift/aws-account-operator/api v0.0.0-20261109195649-799e25ce7d93
 	github.com/openshift/hypershift/api v0.0.0-20240401231845-020ef717e96f
-	github.com/prometheus/client_golang v1.20.4
+	github.com/prometheus/client_golang v1.25.0
 	github.com/stretchr/testify v1.11.1
 	go.uber.org/zap v1.27.0
-	golang.org/x/time v0.5.0
-	k8s.io/api v0.29.5
-	k8s.io/apiextensions-apiserver v0.29.5
-	k8s.io/apimachinery v0.29.5
-	k8s.io/client-go v0.29.5
-	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00
-	sigs.k8s.io/controller-runtime v0.17.2
+	golang.org/x/time v0.16.0
+	k8s.io/api v0.37.2
+	k8s.io/apiextensions-apiserver v0.37.2
+	k8s.io/apimachinery v0.37.2
+	k8s.io/client-go v0.37.2
+	k8s.io/kube-openapi v0.0.0-20261104182252-5bee61fc5225
+	sigs.k8s.io/controller-runtime v0.25.2
 )
 
 require (
