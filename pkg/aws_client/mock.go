@@ -34,6 +34,7 @@ const (
 	MockCapiClusterTag         = "sigs.k8s.io/cluster-api-provider-aws/cluster/mock-54321"
 	MockClusterNameTag         = "mock-12345-vpce"
 	MockHostedZoneId           = "R53HZ12345"
+	MockCreatedHostedZoneId    = "R53HZCREATED"
 	MockPublicSubnetId         = "subnet-pub12345"
 	MockPrivateSubnetId        = "subnet-priv12345"
 	MockSecurityGroupId        = "sg-12345"
@@ -58,6 +59,19 @@ type MockedEC2 struct {
 
 type MockedRoute53 struct {
 	AvoRoute53API
+
+	// The following optional fields let tests drive specific findOrCreatePrivateHostedZone
+	// code paths. When a slice override is nil, the corresponding List* method falls back to
+	// its default hardcoded response, so existing tests that use a zero-value MockedRoute53
+	// are unaffected.
+
+	// ListByVPCZones overrides ListHostedZonesByVPC when non-nil. Use an empty (non-nil)
+	// slice to simulate a VPC that has no associated hosted zone.
+	ListByVPCZones []route53Types.HostedZoneSummary
+	// ListByNameZones overrides ListHostedZonesByName when non-nil.
+	ListByNameZones []route53Types.HostedZone
+	// CreateHostedZoneCalled records whether CreateHostedZone was invoked.
+	CreateHostedZoneCalled bool
 }
 
 // MockedThrottlingRoute53 returns Throttling errors for ChangeResourceRecordSets
@@ -415,6 +429,13 @@ func (m *MockedRoute53) GetHostedZone(ctx context.Context, params *route53.GetHo
 }
 
 func (m *MockedRoute53) ListHostedZonesByName(ctx context.Context, params *route53.ListHostedZonesByNameInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByNameOutput, error) {
+	if m.ListByNameZones != nil {
+		return &route53.ListHostedZonesByNameOutput{
+			DNSName:     params.DNSName,
+			HostedZones: m.ListByNameZones,
+		}, nil
+	}
+
 	return &route53.ListHostedZonesByNameOutput{
 		DNSName:      params.DNSName,
 		HostedZoneId: aws.String(MockHostedZoneId),
@@ -423,6 +444,16 @@ func (m *MockedRoute53) ListHostedZonesByName(ctx context.Context, params *route
 				Id:   aws.String(MockHostedZoneId),
 				Name: params.DNSName,
 			},
+		},
+	}, nil
+}
+
+func (m *MockedRoute53) CreateHostedZone(ctx context.Context, params *route53.CreateHostedZoneInput, optFns ...func(*route53.Options)) (*route53.CreateHostedZoneOutput, error) {
+	m.CreateHostedZoneCalled = true
+	return &route53.CreateHostedZoneOutput{
+		HostedZone: &route53Types.HostedZone{
+			Id:   aws.String("/hostedzone/" + MockCreatedHostedZoneId),
+			Name: params.Name,
 		},
 	}, nil
 }
@@ -446,6 +477,12 @@ func (m *MockedRoute53) ListTagsForResource(ctx context.Context, params *route53
 }
 
 func (m *MockedRoute53) ListHostedZonesByVPC(ctx context.Context, params *route53.ListHostedZonesByVPCInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesByVPCOutput, error) {
+	if m.ListByVPCZones != nil {
+		return &route53.ListHostedZonesByVPCOutput{
+			HostedZoneSummaries: m.ListByVPCZones,
+		}, nil
+	}
+
 	return &route53.ListHostedZonesByVPCOutput{
 		HostedZoneSummaries: []route53Types.HostedZoneSummary{
 			{
